@@ -5,6 +5,15 @@ on:
     tags:
       - 'v*.*.*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (ex: v0.1.5). Leave empty if triggered by tag push.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  packages: write
 
 jobs:
   build:
@@ -23,15 +32,29 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pyinstaller
 
+      - name: Show workspace
+        run: |
+          echo "Working directory:"
+          pwd
+          echo "List files:"
+          ls -la
+        shell: bash
+
       - name: Build exe with PyInstaller
         run: |
-          python -m PyInstaller --onefile --name gestion_dettes main.py
+          python -m PyInstaller --onefile --name gestion_dettes --clean --log-level=DEBUG main.py
+
+      - name: Fail if no tag provided
+        if: ${{ (github.event.inputs.tag || github.ref_name) == '' }}
+        run: |
+          echo "No tag provided and not a tag push. Aborting."
+          exit 1
 
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -48,7 +71,7 @@ jobs:
         run: |
           $exe = "dist\gestion_dettes.exe"
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash
-          $tag = "${{ github.ref_name }}"
+          $tag = "${{ github.event.inputs.tag || github.ref_name }}"
           $repo = "${{ github.repository }}"
           $json = @{
             version = $tag
@@ -63,5 +86,3 @@ jobs:
           git push origin HEAD:main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-          
