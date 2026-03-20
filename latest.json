@@ -1,6 +1,5 @@
-{
-  "version": "0.1.1",
-  "url": "https://github.com/TON_USER/gestion_dettes/releases/download/v0.1.1/gestion_dettes-0.1.1.exe",
-  "sha256": "REPLACE_WITH_SHA256_HEX_64_CHARS",
-  "notes": "Corrections mineures et ajout du check update."
+﻿{
+  "version": "v0.1.32",
+  "asset_url": "https://github.com/ljames68110-hub/gestion_dettes/releases/download/v0.1.32/gestion_dettes.exe",
+  "sha256": "514af2b43615300f117ee22a13109c423a4a57e944c6a34d6111d883f41617f1"
 }
