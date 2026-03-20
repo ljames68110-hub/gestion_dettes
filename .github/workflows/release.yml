@@ -43,29 +43,35 @@ jobs:
       - name: Prepare asset name
         id: asset
         run: |
-          # Nom public de l'asset (adapter si tu veux .exe)
-          ASSET_NAME="gestion_dettes"
-          echo "asset_name=${ASSET_NAME}" >> $GITHUB_OUTPUT
+          # Public asset name used in release and latest.json
+          echo "asset_name=gestion_dettes.exe" >> $GITHUB_OUTPUT
+
+      - name: Ensure asset has .exe name
+        run: |
+          if [ -f dist/gestion_dettes ]; then
+            mv dist/gestion_dettes dist/gestion_dettes.exe
+          fi
 
       - name: Create or update release and upload asset
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          files: dist/gestion_dettes
+          artifacts: dist/gestion_dettes.exe
           draft: false
           prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compute SHA256
         id: sha
         run: |
-          sha256sum dist/gestion_dettes | awk '{print $1}' > sha256.txt
+          sha256sum dist/gestion_dettes.exe | awk '{print $1}' > sha256.txt
           echo "sha=$(cat sha256.txt)" >> $GITHUB_OUTPUT
 
       - name: Generate latest.json
         id: gen_latest
         run: |
-          asset_name="gestion_dettes.exe"
+          asset_name="${{ steps.asset.outputs.asset_name }}"
           asset_url="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${asset_name}"
           sha=$(cat sha256.txt)
           cat > latest.json <<EOF
@@ -87,4 +93,4 @@ jobs:
           title: "Update latest.json for ${{ github.ref_name }}"
           body: "Automated update of latest.json"
           base: main
-          files: latest.json
+          path: latest.json
