@@ -1,0 +1,5 @@
+﻿# Build and dist
+dist/
+build/
+*.spec
+__pycache__/
