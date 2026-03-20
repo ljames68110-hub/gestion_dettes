@@ -1,4 +1,4 @@
-name: Build and Release
+﻿name: Build and Release
 
 on:
   push:
@@ -70,12 +70,12 @@ jobs:
       - name: Generate latest.json
         run: |
           cat > latest.json <<EOF
-{
-  "version": "${{ github.ref_name }}",
-  "asset_url": "${{ steps.upload_asset.outputs.browser_download_url }}",
-  "sha256": "${{ steps.sha.outputs.sha }}"
-}
-EOF
+          {
+            "version": "${{ github.ref_name }}",
+            "asset_url": "${{ steps.upload_asset.outputs.browser_download_url }}",
+            "sha256": "${{ steps.sha.outputs.sha }}"
+          }
+          EOF
           cat latest.json
 
       - name: Commit latest.json to a PR
