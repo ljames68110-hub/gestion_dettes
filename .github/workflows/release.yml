@@ -13,6 +13,7 @@ permissions:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -39,27 +40,21 @@ jobs:
           pyinstaller --onefile main.py --name gestion_dettes
           ls -la dist
 
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare asset name
+        id: asset
+        run: |
+          # Nom public de l'asset (adapter si tu veux .exe)
+          ASSET_NAME="gestion_dettes"
+          echo "asset_name=${ASSET_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Create or update release and upload asset
+        uses: ncipollo/release-action@v1
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: ${{ github.ref_name }}
+          tag: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          files: dist/gestion_dettes
           draft: false
           prerelease: false
-
-      - name: Upload executable
-        id: upload_asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: dist/gestion_dettes
-          asset_name: gestion_dettes.exe
-          asset_content_type: application/octet-stream
 
       - name: Compute SHA256
         id: sha
@@ -68,22 +63,28 @@ jobs:
           echo "sha=$(cat sha256.txt)" >> $GITHUB_OUTPUT
 
       - name: Generate latest.json
+        id: gen_latest
         run: |
+          asset_name="${{ steps.asset.outputs.asset_name }}"
+          asset_url="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${asset_name}"
+          sha=$(cat sha256.txt)
           cat > latest.json <<EOF
-          {
-            "version": "${{ github.ref_name }}",
-            "asset_url": "${{ steps.upload_asset.outputs.browser_download_url }}",
-            "sha256": "${{ steps.sha.outputs.sha }}"
-          }
-          EOF
+{
+  "version": "${{ github.ref_name }}",
+  "asset_url": "${asset_url}",
+  "sha256": "${sha}"
+}
+EOF
           cat latest.json
 
       - name: Commit latest.json to a PR
+        if: success()
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Update latest.json for ${{ github.ref_name }}"
+          commit-message: "ci: update latest.json for ${{ github.ref_name }}"
           branch: "update-latest-${{ github.ref_name }}"
           title: "Update latest.json for ${{ github.ref_name }}"
           body: "Automated update of latest.json"
           base: main
+          files: latest.json
