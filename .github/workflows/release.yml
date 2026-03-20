@@ -1,4 +1,4 @@
-name: Build and Release
+name: Build and Release (with PR for latest.json)
 
 on:
   push:
@@ -13,15 +13,12 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
   packages: write
 
 jobs:
   build:
     runs-on: windows-latest
-    env:
-      # Si tu as créé un PAT et l'as ajouté comme secret RELEASE_PAT,
-      # l'action softprops utilisera ce token. Sinon GITHUB_TOKEN sera utilisé.
-      RELEASE_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,7 +59,6 @@ jobs:
         id: tag_check
         run: |
           echo "event_name=${GITHUB_EVENT_NAME}" >> $GITHUB_OUTPUT
-          # If workflow_dispatch and input tag provided, use it; otherwise use ref_name
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tag }}" ]; then
             echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
           else
@@ -77,22 +73,13 @@ jobs:
           exit 1
         shell: bash
 
-      - name: Debug tag and git remote
-        run: |
-          echo "Event name: $GITHUB_EVENT_NAME"
-          echo "Ref name: $GITHUB_REF_NAME"
-          echo "Inputs tag: ${{ github.event.inputs.tag }}"
-          git ls-remote --tags origin
-        shell: bash
-
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.tag_check.outputs.tag }}
         env:
-          # Utilise RELEASE_TOKEN (soit RELEASE_PAT si défini, soit GITHUB_TOKEN)
-          GITHUB_TOKEN: ${{ env.RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload exe to release
         if: ${{ steps.create_release.outputs.upload_url != '' }}
@@ -103,7 +90,8 @@ jobs:
           asset_name: gestion_dettes.exe
           asset_content_type: application/octet-stream
 
-      - name: Compute sha256 and update latest.json
+      - name: Compute sha256 and commit latest.json
+        id: update_latest
         shell: pwsh
         run: |
           $exe = "dist\gestion_dettes.exe"
@@ -124,13 +112,24 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add latest.json
           git commit -m "Update latest.json for $tag" || Write-Host "No changes to commit"
-          # Si la branche main est protégée et empêche les pushes par actions, cette commande peut échouer.
-          git push origin HEAD:main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-
+      - name: Create Pull Request with updated latest.json
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Update latest.json for ${{ steps.tag_check.outputs.tag }}"
+          branch: update/latest-${{ github.run_id }}
+          title: "Update latest.json for ${{ steps.tag_check.outputs.tag }}"
+          body: "Automated update of latest.json after release ${{ steps.tag_check.outputs.tag }}."
+          base: main
+          labels: automated, ci
+          reviewers: ''
+          assignees: ''
 
       - name: Final status
-        run: echo "Build and release job finished."
+        run: echo "Build, release and PR creation finished."
         shell: bash
+
+        
