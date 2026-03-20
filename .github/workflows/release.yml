@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -25,7 +26,6 @@ jobs:
       - name: Build exe with PyInstaller
         run: |
           python -m PyInstaller --onefile --name gestion_dettes main.py
-        working-directory: .
 
       - name: Create GitHub Release
         id: create_release
