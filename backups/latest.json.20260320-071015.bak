@@ -1,0 +1,34 @@
+{
+    "version":  "1.0.0",
+    "generatedAt":  "2026-03-20T07:07:26.0474501+01:00",
+    "build":  "build-1234",
+    "commit":  "abcdef123456",
+    "url":  "https://exemple.local/artefact",
+    "recentFiles":  [
+                        {
+                            "name":  "latest.log",
+                            "modified":  "2026-03-20T07:03:50.3259594+01:00",
+                            "size":  113
+                        },
+                        {
+                            "name":  "latest.json",
+                            "modified":  "2026-03-20T07:03:50.3198843+01:00",
+                            "size":  1149
+                        },
+                        {
+                            "name":  "dettes.db",
+                            "modified":  "2026-03-20T06:55:29.3185607+01:00",
+                            "size":  28672
+                        },
+                        {
+                            "name":  "main.py",
+                            "modified":  "2026-03-20T06:54:55.8637531+01:00",
+                            "size":  8997
+                        },
+                        {
+                            "name":  "db.py",
+                            "modified":  "2026-03-20T06:54:47.4565782+01:00",
+                            "size":  4459
+                        }
+                    ]
+}
