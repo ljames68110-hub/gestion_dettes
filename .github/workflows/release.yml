@@ -1,135 +1,56 @@
-name: Build and Release (with PR for latest.json)
+- name: Create GitHub Release via REST API
+  id: create_release
+  shell: bash
+  env:
+    REPO: ${{ github.repository }}
+    TAG: ${{ steps.tag_check.outputs.tag }}
+    TOKEN: ${{ secrets.RELEASE_PAT }}
+  run: |
+    echo "Creating release for $REPO tag $TAG"
+    body=$(printf '{"tag_name":"%s","name":"%s","draft":false,"prerelease":false}' "$TAG" "$TAG")
+    resp=$(curl -s -X POST -H "Authorization: token $TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/releases" -d "$body")
+    echo "$resp" > /tmp/release_resp.json
+    upload_url=$(python - <<'PY'
+import json,sys
+try:
+    r=json.load(open('/tmp/release_resp.json'))
+    print(r.get('upload_url') or '')
+except Exception:
+    sys.exit(1)
+PY
+)
+    if [ -z "$upload_url" ]; then
+      echo "Release creation failed. Response:"
+      cat /tmp/release_resp.json
+      exit 1
+    fi
+    # strip the template part {?name,label}
+    upload_url=${upload_url%\{*}
+    echo "upload_url=$upload_url" >> $GITHUB_OUTPUT
 
-on:
-  push:
-    tags:
-      - 'v*.*.*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to release (ex: v0.1.8). Leave empty if triggered by tag push.'
-        required: false
-        default: ''
+- name: Upload exe to release via curl
+  if: ${{ steps.create_release.outputs.upload_url != '' }}
+  shell: bash
+  env:
+    TOKEN: ${{ secrets.RELEASE_PAT }}
+  run: |
+    url="${{ steps.create_release.outputs.upload_url }}"
+    file="dist/gestion_dettes.exe"
+    if [ ! -f "$file" ]; then
+      echo "File not found: $file"
+      exit 1
+    fi
+    echo "Uploading $file to $url"
+    resp=$(curl -s -X POST -H "Authorization: token $TOKEN" -H "Content-Type: application/octet-stream" --data-binary @"$file" "$url?name=gestion_dettes.exe")
+    echo "$resp" > /tmp/upload_resp.json
+    # quick check for success
+    if grep -q '"state":' /tmp/upload_resp.json || grep -q '"browser_download_url"' /tmp/upload_resp.json; then
+      echo "Upload response:"
+      cat /tmp/upload_resp.json
+    else
+      echo "Upload failed. Response:"
+      cat /tmp/upload_resp.json
+      exit 1
+    fi
 
-permissions:
-  contents: write
-  pull-requests: write
-  packages: write
-
-jobs:
-  build:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install requirements if present
-        run: |
-          python -m pip install --upgrade pip
-          if (Test-Path requirements.txt) { python -m pip install -r requirements.txt } else { echo "No requirements.txt found" }
-        shell: pwsh
-
-      - name: Show workspace for debug
-        run: |
-          echo "Working directory:"
-          pwd
-          echo "List files:"
-          ls -la
-          echo "Python version:"
-          python --version
-          echo "Pip list:"
-          python -m pip list
-        shell: bash
-
-      - name: Build exe with PyInstaller
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install pyinstaller
-          python -m PyInstaller --onefile --name gestion_dettes --clean --log-level=DEBUG main.py
-        shell: bash
-
-      - name: Determine tag to use
-        id: tag_check
-        run: |
-          echo "event_name=${GITHUB_EVENT_NAME}" >> $GITHUB_OUTPUT
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tag }}" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
-          fi
-        shell: bash
-
-      - name: Fail if no tag
-        if: ${{ steps.tag_check.outputs.tag == '' }}
-        run: |
-          echo "No tag provided and not a tag push. Aborting."
-          exit 1
-        shell: bash
-
-      - name: Create GitHub Release
-        id: create_release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.tag_check.outputs.tag }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload exe to release
-        if: ${{ steps.create_release.outputs.upload_url != '' }}
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: dist/gestion_dettes.exe
-          asset_name: gestion_dettes.exe
-          asset_content_type: application/octet-stream
-
-      - name: Compute sha256 and commit latest.json
-        id: update_latest
-        shell: pwsh
-        run: |
-          $exe = "dist\gestion_dettes.exe"
-          if (-Not (Test-Path $exe)) {
-            Write-Error "Executable not found at $exe"
-            exit 1
-          }
-          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash
-          $tag = "${{ steps.tag_check.outputs.tag }}"
-          $repo = "${{ github.repository }}"
-          $json = @{
-            version = $tag
-            url = "https://github.com/$repo/releases/download/$tag/gestion_dettes.exe"
-            sha256 = $hash
-          } | ConvertTo-Json
-          $json | Out-File -Encoding utf8 latest.json
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add latest.json
-          git commit -m "Update latest.json for $tag" || Write-Host "No changes to commit"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create Pull Request with updated latest.json
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Update latest.json for ${{ steps.tag_check.outputs.tag }}"
-          branch: update/latest-${{ github.run_id }}
-          title: "Update latest.json for ${{ steps.tag_check.outputs.tag }}"
-          body: "Automated update of latest.json after release ${{ steps.tag_check.outputs.tag }}."
-          base: main
-          labels: automated, ci
-          reviewers: ''
-          assignees: ''
-
-      - name: Final status
-        run: echo "Build, release and PR creation finished."
-        shell: bash
-
-        
+    
