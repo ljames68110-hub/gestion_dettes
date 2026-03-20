@@ -6,12 +6,13 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
 
     steps:
       - name: Checkout repository
@@ -25,17 +26,14 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install system deps
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq zip unzip
-
-      - name: Install Python deps
-        run: |
+          sudo apt-get install -y jq
           python -m pip install --upgrade pip
           pip install pyinstaller
 
-      - name: Build exe with PyInstaller
+      - name: Build executable
         run: |
           rm -rf dist build
           pyinstaller --onefile main.py --name gestion_dettes
@@ -44,74 +42,48 @@ jobs:
       - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name }}
           release_name: ${{ github.ref_name }}
           draft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload exe to release
+      - name: Upload executable
         id: upload_asset
         uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: dist/gestion_dettes
           asset_name: gestion_dettes.exe
           asset_content_type: application/octet-stream
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute sha256 of exe
-        id: compute_sha
+      - name: Compute SHA256
+        id: sha
         run: |
-          ASSET_PATH="dist/gestion_dettes"
-          if [ -f "$ASSET_PATH" ]; then
-            sha256sum "$ASSET_PATH" | awk '{print $1}' > dist/gestion_dettes.sha256
-            echo "sha256=$(cat dist/gestion_dettes.sha256)" >> $GITHUB_OUTPUT
-          else
-            echo "sha256=" >> $GITHUB_OUTPUT
-          fi
+          sha256sum dist/gestion_dettes | awk '{print $1}' > sha256.txt
+          echo "sha=$(cat sha256.txt)" >> $GITHUB_OUTPUT
 
-      - name: Prepare latest.json
-        id: prepare_latest
+      - name: Generate latest.json
         run: |
-          TAG="${{ github.ref_name }}"
-          RELEASE_URL="${{ steps.create_release.outputs.html_url }}"
-          ASSET_URL="${{ steps.upload_asset.outputs.browser_download_url }}"
-          SHA256="${{ steps.compute_sha.outputs.sha256 }}"
-          published_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           cat > latest.json <<EOF
 {
-  "version": "${TAG}",
-  "tag": "${TAG}",
-  "release_url": "${RELEASE_URL}",
-  "asset_url": "${ASSET_URL}",
-  "sha256": "${SHA256}",
-  "published_at": "${published_at}"
+  "version": "${{ github.ref_name }}",
+  "asset_url": "${{ steps.upload_asset.outputs.browser_download_url }}",
+  "sha256": "${{ steps.sha.outputs.sha }}"
 }
 EOF
           cat latest.json
 
-      - name: Commit and push latest.json branch
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          BRANCH="update-latest-${{ github.ref_name }}"
-          git checkout -b "$BRANCH"
-          git add latest.json
-          git commit -m "chore: update latest.json for ${{ github.ref_name }}" || echo "No changes to commit"
-          git push --set-upstream origin "$BRANCH"
-
-      - name: Create Pull Request for latest.json
+      - name: Commit latest.json to a PR
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: update latest.json for ${{ github.ref_name }}"
+          commit-message: "Update latest.json for ${{ github.ref_name }}"
           branch: "update-latest-${{ github.ref_name }}"
           title: "Update latest.json for ${{ github.ref_name }}"
-          body: |
-            This PR updates latest.json with the new release information.
+          body: "Automated update of latest.json"
           base: main
-          labels: automated, release
