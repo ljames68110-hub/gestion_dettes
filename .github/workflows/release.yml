@@ -1,56 +1,179 @@
-- name: Create GitHub Release via REST API
-  id: create_release
-  shell: bash
-  env:
-    REPO: ${{ github.repository }}
-    TAG: ${{ steps.tag_check.outputs.tag }}
-    TOKEN: ${{ secrets.RELEASE_PAT }}
-  run: |
-    echo "Creating release for $REPO tag $TAG"
-    body=$(printf '{"tag_name":"%s","name":"%s","draft":false,"prerelease":false}' "$TAG" "$TAG")
-    resp=$(curl -s -X POST -H "Authorization: token $TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/releases" -d "$body")
-    echo "$resp" > /tmp/release_resp.json
-    upload_url=$(python - <<'PY'
-import json,sys
-try:
-    r=json.load(open('/tmp/release_resp.json'))
-    print(r.get('upload_url') or '')
-except Exception:
-    sys.exit(1)
-PY
-)
-    if [ -z "$upload_url" ]; then
-      echo "Release creation failed. Response:"
-      cat /tmp/release_resp.json
-      exit 1
-    fi
-    # strip the template part {?name,label}
-    upload_url=${upload_url%\{*}
-    echo "upload_url=$upload_url" >> $GITHUB_OUTPUT
+name: Build and Release
 
-- name: Upload exe to release via curl
-  if: ${{ steps.create_release.outputs.upload_url != '' }}
-  shell: bash
-  env:
-    TOKEN: ${{ secrets.RELEASE_PAT }}
-  run: |
-    url="${{ steps.create_release.outputs.upload_url }}"
-    file="dist/gestion_dettes.exe"
-    if [ ! -f "$file" ]; then
-      echo "File not found: $file"
-      exit 1
-    fi
-    echo "Uploading $file to $url"
-    resp=$(curl -s -X POST -H "Authorization: token $TOKEN" -H "Content-Type: application/octet-stream" --data-binary @"$file" "$url?name=gestion_dettes.exe")
-    echo "$resp" > /tmp/upload_resp.json
-    # quick check for success
-    if grep -q '"state":' /tmp/upload_resp.json || grep -q '"browser_download_url"' /tmp/upload_resp.json; then
-      echo "Upload response:"
-      cat /tmp/upload_resp.json
-    else
-      echo "Upload failed. Response:"
-      cat /tmp/upload_resp.json
-      exit 1
-    fi
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
-    
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+
+    env:
+      REPO: ${{ github.repository }}
+      TOKEN: ${{ secrets.RELEASE_PAT }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq zip unzip
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+
+      - name: Build exe with PyInstaller
+        run: |
+          rm -rf dist build
+          pyinstaller --onefile main.py --name gestion_dettes
+          ls -la dist
+
+      - name: Create GitHub Release via REST API
+        id: create_release
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          TOKEN: ${{ secrets.RELEASE_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "Creating release for $REPO tag $TAG"
+          body=$(printf '{"tag_name":"%s","name":"%s","draft":false,"prerelease":false}' "$TAG" "$TAG")
+          resp=$(curl -s -X POST \
+            -H "Authorization: token $TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/$REPO/releases \
+            -d "$body")
+          echo "$resp" > /tmp/release_resp.json
+          # extract upload_url using jq
+          upload_url=$(jq -r '.upload_url // empty' /tmp/release_resp.json || true)
+          release_html_url=$(jq -r '.html_url // empty' /tmp/release_resp.json || true)
+          if [ -z "$upload_url" ]; then
+            echo "Release creation failed. Response:"
+            cat /tmp/release_resp.json
+            exit 1
+          fi
+          # strip the template part {?name,label}
+          upload_url=${upload_url%%\{*}
+          echo "upload_url=$upload_url" >> $GITHUB_OUTPUT
+          echo "release_html_url=$release_html_url" >> $GITHUB_OUTPUT
+
+      - name: Upload exe to release via curl
+        if: ${{ steps.create_release.outputs.upload_url != '' }}
+        id: upload_asset
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.RELEASE_PAT }}
+        run: |
+          UPLOAD_URL="${{ steps.create_release.outputs.upload_url }}"
+          ASSET_PATH="dist/gestion_dettes"
+          if [ ! -f "$ASSET_PATH" ]; then
+            echo "Asset not found: $ASSET_PATH"
+            ls -la dist || true
+            exit 1
+          fi
+          ASSET_NAME="gestion_dettes.exe"
+          echo "Uploading $ASSET_PATH as $ASSET_NAME to $UPLOAD_URL"
+          curl --fail -X POST \
+            -H "Authorization: token $TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @"$ASSET_PATH" \
+            "$UPLOAD_URL?name=$ASSET_NAME" -o /tmp/upload_resp.json
+          cat /tmp/upload_resp.json
+          asset_download_url=$(jq -r '.browser_download_url // empty' /tmp/upload_resp.json || true)
+          echo "asset_download_url=$asset_download_url" >> $GITHUB_OUTPUT
+
+      - name: Compute sha256 of exe
+        id: compute_sha
+        shell: bash
+        run: |
+          ASSET_PATH="dist/gestion_dettes"
+          if [ -f "$ASSET_PATH" ]; then
+            sha256sum "$ASSET_PATH" | awk '{print $1}' > dist/gestion_dettes.sha256
+            echo "SHA256: $(cat dist/gestion_dettes.sha256)"
+            echo "sha256=$(cat dist/gestion_dettes.sha256)" >> $GITHUB_OUTPUT
+          else
+            echo "No asset to checksum"
+            echo "sha256=" >> $GITHUB_OUTPUT
+
+      - name: Prepare latest.json
+        id: prepare_latest
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+          RELEASE_URL="${{ steps.create_release.outputs.release_html_url }}"
+          ASSET_URL="${{ steps.upload_asset.outputs.asset_download_url }}"
+          SHA256="${{ steps.compute_sha.outputs.sha256 }}"
+          # Build latest.json with fields: version, tag, release_url, asset_url, sha256, published_at
+          published_at=$(jq -r '.published_at // empty' /tmp/release_resp.json || date -u +"%Y-%m-%dT%H:%M:%SZ")
+          cat > latest.json <<EOF
+{
+  "version": "${TAG}",
+  "tag": "${TAG}",
+  "release_url": "${RELEASE_URL}",
+  "asset_url": "${ASSET_URL}",
+  "sha256": "${SHA256}",
+  "published_at": "${published_at}"
+}
+EOF
+          echo "latest.json content:"
+          cat latest.json
+          # place latest.json at repo root (overwrite)
+          mv latest.json latest.json
+
+      - name: Create branch, commit latest.json and push
+        id: commit_pr
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          # configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BRANCH="update-latest-${TAG}"
+          # create branch from current default branch
+          git checkout -b "$BRANCH"
+          git add latest.json
+          git commit -m "chore: update latest.json for ${TAG}" || echo "No changes to commit"
+          git push --set-upstream origin "$BRANCH"
+
+      - name: Create Pull Request for latest.json
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update latest.json for ${{ github.ref_name }}"
+          branch: "update-latest-${{ github.ref_name }}"
+          title: "Update latest.json for ${{ github.ref_name }}"
+          body: |
+            This PR updates `latest.json` with the new release information for `${{ github.ref_name }}`.
+          base: main
+          labels: automated, release
+
+      - name: Show artifacts and responses (debug)
+        if: always()
+        run: |
+          echo "Dist contents:"
+          ls -la dist || true
+          echo "Release response:"
+          cat /tmp/release_resp.json || true
+          echo "Upload response:"
+          cat /tmp/upload_resp.json || true
+          echo "latest.json:"
+          cat latest.json || true
