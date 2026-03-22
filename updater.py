@@ -14,7 +14,7 @@ import subprocess
 import urllib.request
 from pathlib import Path
 
-LATEST_URL = "https://raw.githubusercontent.com/ljames68110-hub/gestion_dettes/refs/heads/main/latest.json"
+LATEST_URL = "https://raw.githubusercontent.com/ljames68110-hub/gestion_dettes/main/latest.json"
 CHECK_INTERVAL = 3600  # vérifier toutes les heures
 
 def get_current_exe():
@@ -34,14 +34,29 @@ def get_current_version():
             pass
     return {"version": "0.0.0"}
 
+REPO = "ljames68110-hub/gestion_dettes"
+API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
+
 def fetch_remote_info():
-    """Récupère latest.json depuis GitHub."""
+    """Recupere la derniere release depuis l API GitHub."""
     try:
-        req = urllib.request.Request(LATEST_URL, headers={"User-Agent": "DebtManager-Updater/1.0"})
+        req = urllib.request.Request(
+            API_URL,
+            headers={"User-Agent": "GestionPerso-Updater/1.0", "Accept": "application/vnd.github+json"}
+        )
         with urllib.request.urlopen(req, timeout=10) as r:
-            return json.loads(r.read().decode())
+            data = json.loads(r.read().decode())
+        # Trouver l exe dans les assets
+        asset = next((a for a in data.get("assets", []) if a["name"] == "gestion_dettes.exe"), None)
+        if not asset:
+            return None
+        return {
+            "version":   data["tag_name"],
+            "asset_url": asset["browser_download_url"],
+            "sha256":    None  # pas de sha dans l API GitHub directement
+        }
     except Exception as e:
-        print(f"[Updater] Impossible de vérifier les mises à jour : {e}")
+        print(f"[Updater] Impossible de verifier : {e}")
         return None
 
 def sha256_file(path):
@@ -89,13 +104,22 @@ def apply_update_windows(new_exe, current_exe):
     """
     bat = tempfile.NamedTemporaryFile(suffix=".bat", delete=False, mode="w", encoding="utf-8")
     bat.write(f"""@echo off
-timeout /t 2 /nobreak >nul
+timeout /t 4 /nobreak >nul
 move /y "{new_exe}" "{current_exe}"
-start "" "{current_exe}"
+if exist "{current_exe}" (
+    start "" "{current_exe}"
+) else (
+    echo ERREUR : remplacement echoue
+    pause
+)
 del "%~f0"
 """)
     bat.close()
-    subprocess.Popen(["cmd", "/c", bat.name], creationflags=subprocess.CREATE_NO_WINDOW)
+    subprocess.Popen(
+        ["cmd", "/c", bat.name],
+        creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+        close_fds=True
+    )
 
 def check_and_update(on_update_available=None, on_progress=None, on_done=None):
     """
@@ -145,8 +169,10 @@ def check_and_update(on_update_available=None, on_progress=None, on_done=None):
 
         apply_update_windows(tmp.name, str(current_exe))
 
-        if on_done: on_done(True, f"Mise à jour {remote['version']} prête — redémarrage...")
-        # Quitter l'app pour laisser le .bat prendre la main
+        if on_done: on_done(True, f"Mise a jour {remote['version']} prete - redemarrage...")
+        # Attendre 2 secondes pour que Flask reponde OK au frontend
+        import time
+        time.sleep(2)
         os._exit(0)
 
     except Exception as e:
