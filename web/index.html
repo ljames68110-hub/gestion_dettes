@@ -583,16 +583,20 @@ function showApp() {
 }
 
 async function lockApp() {
-  await api('/api/auth/logout', {method:'POST'});
+  // Logout silencieux — on verrouille même si la requete echoue
+  try { await api('/api/auth/logout', {method:'POST'}); } catch(e) {}
   TOKEN = '';
   pin = ''; updateDots();
   document.getElementById('lockError').textContent = '';
+  // Reinitialiser les dots
+  for (let i = 0; i < 4; i++) document.getElementById('d'+i).classList.remove('filled');
+  // Cacher l'app et afficher l'ecran de verrouillage
   document.getElementById('app').style.display = 'none';
   const ls = document.getElementById('lockScreen');
   ls.style.display = 'flex';
   ls.style.opacity = '0';
   ls.style.transition = 'opacity .3s';
-  setTimeout(() => ls.style.opacity = '1', 10);
+  setTimeout(() => { ls.style.opacity = '1'; }, 10);
 }
 
 // ══════════════════════════════════════════════════════

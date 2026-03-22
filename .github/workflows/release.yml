@@ -1,86 +1,102 @@
-﻿# main.py — Point d'entrée Gestion Dettes Premium
-"""
-Lance le serveur Flask en arrière-plan puis ouvre l'interface dans le navigateur.
-Compatible PyInstaller --onefile (gère le dossier temporaire _MEIPASS).
-"""
+﻿name: Build and Release
 
-import sys
-import os
-import time
-import threading
-import webbrowser
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
-# ── Résolution des chemins PyInstaller ───────────────────────────────────────
+permissions:
+  contents: write
+  pull-requests: write
 
-def base_dir() -> str:
-    """Retourne le dossier de base : _MEIPASS si frozen, sinon __file__."""
-    if getattr(sys, "frozen", False):
-        return sys._MEIPASS          # type: ignore[attr-defined]
-    return os.path.dirname(os.path.abspath(__file__))
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    timeout-minutes: 30
 
-# Le dossier de travail (là où dettes.db sera créé) reste à côté de l'exe.
-APP_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) \
-          else os.path.dirname(os.path.abspath(__file__))
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
 
-os.chdir(APP_DIR)                    # dettes.db se crée ici
-sys.path.insert(0, base_dir())       # db.py, api.py, updater.py trouvés dans _MEIPASS
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-# ── Imports après résolution du path ─────────────────────────────────────────
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flask flask-cors pyinstaller
 
-import db
-import api
+      - name: Verify web folder
+        shell: pwsh
+        run: |
+          if (!(Test-Path "web\index.html")) { Write-Error "web/index.html not found!"; exit 1 }
+          Write-Host "web/index.html found OK"
 
-HOST = "127.0.0.1"
-PORT = 5000
-URL  = f"http://{HOST}:{PORT}"
+      - name: Build exe
+        shell: pwsh
+        run: |
+          pyinstaller `
+            --onefile `
+            --name gestion_dettes `
+            --add-data "web;web" `
+            --add-data "db.py;." `
+            --add-data "api.py;." `
+            --add-data "updater.py;." `
+            --hidden-import flask `
+            --hidden-import flask_cors `
+            --hidden-import sqlite3 `
+            --hidden-import hashlib `
+            --hidden-import secrets `
+            --hidden-import csv `
+            --collect-all flask `
+            --collect-all flask_cors `
+            main.py
+          dir dist
 
-# ── Démarrage ────────────────────────────────────────────────────────────────
+      - name: Compute SHA256
+        id: sha
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash dist\gestion_dettes.exe -Algorithm SHA256).Hash.ToLower()
+          $hash | Out-File -FilePath sha256.txt -Encoding ascii -NoNewline
+          echo "sha=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-def _wait_then_open():
-    """Attend que Flask soit prêt, puis ouvre le navigateur."""
-    import urllib.request
-    for _ in range(20):          # 10 secondes max
-        time.sleep(0.5)
-        try:
-            urllib.request.urlopen(f"{URL}/api/auth/status", timeout=1)
-            break
-        except Exception:
-            continue
-    webbrowser.open(URL)
+      - name: Create Release and upload exe
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          artifacts: dist/gestion_dettes.exe
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-def main():
-    print(f"[DebtManager] Démarrage sur {URL}")
-    print(f"[DebtManager] Base de données : {os.path.join(APP_DIR, 'dettes.db')}")
+      - name: Prepare latest.json
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $repo = "${{ github.repository }}"
+          $url = "https://github.com/$repo/releases/download/$tag/gestion_dettes.exe"
+          $sha = (Get-Content sha256.txt -Raw).Trim()
+          $obj = [ordered]@{ version=$tag; asset_url=$url; sha256=$sha }
+          $obj | ConvertTo-Json | Out-File -FilePath latest.json -Encoding utf8
+          Get-Content latest.json
 
-    db.init_db()
-
-    # Vérifier que l'interface web est accessible
-    web_path = os.path.join(base_dir(), "web", "index.html")
-    if not os.path.exists(web_path):
-        print(f"[DebtManager] ERREUR : interface web introuvable à {web_path}")
-    else:
-        print(f"[DebtManager] Interface web trouvée : {web_path}")
-
-    # Initialiser le PIN par défaut "1234" si aucun PIN n'existe encore
-    if not db.has_pin():
-        db.set_pin("1234")
-        print("[DebtManager] PIN par défaut créé : 1234")
-
-    # Ouvrir le navigateur dans un thread séparé
-    t = threading.Thread(target=_wait_then_open, daemon=True)
-    t.start()
-
-    # Vérifier mise à jour en arrière-plan (silencieux)
-    try:
-        import updater
-        def _notify(remote):
-            print(f"[DebtManager] Mise à jour disponible : {remote.get('version')}")
-        updater.check_in_background(notify_flask_fn=_notify)
-    except ImportError:
-        pass
-
-    # Lancer Flask (bloquant)
-    api.start(host=HOST, port=PORT, debug=False)
-
-if __name__ == "__main__":
-    main()
+      - name: Commit latest.json via PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "ci: update latest.json for ${{ github.ref_name }}"
+          branch: "update-latest-${{ github.ref_name }}"
+          title: "Update latest.json for ${{ github.ref_name }}"
+          body: "Automated update of latest.json"
+          base: main
+          add-paths: |
+            latest.json
+            sha256.txt
