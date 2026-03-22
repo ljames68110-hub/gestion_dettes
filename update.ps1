@@ -1,4 +1,4 @@
-# update.ps1 - Mise a jour Gestion Perso
+﻿# update.ps1 - Mise a jour Gestion Perso
 param(
     [string]$Repo = "ljames68110-hub/gestion_dettes",
     [string]$InstallDir = $PSScriptRoot
@@ -34,7 +34,7 @@ try {
 }
 
 $newVersion = $release.tag_name
-$asset      = $release.assets | Where-Object { $_.name -eq "gestion_dettes.exe" } | Select-Object -First 1
+$asset      = $release.assets | Where-Object { $_.name -eq "GestionPerso.exe" } | Select-Object -First 1
 if (-not $asset) {
     Write-Host "ERREUR : Exe introuvable dans la release $newVersion"
     exit 1
@@ -75,7 +75,7 @@ if ($confirm -notmatch "^[Oo]") {
 # 4. Fermer l app si elle tourne
 Write-Host ""
 Write-Host "Fermeture de l application..."
-$procs = Get-Process -Name "gestion_dettes" -ErrorAction SilentlyContinue
+$procs = Get-Process -Name "GestionPerso" -ErrorAction SilentlyContinue
 if ($procs) {
     $procs | Stop-Process -Force
     Start-Sleep -Seconds 2
@@ -83,7 +83,7 @@ if ($procs) {
 }
 
 # 5. Telecharger le nouvel exe
-$exeName  = "gestion_dettes.exe"
+$exeName  = "GestionPerso.exe"
 $tmpExe   = Join-Path $InstallDir "gestion_dettes_new.exe"
 $finalExe = Join-Path $InstallDir $exeName
 

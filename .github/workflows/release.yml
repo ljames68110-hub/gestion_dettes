@@ -47,7 +47,7 @@ jobs:
         run: |
           pyinstaller `
             --onefile `
-            --name gestion_dettes `
+            --name GestionPerso `
             --add-data "web;web" `
             --add-data "db.py;." `
             --add-data "api.py;." `
@@ -77,7 +77,7 @@ jobs:
         id: sha
         shell: pwsh
         run: |
-          $hash = (Get-FileHash dist\gestion_dettes.exe -Algorithm SHA256).Hash.ToLower()
+          $hash = (Get-FileHash dist\GestionPerso.exe -Algorithm SHA256).Hash.ToLower()
           $hash | Out-File -FilePath sha256.txt -Encoding ascii -NoNewline
           echo "sha=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Write-Host "SHA256: $hash"
@@ -87,8 +87,42 @@ jobs:
         with:
           tag: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          artifacts: dist/gestion_dettes.exe
+          artifacts: dist/GestionPerso.exe
           artifactContentType: application/octet-stream
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          Write-Host "Inno Setup OK"
+
+      - name: Update version in installer script
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart('v')
+          (Get-Content installer.iss) -replace '#define AppVersion "1.0"', "#define AppVersion `"$tag`"" |
+            Set-Content installer.iss
+          Write-Host "Version set to $tag"
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path installer_output
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+          Write-Host "Installer built:"
+          dir installer_output
+
+      - name: Upload installer to release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          artifacts: installer_output/GestionPerso_Setup.exe
+          artifactContentType: application/octet-stream
+          allowUpdates: true
           draft: false
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -98,7 +132,7 @@ jobs:
         run: |
           $tag  = "${{ github.ref_name }}"
           $repo = "${{ github.repository }}"
-          $url  = "https://github.com/$repo/releases/download/$tag/gestion_dettes.exe"
+          $url  = "https://github.com/$repo/releases/download/$tag/GestionPerso.exe"
           $sha  = (Get-Content sha256.txt -Raw).Trim()
           $obj  = [ordered]@{ version=$tag; asset_url=$url; sha256=$sha }
           $obj | ConvertTo-Json | Out-File -FilePath latest.json -Encoding utf8

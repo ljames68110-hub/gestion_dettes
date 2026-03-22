@@ -47,7 +47,7 @@ def fetch_remote_info():
         with urllib.request.urlopen(req, timeout=10) as r:
             data = json.loads(r.read().decode())
         # Trouver l exe dans les assets
-        asset = next((a for a in data.get("assets", []) if a["name"] == "gestion_dettes.exe"), None)
+        asset = next((a for a in data.get("assets", []) if a["name"] == "GestionPerso.exe"), None)
         if not asset:
             return None
         return {
