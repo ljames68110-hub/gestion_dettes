@@ -110,7 +110,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main
+          git stash
           git checkout main
+          git stash pop
           git add latest.json sha256.txt
           git diff --cached --quiet && echo "No changes" || git commit -m "ci: update latest.json for ${{ github.ref_name }} [skip ci]"
           git push origin main
