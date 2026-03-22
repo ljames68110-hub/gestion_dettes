@@ -189,12 +189,7 @@ select option{background:var(--bg3)}
     <h1>DebtManager</h1>
     <p>Premium · Sécurisé</p>
   </div>
-  <div class="pin-dots" id="pinDots">
-    <div class="pin-dot" id="d0"></div>
-    <div class="pin-dot" id="d1"></div>
-    <div class="pin-dot" id="d2"></div>
-    <div class="pin-dot" id="d3"></div>
-  </div>
+  <div class="pin-dots" id="pinDots"></div>
   <div class="lock-error" id="lockError"></div>
   <div class="pin-grid">
     <button class="pin-btn" onclick="pinInput('1')">1</button>
@@ -210,7 +205,7 @@ select option{background:var(--bg3)}
     <button class="pin-btn" onclick="pinInput('0')">0</button>
     <button class="pin-btn del" onclick="pinClear()">✕</button>
   </div>
-  <p class="lock-hint">Code PIN par défaut : <strong style="color:var(--gold2)">1234</strong></p>
+  <p class="lock-hint" id="lockHint">Code PIN par défaut : <strong style="color:var(--gold2)">1234</strong></p>
 </div>
 
 <!-- ══ APP ══ -->
@@ -270,6 +265,25 @@ select option{background:var(--bg3)}
             <div style="position:relative;height:200px"><canvas id="chartDoughnut"></canvas></div>
           </div>
         </div>
+        <!-- MENSUALISATION -->
+        <div class="table-wrap">
+          <div class="table-header">
+            <span>Mensualisation — dette par client</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="mensualMois" onchange="renderMensual()" style="padding:6px 10px;font-size:12px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-family:'Outfit',sans-serif"></select>
+              <select id="mensualVue" onchange="renderMensual()" style="padding:6px 10px;font-size:12px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-family:'Outfit',sans-serif">
+                <option value="dette">Dette du mois</option>
+                <option value="cumul">Cumul total</option>
+              </select>
+            </div>
+          </div>
+          <table>
+            <thead><tr><th>Client</th><th style="text-align:right">Vendu (débits)</th><th style="text-align:right">Remboursé (crédits)</th><th style="text-align:right">Dette du mois</th><th style="text-align:right">Cumul total</th></tr></thead>
+            <tbody id="mensualTbody"><tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr></tbody>
+          </table>
+          <div id="mensualTotal" style="padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:13px"></div>
+        </div>
+
         <div class="table-wrap">
           <div class="table-header"><span>Dernières transactions</span></div>
           <table><thead><tr><th>Date</th><th>Client</th><th>Motif</th><th>Mode</th><th>Type</th><th style="text-align:right">Net</th></tr></thead>
@@ -440,6 +454,20 @@ select option{background:var(--bg3)}
   </div>
 </div>
 
+<!-- MODAL DETAIL TRANSACTION -->
+<div class="modal-bg" id="modalDetail" onclick="if(event.target===this)closeModal('detail')">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-title" id="detailTitle">Détail transaction</div>
+    <div class="modal-sub" id="detailSub"></div>
+    <div id="detailBody" style="margin:16px 0"></div>
+    <div class="modal-actions">
+      <button class="btn danger" id="detailBtnDelete" onclick="deleteTransFromDetail()">🗑 Supprimer</button>
+      <button class="btn-cancel" onclick="closeModal('detail')">Fermer</button>
+      <button class="btn-save" id="detailBtnEdit" onclick="editTransFromDetail()">✏ Modifier</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL MODIFIER TRANSACTION -->
 <div class="modal-bg" id="modalEditTrans" onclick="if(event.target===this)closeModal('editTrans')">
   <div class="modal">
@@ -532,12 +560,36 @@ function notify(msg, type = 'success') {
 // PIN LOCK
 // ══════════════════════════════════════════════════════
 let pin = '';
+let PIN_LENGTH = 4; // longueur détectée dynamiquement depuis le serveur
+
+// Détecter la longueur du code depuis /api/auth/status
+async function detectPinLength() {
+  try {
+    const res = await fetch('/api/auth/pin-length');
+    const j = await res.json();
+    if (j.ok && j.data.length) {
+      PIN_LENGTH = j.data.length;
+    }
+  } catch(e) {}
+  buildDots();
+}
+
+function buildDots() {
+  const container = document.getElementById('pinDots');
+  container.innerHTML = '';
+  for (let i = 0; i < PIN_LENGTH; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'pin-dot';
+    dot.id = 'd' + i;
+    container.appendChild(dot);
+  }
+}
 
 function pinInput(v) {
-  if (pin.length >= 4) return;
+  if (pin.length >= PIN_LENGTH) return;
   pin += v;
   updateDots();
-  if (pin.length === 4) setTimeout(checkPin, 120);
+  if (pin.length === PIN_LENGTH) setTimeout(checkPin, 120);
 }
 function pinDel() { pin = pin.slice(0,-1); updateDots(); }
 function pinClear() { pin = ''; updateDots(); document.getElementById('lockError').textContent = ''; }
@@ -551,13 +603,16 @@ document.addEventListener('keydown', function(e) {
     pinDel();
   } else if (e.key === 'Escape') {
     pinClear();
-  } else if (e.key === 'Enter' && pin.length === 4) {
+  } else if (e.key === 'Enter' && pin.length === PIN_LENGTH) {
     checkPin();
   }
 });
+
 function updateDots() {
-  for (let i = 0; i < 4; i++)
-    document.getElementById('d'+i).classList.toggle('filled', i < pin.length);
+  for (let i = 0; i < PIN_LENGTH; i++) {
+    const d = document.getElementById('d'+i);
+    if (d) d.classList.toggle('filled', i < pin.length);
+  }
 }
 
 async function checkPin() {
@@ -580,6 +635,14 @@ function showApp() {
     document.getElementById('app').style.display = 'flex';
     loadDashboard();
   }, 400);
+}
+
+// Appelé depuis Paramètres après changement de PIN — met à jour les cases
+async function refreshPinLength() {
+  await detectPinLength();
+  pin = '';
+  updateDots();
+  notify('Code mis à jour — ' + PIN_LENGTH + ' caractères', 'success');
 }
 
 async function lockApp() {
@@ -666,6 +729,9 @@ async function loadDashboard() {
     });
   }
 
+  // Mensualisation
+  loadMensual();
+
   // Tableau recent
   const tres = await api('/api/transactions?limit=10');
   if (!tres || !tres.ok) return;
@@ -677,6 +743,8 @@ async function loadDashboard() {
   }
   tres.data.forEach(t => {
     const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    tr.onclick = (e) => { if (!e.target.closest('button')) openTransDetail(t.id); };
     tr.innerHTML = `
       <td>${fmtDate(t.date)}</td>
       <td style="color:var(--text)">${t.client_nom || '—'}</td>
@@ -774,6 +842,8 @@ function renderTransactions() {
   }
   list.forEach(t => {
     const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    tr.onclick = (e) => { if (!e.target.closest('button')) openTransDetail(t.id); };
     tr.innerHTML = `
       <td>${fmtDate(t.date)}</td>
       <td style="color:var(--text)">${t.client_nom || '—'}</td>
@@ -882,7 +952,7 @@ function openModal(type) {
   }
 }
 function closeModal(type) {
-  const ids = {trans:'modalTrans', client:'modalClient', editTrans:'modalEditTrans', update:'modalUpdate'};
+  const ids = {trans:'modalTrans', client:'modalClient', editTrans:'modalEditTrans', update:'modalUpdate', detail:'modalDetail'};
   const el = document.getElementById(ids[type] || type);
   if (el) el.classList.remove('open');
 }
@@ -987,8 +1057,9 @@ function doSearch(v) {
 (async () => {
   const res = await fetch('/api/auth/status').then(r => r.json()).catch(() => null);
   if (!res) {
-    document.getElementById('lockScreen').querySelector('.lock-hint').textContent = 'Serveur non disponible';
+    document.getElementById('lockHint').textContent = 'Serveur non disponible';
   }
+  await detectPinLength();
 })();
 
 // ══════════════════════════════════════════════════════
@@ -1216,9 +1287,9 @@ async function changePin() {
   if (newPin !== confirm)            { notify('Les PIN ne correspondent pas', 'error'); return; }
   const res = await api('/api/auth/change-pin', {method:'POST', body:{old_pin: await getCurrentPin(), new_pin: newPin}});
   if (res && res.ok) {
-    notify('Code PIN mis à jour');
     document.getElementById('newPin').value = '';
     document.getElementById('confirmPin').value = '';
+    await refreshPinLength();
   } else { notify(res?.error || 'Erreur', 'error'); }
 }
 
@@ -1229,15 +1300,189 @@ async function changePassword() {
   if (newPwd !== confirm)            { notify('Les mots de passe ne correspondent pas', 'error'); return; }
   const res = await api('/api/auth/change-pin', {method:'POST', body:{old_pin: await getCurrentPin(), new_pin: newPwd}});
   if (res && res.ok) {
-    notify('Mot de passe mis à jour');
     document.getElementById('newPwd').value = '';
     document.getElementById('confirmPwd').value = '';
+    await refreshPinLength();
   } else { notify(res?.error || 'Erreur', 'error'); }
 }
 
 // Demander le PIN actuel via une petite boîte
 async function getCurrentPin() {
   return prompt('Entrez votre code actuel pour confirmer :') || '';
+}
+
+
+// ══════════════════════════════════════════════════════
+// DETAIL TRANSACTION
+// ══════════════════════════════════════════════════════
+let currentDetailId = null;
+
+function openTransDetail(id) {
+  id = parseInt(id);
+  const t = allTransactions.find(x => x.id === id);
+  if (!t) return;
+  currentDetailId = id;
+
+  document.getElementById('detailTitle').textContent = t.motif + ' — ' + fmtDate(t.date);
+  document.getElementById('detailSub').innerHTML =
+    '<span class="badge ' + t.type + '">' + (t.type==='credit'?'Crédit':'Débit') + '</span>';
+
+  const color = t.type === 'credit' ? 'var(--red)' : 'var(--green)';
+  document.getElementById('detailBody').innerHTML = `
+    <div style="background:var(--bg3);border-radius:var(--radius2);padding:20px;text-align:center;margin-bottom:16px">
+      <div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">
+        ${t.type==='credit' ? 'Remboursement reçu' : 'Montant vendu'}
+      </div>
+      <div style="font-size:36px;font-weight:600;font-family:'DM Mono',monospace;color:${color}">
+        ${t.type==='credit'?'-':'+'}${fmt(t.montant_net)}
+      </div>
+    </div>
+    <div style="display:grid;gap:0">
+      ${detailRow('Client',         t.client_nom || '—')}
+      ${detailRow('Date',           fmtDate(t.date))}
+      ${detailRow('Motif',          t.motif)}
+      ${detailRow('Mode paiement',  t.type==='credit' ? t.mode_paiement : '—')}
+      ${detailRow('Quantité',       t.quantite)}
+      ${detailRow('Prix unitaire',  fmt(t.prix_unitaire))}
+      ${detailRow('Montant brut',   fmt(t.montant_brut))}
+      ${detailRow('Frais',          fmt(t.frais), t.frais>0?'var(--red)':null)}
+      ${detailRow('Montant net',    fmt(t.montant_net), color)}
+      ${t.notes ? detailRow('Notes', t.notes, 'var(--gold2)') : ''}
+      ${t.reference ? detailRow('Référence', t.reference) : ''}
+    </div>`;
+
+  document.getElementById('modalDetail').classList.add('open');
+}
+
+function detailRow(label, val, color) {
+  const c = color ? 'color:' + color + ';' : '';
+  return '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">'
+    + '<span style="font-size:13px;color:var(--text3)">' + label + '</span>'
+    + '<span style="font-size:13px;font-weight:500;' + c + 'font-family:DM Mono,monospace">' + val + '</span>'
+    + '</div>';
+}
+
+function deleteTransFromDetail() {
+  closeModal('detail');
+  setTimeout(() => deleteTrans(currentDetailId), 200);
+}
+
+function editTransFromDetail() {
+  closeModal('detail');
+  setTimeout(() => openEditTrans(currentDetailId), 200);
+}
+
+
+// ══════════════════════════════════════════════════════
+// MENSUALISATION
+// ══════════════════════════════════════════════════════
+let mensualData = []; // cache transactions pour mensualisation
+
+async function loadMensual() {
+  const res = await api('/api/transactions?limit=2000');
+  if (!res || !res.ok) return;
+  mensualData = res.data;
+  buildMoisSelect();
+  renderMensual();
+}
+
+function buildMoisSelect() {
+  // Extraire tous les mois distincts
+  const moisSet = new Set();
+  mensualData.forEach(t => {
+    if (t.date) moisSet.add(t.date.slice(0, 7));
+  });
+  const moisList = [...moisSet].sort().reverse();
+
+  const sel = document.getElementById('mensualMois');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Tous les mois</option>';
+  moisList.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    // Formater ex: 2026-03 -> Mars 2026
+    const [y, mo] = m.split('-');
+    const noms = ['','Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+    opt.textContent = noms[parseInt(mo)] + ' ' + y;
+    sel.appendChild(opt);
+  });
+  if (prev) sel.value = prev;
+}
+
+function renderMensual() {
+  const moisFilter = document.getElementById('mensualMois').value;
+  const vue = document.getElementById('mensualVue').value;
+
+  // Filtrer par mois si sélectionné
+  const filtered = moisFilter
+    ? mensualData.filter(t => t.date && t.date.slice(0,7) === moisFilter)
+    : mensualData;
+
+  // Agréger par client
+  const map = {};
+  filtered.forEach(t => {
+    const cid = t.client_id;
+    if (!map[cid]) map[cid] = {nom: t.client_nom || '—', vendu: 0, rembourse: 0};
+    if (t.type === 'debit')  map[cid].vendu     += t.montant_net;
+    if (t.type === 'credit') map[cid].rembourse += t.montant_net;
+  });
+
+  // Cumul total par client (toutes transactions confondues)
+  const cumulMap = {};
+  mensualData.forEach(t => {
+    const cid = t.client_id;
+    if (!cumulMap[cid]) cumulMap[cid] = 0;
+    if (t.type === 'debit')  cumulMap[cid] += t.montant_net;
+    if (t.type === 'credit') cumulMap[cid] -= t.montant_net;
+  });
+
+  const rows = Object.entries(map).map(([cid, v]) => ({
+    cid: parseInt(cid),
+    nom: v.nom,
+    vendu: v.vendu,
+    rembourse: v.rembourse,
+    dette_mois: v.vendu - v.rembourse,
+    cumul: cumulMap[cid] || 0,
+  }));
+
+  // Trier par dette mois décroissante
+  rows.sort((a, b) => b.dette_mois - a.dette_mois);
+
+  const tbody = document.getElementById('mensualTbody');
+  tbody.innerHTML = '';
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Aucune donnée</td></tr>';
+    document.getElementById('mensualTotal').innerHTML = '';
+    return;
+  }
+
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    const detteMoisColor = r.dette_mois > 0 ? 'var(--green)' : r.dette_mois < 0 ? 'var(--red)' : 'var(--text3)';
+    const cumulColor     = r.cumul > 0 ? 'var(--green)' : r.cumul < 0 ? 'var(--red)' : 'var(--text3)';
+    tr.innerHTML = `
+      <td style="color:var(--text);font-weight:500">${r.nom}</td>
+      <td style="text-align:right" class="mono">${r.vendu > 0 ? '+'+fmt(r.vendu) : '—'}</td>
+      <td style="text-align:right" class="mono" style="color:var(--red)">${r.rembourse > 0 ? '-'+fmt(r.rembourse) : '—'}</td>
+      <td style="text-align:right"><span class="mono" style="color:${detteMoisColor}">${r.dette_mois >= 0 ? '+' : ''}${fmt(r.dette_mois)}</span></td>
+      <td style="text-align:right"><span class="mono" style="color:${cumulColor};font-weight:700">${r.cumul >= 0 ? '+' : ''}${fmt(r.cumul)}</span></td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Totaux
+  const totalVendu     = rows.reduce((s, r) => s + r.vendu, 0);
+  const totalRembourse = rows.reduce((s, r) => s + r.rembourse, 0);
+  const totalDette     = rows.reduce((s, r) => s + r.dette_mois, 0);
+  const totalCumul     = rows.reduce((s, r) => s + r.cumul, 0);
+  const dc = totalDette >= 0 ? 'var(--green)' : 'var(--red)';
+  const cc = totalCumul >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('mensualTotal').innerHTML =
+    '<span style="color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:1px">Totaux</span>'
+    + '<span class="mono">' + (totalVendu>0?'+':'')+fmt(totalVendu) + '</span>'
+    + '<span class="mono" style="color:var(--red)">' + (totalRembourse>0?'-':'')+fmt(totalRembourse) + '</span>'
+    + '<span class="mono" style="color:'+dc+'">' + (totalDette>=0?'+':'')+fmt(totalDette) + '</span>'
+    + '<span class="mono" style="color:'+cc+';font-weight:700">' + (totalCumul>=0?'+':'')+fmt(totalCumul) + '</span>';
 }
 
 </script>

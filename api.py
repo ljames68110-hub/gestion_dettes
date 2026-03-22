@@ -344,3 +344,19 @@ def start(host="127.0.0.1", port=5000, debug=False):
 
 if __name__ == "__main__":
     start(debug=True)
+
+@app.route("/api/auth/pin-length")
+def auth_pin_length():
+    """Retourne la longueur du PIN — route publique, pas de token requis."""
+    try:
+        with db.get_conn() as conn:
+            # Vérifier si la colonne pin_length existe
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(auth)").fetchall()}
+            if "pin_length" in cols:
+                row = conn.execute("SELECT pin_length FROM auth WHERE id=1").fetchone()
+                length = int(row["pin_length"]) if row and row["pin_length"] else 4
+            else:
+                length = 4
+    except Exception:
+        length = 4
+    return jsonify({"ok": True, "data": {"length": length}})

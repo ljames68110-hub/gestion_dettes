@@ -1,7 +1,7 @@
 ﻿# main.py — Point d'entrée Gestion Dettes Premium
 """
 Lance le serveur Flask en arrière-plan puis ouvre l'interface dans le navigateur.
-Compatible PyInstaller --onefile (gère le dossier temporaire _MEIPASS).
+Compatible PyInstaller --onefile et installateur Inno Setup.
 """
 
 import sys
@@ -12,23 +12,53 @@ import webbrowser
 
 # ── Résolution des chemins PyInstaller ───────────────────────────────────────
 
-def base_dir() -> str:
-    """Retourne le dossier de base : _MEIPASS si frozen, sinon __file__."""
+def base_dir():
+    """Retourne le dossier des fichiers embarqués (_MEIPASS si frozen)."""
     if getattr(sys, "frozen", False):
-        return sys._MEIPASS          # type: ignore[attr-defined]
+        return sys._MEIPASS
     return os.path.dirname(os.path.abspath(__file__))
 
-# Le dossier de travail (là où dettes.db sera créé) reste à côté de l'exe.
-APP_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) \
-          else os.path.dirname(os.path.abspath(__file__))
+def data_dir():
+    """
+    Retourne le dossier où stocker dettes.db :
+    - Mode installé  : %APPDATA%\DebtManager\
+    - Mode portable  : dossier de l'exe
+    - Mode dev       : dossier du script
+    """
+    if getattr(sys, "frozen", False):
+        # Vérifier si on est installé dans Program Files
+        exe_dir = os.path.dirname(sys.executable)
+        prog_files = os.environ.get("PROGRAMFILES", "C:\\Program Files")
+        prog_files86 = os.environ.get("PROGRAMFILES(X86)", "C:\\Program Files (x86)")
+        is_installed = (
+            exe_dir.lower().startswith(prog_files.lower()) or
+            exe_dir.lower().startswith(prog_files86.lower())
+        )
+        if is_installed:
+            # Installé → données dans AppData (accessible sans droits admin)
+            appdata = os.environ.get("APPDATA", os.path.expanduser("~"))
+            d = os.path.join(appdata, "DebtManager")
+            os.makedirs(d, exist_ok=True)
+            return d
+        else:
+            # Portable → données à côté de l'exe
+            return exe_dir
+    return os.path.dirname(os.path.abspath(__file__))
 
-os.chdir(APP_DIR)                    # dettes.db se crée ici
-sys.path.insert(0, base_dir())       # db.py, api.py, updater.py trouvés dans _MEIPASS
+# Configurer les chemins
+DATA_DIR = data_dir()
+DB_PATH  = os.path.join(DATA_DIR, "dettes.db")
+
+os.chdir(DATA_DIR)
+sys.path.insert(0, base_dir())
 
 # ── Imports après résolution du path ─────────────────────────────────────────
 
 import db
 import api
+
+# Pointer la base vers le bon dossier
+db.DB_FILE = DB_PATH
 
 HOST = "127.0.0.1"
 PORT = 5000
@@ -39,7 +69,7 @@ URL  = f"http://{HOST}:{PORT}"
 def _wait_then_open():
     """Attend que Flask soit prêt, puis ouvre le navigateur."""
     import urllib.request
-    for _ in range(20):          # 10 secondes max
+    for _ in range(20):
         time.sleep(0.5)
         try:
             urllib.request.urlopen(f"{URL}/api/auth/status", timeout=1)
@@ -50,32 +80,32 @@ def _wait_then_open():
 
 def main():
     print(f"[DebtManager] Démarrage sur {URL}")
-    print(f"[DebtManager] Base de données : {os.path.join(APP_DIR, 'dettes.db')}")
+    print(f"[DebtManager] Base de données : {DB_PATH}")
 
     db.init_db()
 
     # Vérifier que l'interface web est accessible
     web_path = os.path.join(base_dir(), "web", "index.html")
     if not os.path.exists(web_path):
-        print(f"[DebtManager] ERREUR : interface web introuvable à {web_path}")
+        print(f"[DebtManager] ERREUR : interface web introuvable a {web_path}")
     else:
-        print(f"[DebtManager] Interface web trouvée : {web_path}")
+        print(f"[DebtManager] Interface web trouvee : {web_path}")
 
-    # Initialiser le PIN par défaut "1234" si aucun PIN n'existe encore
+    # PIN par défaut si premier lancement
     if not db.has_pin():
         db.set_pin("1234")
-        print("[DebtManager] PIN par défaut créé : 1234")
+        print("[DebtManager] PIN par defaut cree : 1234")
 
     # Ouvrir le navigateur dans un thread séparé
     t = threading.Thread(target=_wait_then_open, daemon=True)
     t.start()
 
-    # Vérifier mise à jour en arrière-plan (silencieux)
+    # Vérifier mise à jour en arrière-plan
     try:
         import updater
-        def _notify(remote):
-            print(f"[DebtManager] Mise à jour disponible : {remote.get('version')}")
-        updater.check_in_background(notify_flask_fn=_notify)
+        updater.check_in_background(
+            notify_flask_fn=lambda r: print(f"[DebtManager] Mise a jour disponible : {r.get('version')}")
+        )
     except ImportError:
         pass
 

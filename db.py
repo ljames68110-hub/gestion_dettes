@@ -90,10 +90,15 @@ def init_db():
                     id         INTEGER PRIMARY KEY CHECK(id = 1),
                     pin_hash   TEXT,
                     salt       TEXT,
+                    pin_length INTEGER DEFAULT 4,
                     created_at TEXT DEFAULT (datetime('now'))
                 )
             """)
-        # Si pin_hash existe déjà → rien à faire
+        # Si pin_hash existe déjà → vérifier pin_length
+        else:
+            auth_cols = {row[1] for row in c.execute("PRAGMA table_info(auth)").fetchall()}
+            if "pin_length" not in auth_cols:
+                c.execute("ALTER TABLE auth ADD COLUMN pin_length INTEGER DEFAULT 4")
 
         conn.commit()
 
@@ -108,8 +113,8 @@ def set_pin(pin: str):
     pin_hash = _hash_pin(pin, salt)
     with get_conn() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO auth (id, pin_hash, salt) VALUES (1, ?, ?)",
-            (pin_hash, salt)
+            "INSERT OR REPLACE INTO auth (id, pin_hash, salt, pin_length) VALUES (1, ?, ?, ?)",
+            (pin_hash, salt, len(pin))
         )
         conn.commit()
 
