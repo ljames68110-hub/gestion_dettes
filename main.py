@@ -39,7 +39,13 @@ import api
 
 db.DB_FILE = DB_PATH
 
-# Chiffrement desactive
+# Import module de chiffrement
+try:
+    import crypto_db
+    HAS_CRYPTO = True
+except ImportError:
+    HAS_CRYPTO = False
+    print("[Gestion Perso] crypto_db absent — base non chiffree")
 HOST = "127.0.0.1"
 PORT = 5000
 URL  = f"http://{HOST}:{PORT}"
@@ -70,11 +76,48 @@ def main():
     print(f"[Gestion Perso] Demarrage {URL}")
     print(f"[Gestion Perso] DB : {DB_PATH}")
 
-    # Chiffrement désactivé temporairement — base SQLite standard
+    # ── Chiffrement AES-256 ──────────────────────────────────────────────
+    if HAS_CRYPTO:
+        # Récupérer le PIN depuis la base auth (s'il existe déjà)
+        # Au tout premier lancement : pas de base chiffrée, on init normalement
+        enc_exists = os.path.exists(DB_PATH + ".enc")
+        plain_exists = os.path.exists(DB_PATH)
+
+        if not enc_exists and not plain_exists:
+            # Premier lancement : créer la base, puis chiffrer avec PIN par défaut
+            db.init_db()
+            if not db.has_pin():
+                db.set_pin("1234")
+                print("[Gestion Perso] PIN par defaut : 1234")
+            pin_for_crypto = "1234"
+        elif plain_exists and not enc_exists:
+            # Base existante non chiffrée → migration
+            db.init_db()
+            if not db.has_pin():
+                db.set_pin("1234")
+            # Lire le PIN hashé — on utilise "1234" comme clé par défaut pour migration
+            pin_for_crypto = "1234"
+            crypto_db.migrate_existing_db(DB_PATH, pin_for_crypto)
+        else:
+            # Base chiffrée existante — déchiffrer avec PIN par défaut
+            # (le vrai PIN sera vérifié par l'interface web via /api/auth/login)
+            pin_for_crypto = "1234"
+
+        # Ouvrir session chiffrée — retourne chemin fichier temp
+        try:
+            temp_path = crypto_db.open_encrypted_session(DB_PATH, pin_for_crypto)
+            db.DB_FILE = temp_path
+            print(f"[Gestion Perso] Session chiffree ouverte")
+        except ValueError as e:
+            print(f"[Gestion Perso] ERREUR dechiffrement : {e}")
+            print("[Gestion Perso] La base est peut-etre corrompue")
+    else:
+        db.init_db()
+        if not db.has_pin():
+            db.set_pin("1234")
+            print("[Gestion Perso] PIN par defaut : 1234")
+
     db.init_db()
-    if not db.has_pin():
-        db.set_pin("1234")
-        print("[Gestion Perso] PIN par defaut cree : 1234")
 
     try:
         import updater
