@@ -21,7 +21,7 @@ def base_dir():
 def data_dir():
     """
     Retourne le dossier où stocker dettes.db :
-    - Mode installé  : %APPDATA%\DebtManager\
+    - Mode installe  : %APPDATA%/Gestion Perso/
     - Mode portable  : dossier de l'exe
     - Mode dev       : dossier du script
     """
@@ -37,7 +37,7 @@ def data_dir():
         if is_installed:
             # Installé → données dans AppData (accessible sans droits admin)
             appdata = os.environ.get("APPDATA", os.path.expanduser("~"))
-            d = os.path.join(appdata, "DebtManager")
+            d = os.path.join(appdata, "Gestion Perso")
             os.makedirs(d, exist_ok=True)
             return d
         else:
@@ -79,22 +79,22 @@ def _wait_then_open():
     webbrowser.open(URL)
 
 def main():
-    print(f"[DebtManager] Démarrage sur {URL}")
-    print(f"[DebtManager] Base de données : {DB_PATH}")
+    print(f"[Gestion Perso] Démarrage sur {URL}")
+    print(f"[Gestion Perso] Base de données : {DB_PATH}")
 
     db.init_db()
 
     # Vérifier que l'interface web est accessible
     web_path = os.path.join(base_dir(), "web", "index.html")
     if not os.path.exists(web_path):
-        print(f"[DebtManager] ERREUR : interface web introuvable a {web_path}")
+        print(f"[Gestion Perso] ERREUR : interface web introuvable a {web_path}")
     else:
-        print(f"[DebtManager] Interface web trouvee : {web_path}")
+        print(f"[Gestion Perso] Interface web trouvee : {web_path}")
 
     # PIN par défaut si premier lancement
     if not db.has_pin():
         db.set_pin("1234")
-        print("[DebtManager] PIN par defaut cree : 1234")
+        print("[Gestion Perso] PIN par defaut cree : 1234")
 
     # Ouvrir le navigateur dans un thread séparé
     t = threading.Thread(target=_wait_then_open, daemon=True)
@@ -104,7 +104,7 @@ def main():
     try:
         import updater
         updater.check_in_background(
-            notify_flask_fn=lambda r: print(f"[DebtManager] Mise a jour disponible : {r.get('version')}")
+            notify_flask_fn=lambda r: print(f"[Gestion Perso] Mise a jour disponible : {r.get('version')}")
         )
     except ImportError:
         pass

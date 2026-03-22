@@ -63,6 +63,20 @@ def init_db():
             ON transactions(type);
         """)
 
+        # Table rappels
+        c.execute("""
+        CREATE TABLE IF NOT EXISTS rappels (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id  INTEGER NOT NULL,
+            nom        TEXT,
+            dette      REAL DEFAULT 0,
+            date       TEXT,
+            note       TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
+        )
+        """)
+
         # ── Migration colonne created_at dans clients ─────────────────────────
         client_cols = {row[1] for row in c.execute("PRAGMA table_info(clients)").fetchall()}
         if "created_at" not in client_cols:
@@ -91,6 +105,7 @@ def init_db():
                     pin_hash   TEXT,
                     salt       TEXT,
                     pin_length INTEGER DEFAULT 4,
+                    auth_type  TEXT DEFAULT 'pin',
                     created_at TEXT DEFAULT (datetime('now'))
                 )
             """)
@@ -99,6 +114,8 @@ def init_db():
             auth_cols = {row[1] for row in c.execute("PRAGMA table_info(auth)").fetchall()}
             if "pin_length" not in auth_cols:
                 c.execute("ALTER TABLE auth ADD COLUMN pin_length INTEGER DEFAULT 4")
+            if "auth_type" not in auth_cols:
+                c.execute("ALTER TABLE auth ADD COLUMN auth_type TEXT DEFAULT 'pin'")
 
         conn.commit()
 
@@ -107,14 +124,14 @@ def init_db():
 def _hash_pin(pin: str, salt: str):
     return hashlib.sha256((salt + pin).encode()).hexdigest()
 
-def set_pin(pin: str):
-    """Définit ou remplace le PIN (hashé + sel aléatoire)."""
+def set_pin(pin: str, auth_type: str = "pin"):
+    """Définit ou remplace le PIN/mot de passe (hashé + sel aléatoire)."""
     salt = os.urandom(16).hex()
     pin_hash = _hash_pin(pin, salt)
     with get_conn() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO auth (id, pin_hash, salt, pin_length) VALUES (1, ?, ?, ?)",
-            (pin_hash, salt, len(pin))
+            "INSERT OR REPLACE INTO auth (id, pin_hash, salt, pin_length, auth_type) VALUES (1, ?, ?, ?, ?)",
+            (pin_hash, salt, len(pin), auth_type)
         )
         conn.commit()
 
@@ -312,16 +329,54 @@ def update_transaction(trans_id, data):
         prix_u     = float(data.get("prix_unitaire", row["prix_unitaire"]))
         mode       = data.get("mode_paiement", row["mode_paiement"])
         notes      = data.get("notes",         row["notes"] or "")
+        date       = data.get("date",          row["date"])
         brut       = round(quantite * prix_u, 2)
         frais      = round(brut * FEES.get(mode, 0), 2) if type_ == "credit" else 0.0
         net        = round(brut - frais, 2)
         conn.execute("""
             UPDATE transactions SET
               type=?, motif=?, quantite=?, prix_unitaire=?,
-              montant_brut=?, mode_paiement=?, frais=?, montant_net=?, notes=?
+              montant_brut=?, mode_paiement=?, frais=?, montant_net=?, notes=?, date=?
             WHERE id=?""",
-            (type_, motif, quantite, prix_u, brut, mode, frais, net, notes, trans_id)
+            (type_, motif, quantite, prix_u, brut, mode, frais, net, notes, date, trans_id)
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM transactions WHERE id=?", (trans_id,)).fetchone()
     return dict(updated)
+
+# ── RAPPELS ──────────────────────────────────────────────────────────────────
+
+def add_rappel(client_id, nom, dette, date, note=""):
+    with get_conn() as conn:
+        # Un seul rappel actif par client — remplacer si existe
+        conn.execute("DELETE FROM rappels WHERE client_id=?", (client_id,))
+        cur = conn.execute(
+            "INSERT INTO rappels (client_id,nom,dette,date,note) VALUES (?,?,?,?,?)",
+            (client_id, nom, dette, date, note or "")
+        )
+        conn.commit()
+        return cur.lastrowid
+
+def get_rappels():
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM rappels ORDER BY date DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+def get_rappel(client_id):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM rappels WHERE client_id=?", (client_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+def delete_rappel(rappel_id):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM rappels WHERE id=?", (rappel_id,))
+        conn.commit()
+
+def delete_rappel_by_client(client_id):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM rappels WHERE client_id=?", (client_id,))
+        conn.commit()

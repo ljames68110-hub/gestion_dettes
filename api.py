@@ -107,8 +107,12 @@ def auth_change_pin():
         return err("Ancien PIN incorrect", 401)
     if len(new_pin) < 4:
         return err("Le nouveau PIN doit contenir au moins 4 chiffres")
-    db.set_pin(new_pin)
-    return ok({"message": "PIN mis à jour"})
+    # auth_type envoyé explicitement par le frontend
+    auth_type = data.get("auth_type", "pin")
+    if auth_type not in ("pin", "password"):
+        auth_type = "pin"
+    db.set_pin(new_pin, auth_type)
+    return ok({"message": "Code mis à jour"})
 
 # ── DASHBOARD ─────────────────────────────────────────────────────────────────
 
@@ -326,6 +330,41 @@ def update_apply():
     threading.Thread(target=_do, daemon=True).start()
     return ok({"message": f"Téléchargement de {PENDING_UPDATE['version']} en cours..."})
 
+
+# ── RAPPELS ───────────────────────────────────────────────────────────────────
+
+@app.route("/api/rappels")
+@require_auth
+def rappels_list():
+    return ok(db.get_rappels())
+
+@app.route("/api/rappels", methods=["POST"])
+@require_auth
+def rappels_create():
+    data = request.json or {}
+    if not data.get("client_id"):
+        return err("client_id requis")
+    rid = db.add_rappel(
+        client_id = int(data["client_id"]),
+        nom       = data.get("nom", ""),
+        dette     = float(data.get("dette", 0)),
+        date      = data.get("date", ""),
+        note      = data.get("note", ""),
+    )
+    return ok({"id": rid}), 201
+
+@app.route("/api/rappels/<int:rid>", methods=["DELETE"])
+@require_auth
+def rappels_delete(rid):
+    db.delete_rappel(rid)
+    return ok({"deleted": rid})
+
+@app.route("/api/rappels/client/<int:cid>", methods=["DELETE"])
+@require_auth
+def rappels_delete_by_client(cid):
+    db.delete_rappel_by_client(cid)
+    return ok({"deleted_client": cid})
+
 # ── SERVE FRONTEND ────────────────────────────────────────────────────────────
 
 @app.route("/", defaults={"path": ""})
@@ -347,16 +386,30 @@ if __name__ == "__main__":
 
 @app.route("/api/auth/pin-length")
 def auth_pin_length():
-    """Retourne la longueur du PIN — route publique, pas de token requis."""
+    """Retourne la longueur et le type d'auth — route publique."""
     try:
         with db.get_conn() as conn:
-            # Vérifier si la colonne pin_length existe
             cols = {r[1] for r in conn.execute("PRAGMA table_info(auth)").fetchall()}
-            if "pin_length" in cols:
-                row = conn.execute("SELECT pin_length FROM auth WHERE id=1").fetchone()
-                length = int(row["pin_length"]) if row and row["pin_length"] else 4
-            else:
-                length = 4
+            row = conn.execute("SELECT * FROM auth WHERE id=1").fetchone()
+            length    = int(row["pin_length"]) if row and "pin_length" in cols and row["pin_length"] else 4
+            auth_type = row["auth_type"] if row and "auth_type" in cols and row["auth_type"] else "pin"
     except Exception:
-        length = 4
-    return jsonify({"ok": True, "data": {"length": length}})
+        length, auth_type = 4, "pin"
+    return jsonify({"ok": True, "data": {"length": length, "auth_type": auth_type}})
+
+@app.route("/api/version")
+def get_version():
+    """Retourne la version locale depuis latest.json."""
+    try:
+        import json, pathlib
+        # Chercher latest.json à côté de l'exe ou du script
+        import sys as _sys
+        base = pathlib.Path(_sys.executable).parent if getattr(_sys, "frozen", False) \
+               else pathlib.Path(__file__).parent
+        f = base / "latest.json"
+        if f.exists():
+            data = json.loads(f.read_text(encoding="utf-8"))
+            return jsonify({"ok": True, "data": {"version": data.get("version", "dev")}})
+    except Exception:
+        pass
+    return jsonify({"ok": True, "data": {"version": "dev"}})

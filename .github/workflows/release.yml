@@ -1,4 +1,4 @@
-﻿name: Build and Release
+name: Build and Release
 
 on:
   push:
@@ -60,6 +60,8 @@ jobs:
             --hidden-import csv `
             --collect-all flask `
             --collect-all flask_cors `
+            --add-data "app_icon.ico;." `
+            --icon "app_icon.ico" `
             main.py
           Write-Host "Build OK"
           dir dist
@@ -102,26 +104,26 @@ jobs:
           name: ${{ github.ref_name }}
           artifacts: |
             dist/gestion_dettes.exe
-            installer_output/DebtManager_Setup.exe
+            installer_output/Gestion Perso_Setup.exe
           artifactContentType: application/octet-stream
           draft: false
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
-            ## DebtManager Premium ${{ github.ref_name }}
+            ## Gestion Perso ${{ github.ref_name }}
 
             ### Téléchargements
             | Fichier | Description |
             |---------|-------------|
-            | `DebtManager_Setup.exe` | **Installateur recommandé** — installe l'app, crée un raccourci Bureau/Menu Démarrer, apparaît dans Programmes |
+            | `Gestion Perso_Setup.exe` | **Installateur recommandé** — installe l'app, crée un raccourci Bureau/Menu Démarrer, apparaît dans Programmes |
             | `gestion_dettes.exe` | Version portable — double-clic, aucune installation |
 
             ### Installation
-            1. Télécharge `DebtManager_Setup.exe`
+            1. Télécharge `Gestion Perso_Setup.exe`
             2. Double-clique et suis les étapes
             3. L'app se lance automatiquement
 
-            > Tes données (`dettes.db`) sont conservées dans `%APPDATA%\DebtManager\` et ne sont pas supprimées lors d'une désinstallation.
+            > Tes données (`dettes.db`) sont conservées dans `%APPDATA%\Gestion Perso\` et ne sont pas supprimées lors d'une désinstallation.
 
       - name: Prepare latest.json
         shell: pwsh

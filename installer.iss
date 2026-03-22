@@ -1,7 +1,7 @@
-; installer.iss — Script Inno Setup pour DebtManager Premium
+; installer.iss — Script Inno Setup pour Gestion Perso
 ; Génère un installateur Windows professionnel
 
-#define AppName "DebtManager Premium"
+#define AppName "Gestion Perso"
 #define AppVersion "1.0"
 #define AppPublisher "Yoann L."
 #define AppExeName "gestion_dettes.exe"
@@ -13,12 +13,12 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
-DefaultDirName={autopf}\DebtManager
+DefaultDirName={autopf}\Gestion Perso
 DefaultGroupName={#AppName}
 AllowNoIcons=no
 OutputDir=installer_output
-OutputBaseFilename=DebtManager_Setup
-SetupIconFile=
+OutputBaseFilename=Gestion Perso_Setup
+SetupIconFile=app_icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -42,8 +42,8 @@ Name: "desktopicon"; Description: "Créer un raccourci sur le Bureau"; GroupDesc
 Name: "startupicon"; Description: "Lancer au démarrage de Windows"; GroupDescription: "Démarrage :"; Flags: unchecked
 
 [Files]
-; L'exe principal
 Source: "dist\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "app_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 ; Menu Démarrer

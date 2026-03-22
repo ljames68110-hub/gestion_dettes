@@ -14,7 +14,7 @@ import subprocess
 import urllib.request
 from pathlib import Path
 
-LATEST_URL = "https://raw.githubusercontent.com/ljames68110-hub/gestion_dettes/main/latest.json"
+LATEST_URL = "https://raw.githubusercontent.com/ljames68110-hub/gestion_dettes/refs/heads/main/latest.json"
 CHECK_INTERVAL = 3600  # vérifier toutes les heures
 
 def get_current_exe():
