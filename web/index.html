@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DebtManager Premium</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0f;--bg2:#111118;--bg3:#16161f;--bg4:#1e1e2a;--bg5:#252535;
+  --border:#2a2a3a;--border2:#363650;
+  --gold:#c9a84c;--gold2:#e8c97e;--gold3:#f5e0a8;
+  --text:#e8e6f0;--text2:#9b99b0;--text3:#6b6985;
+  --green:#2ecc71;--red:#e74c3c;--blue:#4a90d9;--purple:#8b5cf6;
+  --radius:12px;--radius2:8px;
+  font-family:'Outfit',sans-serif;
+}
+body{background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden}
+
+/* ── LOCK SCREEN ── */
+#lockScreen{
+  position:fixed;inset:0;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:1000;gap:28px;
+}
+.lock-logo{text-align:center}
+.lock-logo h1{font-family:'DM Serif Display',serif;font-size:38px;color:var(--gold2);letter-spacing:1px}
+.lock-logo p{color:var(--text3);font-size:12px;letter-spacing:3px;text-transform:uppercase;margin-top:6px}
+.lock-icon{width:80px;height:80px;border-radius:50%;border:1px solid var(--border2);background:linear-gradient(135deg,var(--bg3),var(--bg4));display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 16px;box-shadow:0 0 40px rgba(201,168,76,0.12)}
+.pin-dots{display:flex;gap:14px}
+.pin-dot{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--border2);transition:all .2s}
+.pin-dot.filled{background:var(--gold2);border-color:var(--gold2);box-shadow:0 0 10px rgba(232,201,126,0.4)}
+.pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:228px}
+.pin-btn{height:58px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:22px;font-family:'Outfit',sans-serif;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center}
+.pin-btn:hover{background:var(--bg4);border-color:var(--border2);color:var(--gold2)}
+.pin-btn:active{transform:scale(.94)}
+.pin-btn.del{font-size:15px;color:var(--text3)}
+.lock-error{color:var(--red);font-size:13px;height:18px;text-align:center}
+.lock-hint{color:var(--text3);font-size:12px;text-align:center}
+
+/* ── LAYOUT ── */
+#app{display:none;flex-direction:row;height:100vh}
+
+/* ── SIDEBAR ── */
+.sidebar{width:224px;min-width:224px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:20px 0;position:relative;overflow:hidden}
+.sidebar::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+.sidebar-logo{padding:0 20px 22px;border-bottom:1px solid var(--border)}
+.sidebar-logo h2{font-family:'DM Serif Display',serif;font-size:19px;color:var(--gold2)}
+.sidebar-logo span{font-size:10px;color:var(--text3);letter-spacing:2px;text-transform:uppercase}
+.nav-section{padding:16px 12px 6px;font-size:10px;color:var(--text3);letter-spacing:2px;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;margin:2px 8px;border-radius:var(--radius2);cursor:pointer;transition:all .2s;font-size:14px;color:var(--text2)}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:linear-gradient(135deg,rgba(201,168,76,.15),rgba(201,168,76,.04));color:var(--gold2);border:1px solid rgba(201,168,76,.2)}
+.nav-icon{width:18px;text-align:center;font-size:15px}
+.sidebar-footer{margin-top:auto;padding:16px 20px;border-top:1px solid var(--border)}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--purple));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0}
+.sidebar-user{display:flex;align-items:center;gap:10px}
+.sidebar-user-info p{font-size:13px;font-weight:500}
+.sidebar-user-info span{font-size:11px;color:var(--text3)}
+.lock-btn{margin-top:10px;padding:7px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:none;color:var(--text3);font-size:12px;cursor:pointer;width:100%;transition:all .2s;font-family:'Outfit',sans-serif}
+.lock-btn:hover{border-color:var(--red);color:var(--red)}
+
+/* ── MAIN ── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:56px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;flex-shrink:0}
+.topbar-title{font-size:16px;font-weight:500}
+.topbar-actions{display:flex;gap:10px;align-items:center}
+.btn{padding:7px 16px;border-radius:var(--radius2);border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-size:13px;cursor:pointer;transition:all .2s;font-family:'Outfit',sans-serif}
+.btn:hover{border-color:var(--gold);color:var(--gold2)}
+.btn.primary{background:linear-gradient(135deg,rgba(201,168,76,.18),rgba(201,168,76,.06));border-color:rgba(201,168,76,.35);color:var(--gold2)}
+.btn.primary:hover{background:linear-gradient(135deg,rgba(201,168,76,.28),rgba(201,168,76,.12));border-color:var(--gold2)}
+.btn.danger{border-color:rgba(231,76,60,.3);color:var(--red)}
+.btn.danger:hover{border-color:var(--red);background:rgba(231,76,60,.1)}
+.search-input{padding:8px 14px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;font-family:'Outfit',sans-serif;width:210px;transition:all .2s}
+.search-input:focus{outline:none;border-color:var(--gold);width:260px}
+
+.content{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:20px}
+.content::-webkit-scrollbar{width:4px}
+.content::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ── PAGES ── */
+.page{display:none;flex-direction:column;gap:20px}
+.page.active{display:flex}
+
+/* ── STATS ── */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.stat-card.gold::before{background:linear-gradient(90deg,var(--gold),var(--gold2))}
+.stat-card.green::before{background:linear-gradient(90deg,#1a7a42,var(--green))}
+.stat-card.red::before{background:linear-gradient(90deg,#7a1a1a,var(--red))}
+.stat-card.blue::before{background:linear-gradient(90deg,#1a4a7a,var(--blue))}
+.stat-label{font-size:11px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px}
+.stat-value{font-size:26px;font-weight:600;font-family:'DM Mono',monospace}
+.stat-sub{font-size:12px;color:var(--text3);margin-top:4px}
+.stat-icon{position:absolute;right:16px;top:20px;font-size:22px;opacity:.15}
+
+/* ── CARDS ── */
+.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.card-title{font-size:11px;font-weight:500;color:var(--text3);margin-bottom:16px;text-transform:uppercase;letter-spacing:1.5px}
+
+/* ── TABLE ── */
+.table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.table-header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border)}
+.table-header span{font-size:13px;font-weight:500}
+table{width:100%;border-collapse:collapse}
+th{padding:10px 16px;text-align:left;font-size:11px;color:var(--text3);font-weight:500;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid var(--border)}
+td{padding:11px 16px;font-size:13px;border-bottom:1px solid rgba(42,42,58,.5);color:var(--text2)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500}
+.badge.credit{background:rgba(46,204,113,.1);color:var(--green);border:1px solid rgba(46,204,113,.2)}
+.badge.debit{background:rgba(231,76,60,.1);color:var(--red);border:1px solid rgba(231,76,60,.2)}
+.mono{font-family:'DM Mono',monospace;font-weight:600;font-size:13px}
+
+/* ── CLIENTS GRID ── */
+.clients-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.client-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;cursor:pointer;transition:all .2s}
+.client-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.client-avatar{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--bg4),var(--bg5));border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:12px;font-weight:600;color:var(--gold2)}
+.client-name{font-size:15px;font-weight:500;margin-bottom:4px;color:var(--text)}
+.client-info{font-size:12px;color:var(--text3);margin-bottom:12px}
+.client-balance{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg3);border-radius:var(--radius2)}
+.balance-label{font-size:11px;color:var(--text3)}
+.balance-pos{color:var(--green)}
+.balance-neg{color:var(--red)}
+
+/* ── SOLDES ── */
+.solde-select-bar{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;align-items:center;gap:16px}
+.solde-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.solde-big{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:28px;text-align:center}
+.solde-amount{font-size:46px;font-weight:600;font-family:'DM Mono',monospace;margin:10px 0}
+.timeline-item{display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--border)}
+.timeline-item:last-child{border-bottom:none}
+.tl-dot{width:10px;height:10px;border-radius:50%;margin-top:4px;flex-shrink:0}
+.tl-info{flex:1}
+.tl-title{font-size:13px;font-weight:500;color:var(--text)}
+.tl-date{font-size:11px;color:var(--text3);margin-top:2px}
+.tl-amount{font-size:14px;font-weight:600;font-family:'DM Mono',monospace}
+
+/* ── MODAL ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:500;backdrop-filter:blur(4px)}
+.modal-bg.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:28px;width:480px;max-width:96vw;position:relative}
+.modal::before{content:'';position:absolute;top:0;left:40px;right:40px;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+.modal-title{font-family:'DM Serif Display',serif;font-size:22px;color:var(--gold2);margin-bottom:6px}
+.modal-sub{font-size:13px;color:var(--text3);margin-bottom:22px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-group.full{grid-column:1/-1}
+label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px}
+input,select{padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:'Outfit',sans-serif;transition:all .2s}
+input:focus,select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px rgba(201,168,76,.1)}
+select option{background:var(--bg3)}
+.calc-display{background:var(--bg3);border-radius:var(--radius2);border:1px solid var(--border);padding:14px;margin:14px 0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.calc-item{text-align:center}
+.c-label{font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px}
+.c-val{font-size:16px;font-weight:600;font-family:'DM Mono',monospace}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+.btn-cancel{padding:9px 20px;border-radius:var(--radius2);border:1px solid var(--border);background:none;color:var(--text2);font-size:14px;cursor:pointer;font-family:'Outfit',sans-serif}
+.btn-save{padding:9px 20px;border-radius:var(--radius2);border:1px solid rgba(201,168,76,.4);background:linear-gradient(135deg,rgba(201,168,76,.18),rgba(201,168,76,.05));color:var(--gold2);font-size:14px;cursor:pointer;font-family:'Outfit',sans-serif;transition:all .2s}
+.btn-save:hover{background:linear-gradient(135deg,rgba(201,168,76,.32),rgba(201,168,76,.1));border-color:var(--gold2)}
+
+/* ── NOTIFICATION ── */
+.notif{position:fixed;bottom:24px;right:24px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:14px 20px;font-size:14px;z-index:999;transform:translateY(80px);opacity:0;transition:all .3s;display:flex;align-items:center;gap:10px;max-width:320px}
+.notif.show{transform:translateY(0);opacity:1}
+.notif.success{border-left:3px solid var(--green)}
+.notif.error{border-left:3px solid var(--red)}
+
+/* ── SPINNER ── */
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border2);border-top-color:var(--gold2);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--text3);gap:12px}
+
+/* ── ANIM ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.fade{animation:fadeUp .3s ease both}
+</style>
+</head>
+<body>
+
+<!-- ══ LOCK SCREEN ══ -->
+<div id="lockScreen">
+  <div class="lock-logo">
+    <div class="lock-icon">🔐</div>
+    <h1>DebtManager</h1>
+    <p>Premium · Sécurisé</p>
+  </div>
+  <div class="pin-dots" id="pinDots">
+    <div class="pin-dot" id="d0"></div>
+    <div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div>
+    <div class="pin-dot" id="d3"></div>
+  </div>
+  <div class="lock-error" id="lockError"></div>
+  <div class="pin-grid">
+    <button class="pin-btn" onclick="pinInput('1')">1</button>
+    <button class="pin-btn" onclick="pinInput('2')">2</button>
+    <button class="pin-btn" onclick="pinInput('3')">3</button>
+    <button class="pin-btn" onclick="pinInput('4')">4</button>
+    <button class="pin-btn" onclick="pinInput('5')">5</button>
+    <button class="pin-btn" onclick="pinInput('6')">6</button>
+    <button class="pin-btn" onclick="pinInput('7')">7</button>
+    <button class="pin-btn" onclick="pinInput('8')">8</button>
+    <button class="pin-btn" onclick="pinInput('9')">9</button>
+    <button class="pin-btn del" onclick="pinDel()">⌫</button>
+    <button class="pin-btn" onclick="pinInput('0')">0</button>
+    <button class="pin-btn del" onclick="pinClear()">✕</button>
+  </div>
+  <p class="lock-hint">Code PIN par défaut : <strong style="color:var(--gold2)">1234</strong></p>
+</div>
+
+<!-- ══ APP ══ -->
+<div id="app">
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <h2>DebtManager</h2>
+      <span>Premium</span>
+    </div>
+    <div class="nav-section">Navigation</div>
+    <div class="nav-item active" onclick="goPage('dashboard',this)"><span class="nav-icon">◈</span> Tableau de bord</div>
+    <div class="nav-item" onclick="goPage('clients',this)"><span class="nav-icon">◎</span> Clients</div>
+    <div class="nav-item" onclick="goPage('transactions',this)"><span class="nav-icon">⇄</span> Transactions</div>
+    <div class="nav-item" onclick="goPage('soldes',this)"><span class="nav-icon">◉</span> Soldes & Dettes</div>
+    <div class="nav-section">Actions</div>
+    <div class="nav-item" onclick="goPage('settings',this)"><span class="nav-icon">⚙</span> Paramètres</div>
+    <div class="nav-item" onclick="openModal('transaction')"><span class="nav-icon">＋</span> Nouvelle transaction</div>
+    <div class="nav-item" onclick="exportAll()"><span class="nav-icon">↓</span> Export CSV complet</div>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="avatar">YL</div>
+        <div class="sidebar-user-info">
+          <p>Administrateur</p>
+          <span>Connecté</span>
+        </div>
+      </div>
+      <button class="lock-btn" onclick="lockApp()">🔒 Verrouiller</button>
+      <button class="lock-btn" id="btnUpdate" onclick="checkUpdate()" style="margin-top:6px;border-color:rgba(201,168,76,.3);color:var(--text3)">☁ Vérifier les mises à jour</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="topbarTitle">Tableau de bord</div>
+      <div class="topbar-actions">
+        <input class="search-input" placeholder="🔍 Rechercher..." oninput="doSearch(this.value)" id="searchInput">
+        <button class="btn primary" onclick="openModal('transaction')">+ Nouvelle transaction</button>
+      </div>
+    </div>
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <div class="page active" id="pg-dashboard">
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-card gold"><div class="stat-label">Total encaissé</div><div class="stat-value" id="s-credit">—</div><div class="stat-sub">Crédits nets</div><div class="stat-icon">💰</div></div>
+          <div class="stat-card green"><div class="stat-label">Solde net</div><div class="stat-value" id="s-solde">—</div><div class="stat-sub">Crédit − Débit</div><div class="stat-icon">📈</div></div>
+          <div class="stat-card red"><div class="stat-label">Total débits</div><div class="stat-value" id="s-debit">—</div><div class="stat-sub">Sorties totales</div><div class="stat-icon">⚠</div></div>
+          <div class="stat-card blue"><div class="stat-label">Clients</div><div class="stat-value" id="s-clients">—</div><div class="stat-sub">Enregistrés</div><div class="stat-icon">👥</div></div>
+        </div>
+        <div class="charts-row">
+          <div class="card">
+            <div class="card-title">Activité — 6 derniers mois</div>
+            <div style="position:relative;height:200px"><canvas id="chartBar"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Par mode de paiement</div>
+            <div style="position:relative;height:200px"><canvas id="chartDoughnut"></canvas></div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <div class="table-header"><span>Dernières transactions</span></div>
+          <table><thead><tr><th>Date</th><th>Client</th><th>Motif</th><th>Mode</th><th>Type</th><th style="text-align:right">Net</th></tr></thead>
+          <tbody id="dashTbody"><tr><td colspan="6"><div class="loading"><div class="spinner"></div> Chargement...</div></td></tr></tbody></table>
+        </div>
+      </div>
+
+      <!-- CLIENTS -->
+      <div class="page" id="pg-clients">
+        <div style="display:flex;gap:10px">
+          <button class="btn primary" onclick="openAddClientFresh()">+ Nouveau client</button>
+        </div>
+        <div class="clients-grid" id="clientsGrid"><div class="loading"><div class="spinner"></div> Chargement...</div></div>
+      </div>
+
+      <!-- TRANSACTIONS -->
+      <div class="page" id="pg-transactions">
+        <div class="table-wrap">
+          <div class="table-header">
+            <span>Toutes les transactions</span>
+            <div style="display:flex;gap:8px">
+              <select id="filterClient" onchange="loadTransactions()" style="padding:6px 10px;font-size:12px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-family:'Outfit',sans-serif">
+                <option value="">Tous les clients</option>
+              </select>
+              <select id="filterType" onchange="loadTransactions()" style="padding:6px 10px;font-size:12px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-family:'Outfit',sans-serif">
+                <option value="">Tous types</option>
+                <option value="credit">Crédit</option>
+                <option value="debit">Débit</option>
+              </select>
+            </div>
+          </div>
+          <table><thead><tr><th>Date</th><th>Client</th><th>Motif</th><th>Mode</th><th>Qté</th><th>P.U</th><th>Brut</th><th>Frais</th><th>Type</th><th style="text-align:right">Net</th><th></th></tr></thead>
+          <tbody id="transTbody"><tr><td colspan="11"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+        </div>
+      </div>
+
+      <!-- SOLDES -->
+      <div class="page" id="pg-soldes">
+        <div class="solde-select-bar">
+          <label style="font-size:13px;color:var(--text2);white-space:nowrap">Sélectionner un client :</label>
+          <select id="soldeClientSel" onchange="loadSolde()" style="padding:9px 14px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:'Outfit',sans-serif;flex:1">
+            <option value="">-- Choisir --</option>
+          </select>
+          <button class="btn" id="exportCsvBtn" onclick="exportClient()" style="display:none">↓ CSV</button>
+        </div>
+        <div id="soldeContent" style="display:none;flex-direction:column;gap:16px"></div>
+      </div>
+
+      <!-- PARAMÈTRES -->
+      <div class="page" id="pg-settings">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:800px">
+
+          <!-- Méthode de connexion -->
+          <div class="card" style="grid-column:1/-1">
+            <div class="card-title">🔐 Méthode de connexion</div>
+            <div style="display:flex;gap:12px;margin-bottom:20px">
+              <div id="methodPIN" onclick="selectMethod('pin')" style="flex:1;padding:16px;border-radius:var(--radius2);border:2px solid var(--gold);background:rgba(201,168,76,.08);cursor:pointer;text-align:center;transition:all .2s">
+                <div style="font-size:24px;margin-bottom:6px">🔢</div>
+                <div style="font-size:14px;font-weight:500;color:var(--gold2)">Code PIN</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:4px">4 chiffres</div>
+              </div>
+              <div id="methodPWD" onclick="selectMethod('password')" style="flex:1;padding:16px;border-radius:var(--radius2);border:1px solid var(--border);background:transparent;cursor:pointer;text-align:center;transition:all .2s">
+                <div style="font-size:24px;margin-bottom:6px">🔑</div>
+                <div style="font-size:14px;font-weight:500;color:var(--text2)">Mot de passe</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:4px">Texte libre</div>
+              </div>
+            </div>
+            <div id="pinSection">
+              <div style="font-size:13px;color:var(--text2);margin-bottom:12px">Changer le code PIN</div>
+              <div class="form-grid" style="max-width:400px">
+                <div class="form-group full"><label>Nouveau PIN (4 chiffres min)</label><input type="password" id="newPin" maxlength="8" placeholder="••••" inputmode="numeric"></div>
+                <div class="form-group full"><label>Confirmer le PIN</label><input type="password" id="confirmPin" maxlength="8" placeholder="••••" inputmode="numeric"></div>
+              </div>
+              <button class="btn primary" style="margin-top:12px" onclick="changePin()">Enregistrer le PIN</button>
+            </div>
+            <div id="pwdSection" style="display:none">
+              <div style="font-size:13px;color:var(--text2);margin-bottom:12px">Changer le mot de passe</div>
+              <div class="form-grid" style="max-width:400px">
+                <div class="form-group full"><label>Nouveau mot de passe</label><input type="password" id="newPwd" placeholder="Mot de passe..."></div>
+                <div class="form-group full"><label>Confirmer</label><input type="password" id="confirmPwd" placeholder="Confirmer..."></div>
+              </div>
+              <button class="btn primary" style="margin-top:12px" onclick="changePassword()">Enregistrer le mot de passe</button>
+            </div>
+          </div>
+
+          <!-- Infos app -->
+          <div class="card">
+            <div class="card-title">ℹ️ Application</div>
+            <div style="display:grid;gap:10px;font-size:13px">
+              <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+                <span style="color:var(--text3)">Version</span>
+                <span id="settingsVersion" style="color:var(--gold2);font-family:'DM Mono',monospace">—</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+                <span style="color:var(--text3)">Base de données</span>
+                <span style="color:var(--green)">dettes.db ✓</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:8px 0">
+                <span style="color:var(--text3)">Serveur</span>
+                <span style="color:var(--green)">127.0.0.1:5000 ✓</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mise à jour -->
+          <div class="card">
+            <div class="card-title">☁ Mises à jour</div>
+            <div style="font-size:13px;color:var(--text3);margin-bottom:16px">Vérifier si une nouvelle version est disponible sur GitHub.</div>
+            <button class="btn primary" onclick="checkUpdate()">Vérifier maintenant</button>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- MODAL TRANSACTION -->
+<div class="modal-bg" id="modalTrans" onclick="if(event.target===this)closeModal('trans')">
+  <div class="modal">
+    <div class="modal-title">Nouvelle transaction</div>
+    <div class="modal-sub">Enregistrer un crédit ou un débit</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Client</label><select id="mClient"></select></div>
+      <div class="form-group"><label>Type</label>
+        <select id="mType" onchange="toggleTypeFields()"><option value="credit">Crédit</option><option value="debit">Débit</option></select>
+      </div>
+      <div class="form-group"><label>Motif</label>
+        <select id="mMotif"><option>Tabac</option><option>Bedo</option><option>Recharge</option><option>Pot</option><option>Cigarette</option><option>Achat</option><option>Autre</option></select>
+      </div>
+      <div class="form-group" id="mModeGroup"><label>Mode paiement</label>
+        <select id="mMode" onchange="calcModal()"><option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS (7%)</option><option value="Paysafecard">Paysafecard (5%)</option><option value="WesternUnion">Western Union</option></select>
+      </div>
+      <div class="form-group"><label>Quantité</label><input type="number" id="mQty" value="1" min="1" oninput="calcModal()"></div>
+      <div class="form-group"><label>Prix unitaire (€)</label><input type="number" id="mPrix" value="0" step="0.01" min="0" oninput="calcModal()"></div>
+    </div>
+    <div class="calc-display">
+      <div class="calc-item"><div class="c-label">Brut</div><div class="c-val" id="cBrut">0.00 €</div></div>
+      <div class="calc-item" id="cFraisRow"><div class="c-label">Frais</div><div class="c-val" style="color:var(--red)" id="cFrais">0.00 €</div></div>
+      <div class="calc-item"><div class="c-label">Net</div><div class="c-val" style="color:var(--gold2)" id="cNet">0.00 €</div></div>
+    </div>
+    <div class="form-group full"><label>Notes</label><input type="text" id="mNotes" placeholder="Facultatif..."></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('trans')">Annuler</button>
+      <button class="btn-save" id="btnSaveTrans" onclick="saveTrans()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CLIENT -->
+<div class="modal-bg" id="modalClient" onclick="if(event.target===this)closeModal('client')">
+  <div class="modal">
+    <input type="hidden" id="cId" value="">
+    <div class="modal-title" id="clientModalTitle">Nouveau client</div>
+    <div class="modal-sub" id="clientModalSub">Ajouter à votre liste</div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Nom complet *</label><input type="text" id="cNom" placeholder="Jean Dupont"></div>
+      <div class="form-group"><label>Email</label><input type="email" id="cEmail" placeholder="jean@exemple.fr"></div>
+      <div class="form-group"><label>Téléphone</label><input type="tel" id="cTel" placeholder="06 12 34 56 78"></div>
+      <div class="form-group full"><label>Notes</label><input type="text" id="cNotes" placeholder="Informations supplémentaires..."></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="btnDeleteClient" onclick="deleteClient()" style="margin-right:auto;display:none">🗑 Supprimer</button>
+      <button class="btn-cancel" onclick="closeModal('client')">Annuler</button>
+      <button class="btn-save" id="btnSaveClient" onclick="saveClient()">Créer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MODIFIER TRANSACTION -->
+<div class="modal-bg" id="modalEditTrans" onclick="if(event.target===this)closeModal('editTrans')">
+  <div class="modal">
+    <input type="hidden" id="etId" value="">
+    <div class="modal-title">Modifier la transaction</div>
+    <div class="modal-sub">Mettre à jour les informations</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Type</label>
+        <select id="etType" onchange="toggleEditTypeFields()"><option value="credit">Crédit</option><option value="debit">Débit</option></select>
+      </div>
+      <div class="form-group"><label>Motif</label>
+        <select id="etMotif"><option>Tabac</option><option>Bedo</option><option>Recharge</option><option>Pot</option><option>Cigarette</option><option>Achat</option><option>Autre</option></select>
+      </div>
+      <div class="form-group" id="etModeGroup"><label>Mode paiement</label>
+        <select id="etMode" onchange="calcEditModal()"><option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS (7%)</option><option value="Paysafecard">Paysafecard (5%)</option><option value="WesternUnion">Western Union</option></select>
+      </div>
+      <div class="form-group"><label>Notes</label><input type="text" id="etNotes" placeholder="Facultatif..."></div>
+      <div class="form-group"><label>Quantité</label><input type="number" id="etQty" value="1" min="1" oninput="calcEditModal()"></div>
+      <div class="form-group"><label>Prix unitaire (€)</label><input type="number" id="etPrix" value="0" step="0.01" min="0" oninput="calcEditModal()"></div>
+    </div>
+    <div class="calc-display">
+      <div class="calc-item"><div class="c-label">Brut</div><div class="c-val" id="etBrut">0.00 €</div></div>
+      <div class="calc-item" id="etFraisRow"><div class="c-label">Frais</div><div class="c-val" style="color:var(--red)" id="etFrais">0.00 €</div></div>
+      <div class="calc-item"><div class="c-label">Net</div><div class="c-val" id="etNet">0.00 €</div></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('editTrans')">Annuler</button>
+      <button class="btn-save" id="btnSaveEditTrans" onclick="saveEditTrans()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="notif" id="notif"></div>
+
+<!-- MODAL MISE À JOUR -->
+<div class="modal-bg" id="modalUpdate" onclick="if(event.target===this)closeModal('update')">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-title">☁ Mise à jour</div>
+    <div class="modal-sub" id="updateSub">Vérification en cours...</div>
+    <div id="updateBody" style="margin:16px 0;font-size:14px;color:var(--text2)"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('update')">Fermer</button>
+      <button class="btn-save" id="btnApplyUpdate" onclick="applyUpdate()" style="display:none">⬇ Installer et redémarrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════
+const API = '';  // même origine — Flask sert ce fichier
+const FEES = {Liquide:0, Virement:0, PCS:0.07, Paysafecard:0.05, WesternUnion:0};
+let TOKEN = '';
+let barChart = null, doughnutChart = null;
+let allTransactions = [];  // cache local pour filtrage
+
+// ══════════════════════════════════════════════════════
+// API HELPER
+// ══════════════════════════════════════════════════════
+async function api(path, opts = {}) {
+  const headers = {'Content-Type': 'application/json'};
+  if (TOKEN) headers['X-Session-Token'] = TOKEN;
+  if (opts.body && typeof opts.body === 'object') opts.body = JSON.stringify(opts.body);
+  const res = await fetch(API + path, {...opts, headers});
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok && res.status === 401 && path !== '/api/auth/login') {
+    lockApp();
+    return null;
+  }
+  return json;
+}
+
+function fmt(n) { return parseFloat(n || 0).toFixed(2) + ' €'; }
+function fmtDate(d) { return d ? d.slice(0,10).split('-').reverse().join('/') : '—'; }
+function initials(nom) { return (nom||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
+
+// ══════════════════════════════════════════════════════
+// NOTIFICATION
+// ══════════════════════════════════════════════════════
+function notify(msg, type = 'success') {
+  const n = document.getElementById('notif');
+  n.className = 'notif ' + type;
+  n.textContent = (type === 'success' ? '✓ ' : '✕ ') + msg;
+  n.classList.add('show');
+  setTimeout(() => n.classList.remove('show'), 3000);
+}
+
+// ══════════════════════════════════════════════════════
+// PIN LOCK
+// ══════════════════════════════════════════════════════
+let pin = '';
+
+function pinInput(v) {
+  if (pin.length >= 4) return;
+  pin += v;
+  updateDots();
+  if (pin.length === 4) setTimeout(checkPin, 120);
+}
+function pinDel() { pin = pin.slice(0,-1); updateDots(); }
+function pinClear() { pin = ''; updateDots(); document.getElementById('lockError').textContent = ''; }
+
+// Clavier physique sur l'écran de connexion
+document.addEventListener('keydown', function(e) {
+  if (document.getElementById('lockScreen').style.display === 'none') return;
+  if (e.key >= '0' && e.key <= '9') {
+    pinInput(e.key);
+  } else if (e.key === 'Backspace') {
+    pinDel();
+  } else if (e.key === 'Escape') {
+    pinClear();
+  } else if (e.key === 'Enter' && pin.length === 4) {
+    checkPin();
+  }
+});
+function updateDots() {
+  for (let i = 0; i < 4; i++)
+    document.getElementById('d'+i).classList.toggle('filled', i < pin.length);
+}
+
+async function checkPin() {
+  const res = await api('/api/auth/login', {method:'POST', body:{pin}});
+  if (res && res.ok) {
+    TOKEN = res.data.token;
+    showApp();
+  } else {
+    document.getElementById('lockError').textContent = 'Code PIN incorrect';
+    pin = ''; updateDots();
+  }
+}
+
+function showApp() {
+  const ls = document.getElementById('lockScreen');
+  ls.style.transition = 'opacity .4s';
+  ls.style.opacity = '0';
+  setTimeout(() => {
+    ls.style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    loadDashboard();
+  }, 400);
+}
+
+async function lockApp() {
+  await api('/api/auth/logout', {method:'POST'});
+  TOKEN = '';
+  pin = ''; updateDots();
+  document.getElementById('lockError').textContent = '';
+  document.getElementById('app').style.display = 'none';
+  const ls = document.getElementById('lockScreen');
+  ls.style.display = 'flex';
+  ls.style.opacity = '0';
+  ls.style.transition = 'opacity .3s';
+  setTimeout(() => ls.style.opacity = '1', 10);
+}
+
+// ══════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════
+const TITLES = {dashboard:'Tableau de bord', clients:'Clients', transactions:'Transactions', soldes:'Soldes & Dettes', settings:'Paramètres'};
+
+function goPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('pg-' + name).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('topbarTitle').textContent = TITLES[name] || name;
+  document.getElementById('searchInput').value = '';
+  if (name === 'dashboard')    loadDashboard();
+  if (name === 'clients')      loadClients();
+  if (name === 'transactions') loadTransactions();
+  if (name === 'soldes')       initSoldes();
+  if (name === 'settings')     initSettings();
+}
+
+// ══════════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════════
+async function loadDashboard() {
+  const res = await api('/api/dashboard');
+  if (!res || !res.ok) return;
+  const d = res.data;
+
+  document.getElementById('s-credit').textContent = fmt(d.total_credit);
+  const soldeEl = document.getElementById('s-solde');
+  soldeEl.textContent = fmt(d.solde_net);
+  soldeEl.style.color = d.solde_net >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('s-debit').textContent = fmt(d.total_debit);
+  document.getElementById('s-clients').textContent = d.nb_clients;
+
+  // Graphique barres
+  const mois = d.par_mois || [];
+  if (barChart) barChart.destroy();
+  barChart = new Chart(document.getElementById('chartBar'), {
+    type: 'bar',
+    data: {
+      labels: mois.map(m => m.mois),
+      datasets: [
+        {label:'Crédit', data: mois.map(m => m.credit), backgroundColor:'rgba(46,204,113,.6)', borderColor:'#2ecc71', borderWidth:1, borderRadius:4},
+        {label:'Débit',  data: mois.map(m => m.debit),  backgroundColor:'rgba(231,76,60,.5)',  borderColor:'#e74c3c', borderWidth:1, borderRadius:4},
+      ]
+    },
+    options: {responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#6b6985'}, grid:{color:'rgba(42,42,58,.8)'}},
+              y:{ticks:{color:'#6b6985'}, grid:{color:'rgba(42,42,58,.8)'}}}}
+  });
+
+  // Doughnut
+  const modes = d.par_mode || [];
+  if (doughnutChart) doughnutChart.destroy();
+  if (modes.length) {
+    doughnutChart = new Chart(document.getElementById('chartDoughnut'), {
+      type: 'doughnut',
+      data: {
+        labels: modes.map(m => m.mode),
+        datasets: [{data: modes.map(m => m.total), backgroundColor:['#c9a84c','#4a90d9','#2ecc71','#8b5cf6','#e74c3c'], borderWidth:0, hoverOffset:6}]
+      },
+      options: {responsive:true, maintainAspectRatio:false, cutout:'72%',
+        plugins:{legend:{position:'bottom', labels:{color:'#9b99b0', font:{size:11}, boxWidth:10}}}}
+    });
+  }
+
+  // Tableau recent
+  const tres = await api('/api/transactions?limit=10');
+  if (!tres || !tres.ok) return;
+  const tbody = document.getElementById('dashTbody');
+  tbody.innerHTML = '';
+  if (!tres.data.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">Aucune transaction</td></tr>';
+    return;
+  }
+  tres.data.forEach(t => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${fmtDate(t.date)}</td>
+      <td style="color:var(--text)">${t.client_nom || '—'}</td>
+      <td>${t.motif}</td>
+      <td>${t.mode_paiement}</td>
+      <td><span class="badge ${t.type}">${t.type === 'credit' ? 'Crédit' : 'Débit'}</span></td>
+      <td style="text-align:right"><span class="mono" style="color:${t.type==='credit'?'var(--green)':'var(--red)'}">${t.type==='credit'?'+':'-'}${fmt(t.montant_net)}</span></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// CLIENTS
+// ══════════════════════════════════════════════════════
+let clientsCache = [];
+
+async function loadClients() {
+  const res = await api('/api/clients');
+  if (!res || !res.ok) return;
+  clientsCache = res.data;
+  renderClients(clientsCache);
+  populateClientSelects();
+}
+
+function renderClients(list) {
+  const grid = document.getElementById('clientsGrid');
+  grid.innerHTML = '';
+  if (!list.length) {
+    grid.innerHTML = '<p style="color:var(--text3);padding:20px">Aucun client enregistré.</p>';
+    return;
+  }
+  list.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'client-card fade';
+    card.innerHTML = `
+      <div class="client-avatar">${initials(c.nom)}</div>
+      <div class="client-name">${c.nom}</div>
+      <div class="client-info">${c.email || 'Pas d\'email'} · ${c.tel || 'Pas de tél'}</div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn" style="flex:1;font-size:12px;padding:6px 0" onclick="event.stopPropagation();openEditClient(${c.id})">✏ Modifier</button>
+        <button class="btn danger" style="font-size:12px;padding:6px 12px" onclick="event.stopPropagation();confirmDeleteClient(${c.id},'${c.nom.replace(/'/g,"\'")}')">🗑</button>
+        <button class="btn primary" style="flex:1;font-size:12px;padding:6px 0" onclick="event.stopPropagation();openClientSolde(${c.id})">→ Solde</button>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+function openClientSolde(cid) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.nav-item')[3].classList.add('active');
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('pg-soldes').classList.add('active');
+  document.getElementById('topbarTitle').textContent = TITLES.soldes;
+  document.getElementById('soldeClientSel').value = cid;
+  loadSolde();
+}
+
+function populateClientSelects() {
+  ['mClient','filterClient','soldeClientSel'].forEach(id => {
+    const sel = document.getElementById(id);
+    const prev = sel.value;
+    const isFilter = id === 'filterClient';
+    sel.innerHTML = isFilter ? '<option value="">Tous les clients</option>' : '<option value="">-- Choisir --</option>';
+    clientsCache.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id; opt.textContent = c.nom;
+      sel.appendChild(opt);
+    });
+    if (prev) sel.value = prev;
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// TRANSACTIONS
+// ══════════════════════════════════════════════════════
+async function loadTransactions() {
+  const res = await api('/api/transactions?limit=500');
+  if (!res || !res.ok) return;
+  allTransactions = res.data;
+  renderTransactions();
+}
+
+function renderTransactions() {
+  const fc = document.getElementById('filterClient').value;
+  const ft = document.getElementById('filterType').value;
+  let list = allTransactions;
+  if (fc) list = list.filter(t => String(t.client_id) === fc);
+  if (ft) list = list.filter(t => t.type === ft);
+
+  const tbody = document.getElementById('transTbody');
+  tbody.innerHTML = '';
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:24px">Aucune transaction</td></tr>';
+    return;
+  }
+  list.forEach(t => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${fmtDate(t.date)}</td>
+      <td style="color:var(--text)">${t.client_nom || '—'}</td>
+      <td>${t.motif}</td><td>${t.mode_paiement}</td>
+      <td>${t.quantite}</td>
+      <td class="mono">${fmt(t.prix_unitaire)}</td>
+      <td class="mono">${fmt(t.montant_brut)}</td>
+      <td class="mono" style="color:var(--red)">${fmt(t.frais)}</td>
+      <td><span class="badge ${t.type}">${t.type==='credit'?'Crédit':'Débit'}</span></td>
+      <td style="text-align:right"><span class="mono" style="color:${t.type==='credit'?'var(--green)':'var(--red)'}">${t.type==='credit'?'+':'-'}${fmt(t.montant_net)}</span></td>
+      <td style="display:flex;gap:4px">
+        <button class="btn" style="padding:4px 8px;font-size:11px" onclick="openEditTrans(${t.id})">✏</button>
+        <button class="btn danger" style="padding:4px 8px;font-size:11px" onclick="deleteTrans(${t.id})">✕</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function deleteTrans(id) {
+  if (!confirm('Supprimer cette transaction ?')) return;
+  const res = await api('/api/transactions/' + id, {method:'DELETE'});
+  if (res && res.ok) { notify('Transaction supprimée'); loadTransactions(); loadDashboard(); }
+  else notify('Erreur suppression', 'error');
+}
+
+// ══════════════════════════════════════════════════════
+// SOLDES
+// ══════════════════════════════════════════════════════
+async function initSoldes() {
+  await loadClients();
+  document.getElementById('soldeContent').style.display = 'none';
+  document.getElementById('exportCsvBtn').style.display = 'none';
+}
+
+async function loadSolde() {
+  const cid = document.getElementById('soldeClientSel').value;
+  const content = document.getElementById('soldeContent');
+  if (!cid) { content.style.display = 'none'; document.getElementById('exportCsvBtn').style.display = 'none'; return; }
+
+  const [statsRes, transRes] = await Promise.all([
+    api('/api/clients/' + cid + '/stats'),
+    api('/api/clients/' + cid + '/transactions'),
+  ]);
+  if (!statsRes || !statsRes.ok) return;
+
+  const s = statsRes.data;
+  const trans = transRes?.data || [];
+  const solde = s.solde;
+  const isPos = solde >= 0;
+
+  content.style.display = 'flex';
+  document.getElementById('exportCsvBtn').style.display = 'inline-flex';
+
+  content.innerHTML = `
+    <div class="solde-grid fade">
+      <div class="solde-big">
+        <div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase">Solde total</div>
+        <div class="solde-amount" style="color:${isPos?'var(--green)':'var(--red)'}">${isPos?'+':''}${fmt(solde)}</div>
+        <div style="font-size:13px;color:${isPos?'var(--green)':'var(--red)'}">${isPos?'Ce client vous doit de l\'argent':'Vous devez de l\'argent à ce client'}</div>
+      </div>
+      <div class="solde-big">
+        <div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px">Résumé</div>
+        <div style="display:grid;gap:10px">
+          ${row('Total vendu (débits)',        '+'+fmt(s.total_debit),  'var(--green)')}
+          ${row('Total remboursé (crédits)',  '-'+fmt(s.total_credit), 'var(--red)')}
+          ${row('Frais reçus',                fmt(s.total_frais),      'var(--text2)')}
+          ${row('Nb transactions',            s.nb_transactions,       'var(--text)')}
+        </div>
+      </div>
+      <div class="card" style="grid-column:1/-1">
+        <div class="card-title">Historique des transactions</div>
+        ${trans.slice(0,20).map(t => `
+          <div class="timeline-item">
+            <div class="tl-dot" style="background:${t.type==='credit'?'var(--green)':'var(--red)'}"></div>
+            <div class="tl-info">
+              <div class="tl-title">${t.motif} · ${t.mode_paiement}</div>
+              <div class="tl-date">${fmtDate(t.date)} · Qté ${t.quantite} × ${fmt(t.prix_unitaire)}</div>
+            </div>
+            <div class="tl-amount" style="color:${t.type==='credit'?'var(--green)':'var(--red)'}">${t.type==='credit'?'+':'-'}${fmt(t.montant_net)}</div>
+          </div>`).join('')}
+        ${!trans.length ? '<p style="color:var(--text3);text-align:center;padding:20px">Aucune transaction</p>' : ''}
+      </div>
+    </div>`;
+}
+
+function row(label, val, color) {
+  return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+    <span style="font-size:13px;color:var(--text3)">${label}</span>
+    <span class="mono" style="color:${color}">${val}</span>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// MODALS
+// ══════════════════════════════════════════════════════
+function openModal(type) {
+  if (type === 'transaction') {
+    if (!clientsCache.length) { notify('Créez d\'abord un client', 'error'); return; }
+    populateClientSelects();
+    document.getElementById('mType').value = 'credit';
+    toggleTypeFields();
+    document.getElementById('modalTrans').classList.add('open');
+  } else {
+    document.getElementById('modalClient').classList.add('open');
+    document.getElementById('cNom').focus();
+  }
+}
+function closeModal(type) {
+  const ids = {trans:'modalTrans', client:'modalClient', editTrans:'modalEditTrans', update:'modalUpdate'};
+  const el = document.getElementById(ids[type] || type);
+  if (el) el.classList.remove('open');
+}
+
+function toggleTypeFields() {
+  const isDebit = document.getElementById('mType').value === 'debit';
+  const modeGroup = document.getElementById('mModeGroup');
+  const fraisRow  = document.getElementById('cFraisRow');
+  // Masquer mode paiement et frais si débit
+  modeGroup.style.opacity  = isDebit ? '0.35' : '1';
+  modeGroup.style.pointerEvents = isDebit ? 'none' : 'auto';
+  fraisRow.style.display   = isDebit ? 'none' : 'flex';
+  if (isDebit) document.getElementById('mMode').value = 'Liquide';
+  calcModal();
+}
+
+function calcModal() {
+  const qty   = parseFloat(document.getElementById('mQty').value) || 0;
+  const prix  = parseFloat(document.getElementById('mPrix').value) || 0;
+  const type  = document.getElementById('mType').value;
+  const mode  = document.getElementById('mMode').value;
+  const brut  = qty * prix;
+  const frais = type === 'debit' ? 0 : brut * (FEES[mode] || 0);
+  const net   = brut - frais;
+  document.getElementById('cBrut').textContent  = brut.toFixed(2)  + ' €';
+  document.getElementById('cFrais').textContent = frais.toFixed(2) + ' €';
+  document.getElementById('cNet').textContent   = net.toFixed(2)   + ' €';
+  // Couleur net : rouge si débit, or si crédit
+  document.getElementById('cNet').style.color = type === 'debit' ? 'var(--red)' : 'var(--gold2)';
+}
+
+async function saveTrans() {
+  const btn = document.getElementById('btnSaveTrans');
+  btn.textContent = 'Enregistrement...'; btn.disabled = true;
+  const body = {
+    client_id:     parseInt(document.getElementById('mClient').value),
+    type:          document.getElementById('mType').value,
+    motif:         document.getElementById('mMotif').value,
+    quantite:      parseInt(document.getElementById('mQty').value) || 1,
+    prix_unitaire: parseFloat(document.getElementById('mPrix').value) || 0,
+    mode_paiement: document.getElementById('mMode').value,
+    notes:         document.getElementById('mNotes').value,
+  };
+  const res = await api('/api/transactions', {method:'POST', body});
+  btn.textContent = 'Enregistrer'; btn.disabled = false;
+  if (res && res.ok) {
+    closeModal('trans');
+    notify('Transaction enregistrée');
+    document.getElementById('mQty').value = '1';
+    document.getElementById('mPrix').value = '0';
+    document.getElementById('mNotes').value = '';
+    loadDashboard();
+    if (document.getElementById('pg-transactions').classList.contains('active')) loadTransactions();
+  } else {
+    notify(res?.error || 'Erreur serveur', 'error');
+  }
+}
+
+// saveClient() défini plus bas
+
+// ══════════════════════════════════════════════════════
+// EXPORT
+// ══════════════════════════════════════════════════════
+function exportClient() {
+  const cid = document.getElementById('soldeClientSel').value;
+  if (!cid) return;
+  window.location.href = `/api/export/csv/${cid}?token=${TOKEN}`;
+  // Note: pour l'export, on passe le token en URL car c'est un lien direct
+  // L'api.py doit accepter ?token= en plus du header pour les exports
+  notify('Téléchargement CSV lancé');
+}
+
+function exportAll() {
+  window.location.href = `/api/export/csv/all?token=${TOKEN}`;
+  notify('Export complet lancé');
+}
+
+// ══════════════════════════════════════════════════════
+// SEARCH
+// ══════════════════════════════════════════════════════
+function doSearch(v) {
+  v = v.toLowerCase();
+  const activePage = document.querySelector('.page.active')?.id;
+  if (activePage === 'pg-clients') {
+    renderClients(clientsCache.filter(c =>
+      c.nom.toLowerCase().includes(v) || (c.email||'').toLowerCase().includes(v)
+    ));
+  } else if (activePage === 'pg-dashboard') {
+    document.querySelectorAll('#dashTbody tr').forEach(r => {
+      r.style.display = r.textContent.toLowerCase().includes(v) ? '' : 'none';
+    });
+  } else if (activePage === 'pg-transactions') {
+    document.querySelectorAll('#transTbody tr').forEach(r => {
+      r.style.display = r.textContent.toLowerCase().includes(v) ? '' : 'none';
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// INIT — vérification auth au démarrage
+// ══════════════════════════════════════════════════════
+(async () => {
+  const res = await fetch('/api/auth/status').then(r => r.json()).catch(() => null);
+  if (!res) {
+    document.getElementById('lockScreen').querySelector('.lock-hint').textContent = 'Serveur non disponible';
+  }
+})();
+
+// ══════════════════════════════════════════════════════
+// CLIENT — MODIFIER / SUPPRIMER
+// ══════════════════════════════════════════════════════
+function openEditClient(cid) {
+  const c = clientsCache.find(x => x.id === cid);
+  if (!c) return;
+  document.getElementById('cId').value    = cid;
+  document.getElementById('cNom').value   = c.nom   || '';
+  document.getElementById('cEmail').value = c.email || '';
+  document.getElementById('cTel').value   = c.tel   || '';
+  document.getElementById('cNotes').value = c.notes || '';
+  document.getElementById('clientModalTitle').textContent = 'Modifier le client';
+  document.getElementById('clientModalSub').textContent   = 'Mettre à jour les informations';
+  document.getElementById('btnSaveClient').textContent    = 'Enregistrer';
+  document.getElementById('btnDeleteClient').style.display = 'inline-flex';
+  document.getElementById('modalClient').classList.add('open');
+}
+
+function openAddClientFresh() {
+  document.getElementById('cId').value    = '';
+  document.getElementById('cNom').value   = '';
+  document.getElementById('cEmail').value = '';
+  document.getElementById('cTel').value   = '';
+  document.getElementById('cNotes').value = '';
+  document.getElementById('clientModalTitle').textContent  = 'Nouveau client';
+  document.getElementById('clientModalSub').textContent    = 'Ajouter à votre liste';
+  document.getElementById('btnSaveClient').textContent     = 'Créer';
+  document.getElementById('btnDeleteClient').style.display = 'none';
+  document.getElementById('modalClient').classList.add('open');
+  document.getElementById('cNom').focus();
+}
+
+async function saveClient() {
+  const nom = document.getElementById('cNom').value.trim();
+  if (!nom) { notify('Le nom est obligatoire', 'error'); return; }
+  const cid = document.getElementById('cId').value;
+  const btn = document.getElementById('btnSaveClient');
+  btn.textContent = cid ? 'Enregistrement...' : 'Création...';
+  btn.disabled = true;
+  const body = { nom, email: document.getElementById('cEmail').value, tel: document.getElementById('cTel').value, notes: document.getElementById('cNotes').value };
+  const res = cid
+    ? await api('/api/clients/' + cid, {method:'PUT', body})
+    : await api('/api/clients', {method:'POST', body});
+  btn.textContent = cid ? 'Enregistrer' : 'Créer';
+  btn.disabled = false;
+  if (res && res.ok) {
+    closeModal('client');
+    notify(cid ? 'Client modifié' : 'Client créé');
+    await loadClients();
+  } else { notify(res?.error || 'Erreur serveur', 'error'); }
+}
+
+async function confirmDeleteClient(cid, nom) {
+  if (!confirm('Supprimer ' + nom + ' et toutes ses transactions ?')) return;
+  const res = await api('/api/clients/' + cid, {method:'DELETE'});
+  if (res && res.ok) { notify('Client supprimé'); await loadClients(); loadDashboard(); }
+  else notify('Erreur suppression', 'error');
+}
+
+async function deleteClient() {
+  const cid = document.getElementById('cId').value;
+  const nom = document.getElementById('cNom').value;
+  if (!cid) return;
+  closeModal('client');
+  await confirmDeleteClient(cid, nom);
+}
+
+// ══════════════════════════════════════════════════════
+// TRANSACTION — MODIFIER
+// ══════════════════════════════════════════════════════
+function toggleEditTypeFields() {
+  const isDebit = document.getElementById('etType').value === 'debit';
+  document.getElementById('etModeGroup').style.opacity      = isDebit ? '0.35' : '1';
+  document.getElementById('etModeGroup').style.pointerEvents = isDebit ? 'none' : 'auto';
+  document.getElementById('etFraisRow').style.display       = isDebit ? 'none' : 'flex';
+  if (isDebit) document.getElementById('etMode').value = 'Liquide';
+  calcEditModal();
+}
+
+function calcEditModal() {
+  const qty   = parseFloat(document.getElementById('etQty').value)  || 0;
+  const prix  = parseFloat(document.getElementById('etPrix').value) || 0;
+  const type  = document.getElementById('etType').value;
+  const mode  = document.getElementById('etMode').value;
+  const brut  = qty * prix;
+  const frais = type === 'debit' ? 0 : brut * (FEES[mode] || 0);
+  const net   = brut - frais;
+  document.getElementById('etBrut').textContent  = brut.toFixed(2)  + ' €';
+  document.getElementById('etFrais').textContent = frais.toFixed(2) + ' €';
+  document.getElementById('etNet').textContent   = net.toFixed(2)   + ' €';
+  document.getElementById('etNet').style.color   = type === 'debit' ? 'var(--red)' : 'var(--gold2)';
+}
+
+function openEditTrans(id) {
+  id = parseInt(id);
+  const t = allTransactions.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('etId').value    = id;
+  document.getElementById('etType').value  = t.type;
+  document.getElementById('etMotif').value = t.motif;
+  document.getElementById('etMode').value  = t.mode_paiement;
+  document.getElementById('etQty').value   = t.quantite;
+  document.getElementById('etPrix').value  = t.prix_unitaire;
+  document.getElementById('etNotes').value = t.notes || '';
+  toggleEditTypeFields();
+  document.getElementById('modalEditTrans').classList.add('open');
+}
+
+async function saveEditTrans() {
+  const id  = parseInt(document.getElementById('etId').value);
+  const btn = document.getElementById('btnSaveEditTrans');
+  btn.textContent = 'Enregistrement...'; btn.disabled = true;
+
+  const body = {
+    type:          document.getElementById('etType').value,
+    motif:         document.getElementById('etMotif').value,
+    quantite:      parseInt(document.getElementById('etQty').value) || 1,
+    prix_unitaire: parseFloat(document.getElementById('etPrix').value) || 0,
+    mode_paiement: document.getElementById('etMode').value,
+    notes:         document.getElementById('etNotes').value,
+  };
+  const res = await api('/api/transactions/' + id, {method:'PUT', body});
+  btn.textContent = 'Enregistrer'; btn.disabled = false;
+  if (res && res.ok) {
+    closeModal('editTrans');
+    notify('Transaction modifiée');
+    loadTransactions();
+    loadDashboard();
+  } else { notify(res?.error || 'Erreur serveur', 'error'); }
+}
+
+
+// ══════════════════════════════════════════════════════
+// MISE À JOUR
+// ══════════════════════════════════════════════════════
+async function checkUpdate() {
+  document.getElementById('updateSub').textContent  = 'Vérification en cours...';
+  document.getElementById('updateBody').textContent = '';
+  document.getElementById('btnApplyUpdate').style.display = 'none';
+  document.getElementById('modalUpdate').classList.add('open');
+
+  const res = await api('/api/update/check');
+  if (!res || !res.ok) {
+    document.getElementById('updateSub').textContent  = 'Erreur de connexion';
+    document.getElementById('updateBody').textContent = 'Impossible de joindre le serveur de mises à jour.';
+    return;
+  }
+  const d = res.data;
+  if (!d.available) {
+    document.getElementById('updateSub').textContent  = '✓ Vous êtes à jour';
+    document.getElementById('updateBody').innerHTML   = `Version actuelle : <strong style="color:var(--gold2)">${d.current_version}</strong>`;
+  } else {
+    document.getElementById('updateSub').textContent  = '🆕 Mise à jour disponible';
+    document.getElementById('updateBody').innerHTML   =
+      `Version actuelle : <strong>${d.current_version}</strong><br>
+       Nouvelle version : <strong style="color:var(--gold2)">${d.new_version}</strong><br><br>
+       <span style="color:var(--text3);font-size:12px">L'application se redémarrera automatiquement après l'installation.</span>`;
+    document.getElementById('btnApplyUpdate').style.display = 'inline-flex';
+  }
+}
+
+async function applyUpdate() {
+  document.getElementById('btnApplyUpdate').textContent = '⬇ Téléchargement...';
+  document.getElementById('btnApplyUpdate').disabled    = true;
+  document.getElementById('updateSub').textContent      = 'Installation en cours...';
+  document.getElementById('updateBody').innerHTML       = '<span style="color:var(--text3)">Téléchargement en cours... L\'app va se fermer et redémarrer automatiquement.</span>';
+  const res = await api('/api/update/apply', {method:'POST'});
+  if (!res || !res.ok) {
+    notify('Erreur lors de la mise à jour', 'error');
+    document.getElementById('btnApplyUpdate').textContent = '⬇ Installer et redémarrer';
+    document.getElementById('btnApplyUpdate').disabled    = false;
+  }
+}
+
+
+// ══════════════════════════════════════════════════════
+// PARAMÈTRES
+// ══════════════════════════════════════════════════════
+let currentMethod = 'pin';
+
+function initSettings() {
+  // Charger version depuis /api/update/check
+  api('/api/update/check').then(res => {
+    if (res && res.ok) {
+      document.getElementById('settingsVersion').textContent = res.data.current_version || '—';
+    }
+  });
+}
+
+function selectMethod(method) {
+  currentMethod = method;
+  const pinCard = document.getElementById('methodPIN');
+  const pwdCard = document.getElementById('methodPWD');
+  const pinSec  = document.getElementById('pinSection');
+  const pwdSec  = document.getElementById('pwdSection');
+
+  if (method === 'pin') {
+    pinCard.style.border   = '2px solid var(--gold)';
+    pinCard.style.background = 'rgba(201,168,76,.08)';
+    pinCard.querySelector('div:nth-child(2)').style.color = 'var(--gold2)';
+    pwdCard.style.border   = '1px solid var(--border)';
+    pwdCard.style.background = 'transparent';
+    pwdCard.querySelector('div:nth-child(2)').style.color = 'var(--text2)';
+    pinSec.style.display   = 'block';
+    pwdSec.style.display   = 'none';
+  } else {
+    pwdCard.style.border   = '2px solid var(--gold)';
+    pwdCard.style.background = 'rgba(201,168,76,.08)';
+    pwdCard.querySelector('div:nth-child(2)').style.color = 'var(--gold2)';
+    pinCard.style.border   = '1px solid var(--border)';
+    pinCard.style.background = 'transparent';
+    pinCard.querySelector('div:nth-child(2)').style.color = 'var(--text2)';
+    pwdSec.style.display   = 'block';
+    pinSec.style.display   = 'none';
+  }
+}
+
+async function changePin() {
+  const newPin  = document.getElementById('newPin').value.trim();
+  const confirm = document.getElementById('confirmPin').value.trim();
+  if (!newPin || newPin.length < 4) { notify('Le PIN doit contenir au moins 4 chiffres', 'error'); return; }
+  if (!/^\d+$/.test(newPin))        { notify('Le PIN ne doit contenir que des chiffres', 'error'); return; }
+  if (newPin !== confirm)            { notify('Les PIN ne correspondent pas', 'error'); return; }
+  const res = await api('/api/auth/change-pin', {method:'POST', body:{old_pin: await getCurrentPin(), new_pin: newPin}});
+  if (res && res.ok) {
+    notify('Code PIN mis à jour');
+    document.getElementById('newPin').value = '';
+    document.getElementById('confirmPin').value = '';
+  } else { notify(res?.error || 'Erreur', 'error'); }
+}
+
+async function changePassword() {
+  const newPwd  = document.getElementById('newPwd').value;
+  const confirm = document.getElementById('confirmPwd').value;
+  if (!newPwd || newPwd.length < 4) { notify('Le mot de passe doit contenir au moins 4 caractères', 'error'); return; }
+  if (newPwd !== confirm)            { notify('Les mots de passe ne correspondent pas', 'error'); return; }
+  const res = await api('/api/auth/change-pin', {method:'POST', body:{old_pin: await getCurrentPin(), new_pin: newPwd}});
+  if (res && res.ok) {
+    notify('Mot de passe mis à jour');
+    document.getElementById('newPwd').value = '';
+    document.getElementById('confirmPwd').value = '';
+  } else { notify(res?.error || 'Erreur', 'error'); }
+}
+
+// Demander le PIN actuel via une petite boîte
+async function getCurrentPin() {
+  return prompt('Entrez votre code actuel pour confirmer :') || '';
+}
+
+</script>
+</body>
+</html>

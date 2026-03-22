@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build-and-release:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest        # exe Windows natif
     timeout-minutes: 30
 
     steps:
@@ -22,37 +22,40 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
           python -m pip install --upgrade pip
-          pip install pyinstaller
+          pip install flask flask-cors pyinstaller
 
-      - name: Build executable
+      - name: Build executable (PyInstaller)
         run: |
-          rm -rf dist build
-          pyinstaller --onefile main.py --name gestion_dettes
-          ls -la dist
+          pyinstaller `
+            --onefile `
+            --name gestion_dettes `
+            --add-data "web;web" `
+            --add-data "db.py;." `
+            --add-data "api.py;." `
+            --add-data "updater.py;." `
+            --hidden-import flask `
+            --hidden-import flask_cors `
+            --hidden-import sqlite3 `
+            main.py
+          dir dist
 
-      - name: Prepare asset name
-        id: asset
+      - name: Compute SHA256
+        id: sha
+        shell: pwsh
         run: |
-          # Public asset name used in release and latest.json
-          echo "asset_name=gestion_dettes.exe" >> $GITHUB_OUTPUT
+          $hash = (Get-FileHash dist\gestion_dettes.exe -Algorithm SHA256).Hash.ToLower()
+          $hash | Out-File -FilePath sha256.txt -Encoding ascii -NoNewline
+          echo "sha=$hash" >> $env:GITHUB_OUTPUT
 
-      - name: Ensure asset has .exe name
-        run: |
-          if [ -f dist/gestion_dettes ]; then
-            mv dist/gestion_dettes dist/gestion_dettes.exe
-          fi
-
-      - name: Create or update release and upload asset
+      - name: Create / update GitHub Release and upload exe
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ github.ref_name }}
@@ -62,35 +65,36 @@ jobs:
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute SHA256
-        id: sha
+      - name: Prepare latest.json
+        shell: pwsh
         run: |
-          sha256sum dist/gestion_dettes.exe | awk '{print $1}' > sha256.txt
-          echo "sha=$(cat sha256.txt)" >> $GITHUB_OUTPUT
+          $tag       = "${{ github.ref_name }}"
+          $repo      = "${{ github.repository }}"
+          $assetName = "gestion_dettes.exe"
+          $assetUrl  = "https://github.com/$repo/releases/download/$tag/$assetName"
+          $sha256    = Get-Content sha256.txt -Raw
 
-      - name: Generate latest.json
-        id: gen_latest
-        run: |
-          asset_name="${{ steps.asset.outputs.asset_name }}"
-          asset_url="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${asset_name}"
-          sha=$(cat sha256.txt)
-          cat > latest.json <<EOF
-          {
-            "version": "${{ github.ref_name }}",
-            "asset_url": "${asset_url}",
-            "sha256": "${sha}"
-          }
-          EOF
-          cat latest.json
+          $json = @{
+            version   = $tag
+            asset_url = $assetUrl
+            sha256    = $sha256.Trim()
+          } | ConvertTo-Json -Depth 2
 
-      - name: Commit latest.json to a PR
+          $json | Out-File -FilePath latest.json -Encoding utf8
+          Write-Host "latest.json généré :"
+          Get-Content latest.json
+
+      - name: Commit latest.json and sha256.txt via PR
         if: success()
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "ci: update latest.json for ${{ github.ref_name }}"
+          commit-message: "ci: update latest.json + sha256 for ${{ github.ref_name }}"
           branch: "update-latest-${{ github.ref_name }}"
           title: "Update latest.json for ${{ github.ref_name }}"
-          body: "Automated update of latest.json"
+          body: |
+            Mise à jour automatique de `latest.json` et `sha256.txt` pour la release ${{ github.ref_name }}.
           base: main
-          path: latest.json
+          add-paths: |
+            latest.json
+            sha256.txt
