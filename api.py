@@ -19,7 +19,18 @@ try:
 except ImportError:
     HAS_UPDATER = False
 
-app = Flask(__name__, static_folder="web", static_url_path="")
+import sys as _sys
+
+def _get_web_folder():
+    """Retourne le chemin du dossier web/ — fonctionne en mode normal ET PyInstaller."""
+    if getattr(_sys, "frozen", False):
+        # Mode exe PyInstaller : les fichiers sont dans _MEIPASS
+        return os.path.join(_sys._MEIPASS, "web")
+    # Mode développement : dossier web/ à côté de api.py
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
+
+_WEB_FOLDER = _get_web_folder()
+app = Flask(__name__, static_folder=_WEB_FOLDER, static_url_path="")
 CORS(app, resources={r"/api/*": {"origins": "http://127.0.0.1:5000"}})
 
 # Token de session en mémoire (valide jusqu'au redémarrage)
@@ -320,10 +331,10 @@ def update_apply():
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_frontend(path):
-    """Sert l'interface web depuis le dossier ./web/"""
-    if path and os.path.exists(os.path.join(app.static_folder, path)):
-        return send_from_directory(app.static_folder, path)
-    return send_from_directory(app.static_folder, "index.html")
+    """Sert l'interface web depuis le dossier web/ (résolu pour PyInstaller)."""
+    if path and os.path.exists(os.path.join(_WEB_FOLDER, path)):
+        return send_from_directory(_WEB_FOLDER, path)
+    return send_from_directory(_WEB_FOLDER, "index.html")
 
 # ── DÉMARRAGE ─────────────────────────────────────────────────────────────────
 

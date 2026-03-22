@@ -54,6 +54,13 @@ def main():
 
     db.init_db()
 
+    # Vérifier que l'interface web est accessible
+    web_path = os.path.join(base_dir(), "web", "index.html")
+    if not os.path.exists(web_path):
+        print(f"[DebtManager] ERREUR : interface web introuvable à {web_path}")
+    else:
+        print(f"[DebtManager] Interface web trouvée : {web_path}")
+
     # Initialiser le PIN par défaut "1234" si aucun PIN n'existe encore
     if not db.has_pin():
         db.set_pin("1234")
