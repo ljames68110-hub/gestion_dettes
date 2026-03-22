@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   build-and-release:
@@ -21,13 +20,14 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
@@ -53,49 +53,27 @@ jobs:
             --add-data "api.py;." `
             --add-data "updater.py;." `
             --add-data "crypto_db.py;." `
+            --add-data "app_icon.ico;." `
+            --icon "app_icon.ico" `
             --hidden-import flask `
             --hidden-import flask_cors `
             --hidden-import sqlite3 `
             --hidden-import hashlib `
+            --hidden-import secrets `
+            --hidden-import csv `
             --hidden-import cryptography `
             --hidden-import cryptography.hazmat.primitives.ciphers `
             --hidden-import cryptography.hazmat.primitives.kdf.pbkdf2 `
-            --hidden-import secrets `
-            --hidden-import csv `
+            --hidden-import webview `
+            --hidden-import webview.platforms.winforms `
             --collect-all flask `
             --collect-all flask_cors `
             --collect-all webview `
-            --hidden-import webview `
-            --hidden-import webview.platforms.winforms `
-            --add-data "app_icon.ico;." `
-            --icon "app_icon.ico" `
             main.py
           Write-Host "Build OK"
           dir dist
 
-      - name: Install Inno Setup
-        shell: pwsh
-        run: |
-          choco install innosetup --no-progress -y
-          Write-Host "Inno Setup installed"
-
-      - name: Update version in installer script
-        shell: pwsh
-        run: |
-          $tag = "${{ github.ref_name }}".TrimStart('v')
-          (Get-Content installer.iss) -replace '#define AppVersion "1.0"', "#define AppVersion `"$tag`"" |
-            Set-Content installer.iss
-          Write-Host "Version set to $tag"
-
-      - name: Build installer with Inno Setup
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path installer_output
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
-          Write-Host "Installer built:"
-          dir installer_output
-
-      - name: Compute SHA256 of exe
+      - name: Compute SHA256
         id: sha
         shell: pwsh
         run: |
@@ -104,33 +82,16 @@ jobs:
           echo "sha=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Write-Host "SHA256: $hash"
 
-      - name: Create Release and upload both files
+      - name: Create Release and upload exe
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          artifacts: |
-            dist/gestion_dettes.exe
-            installer_output/Gestion Perso_Setup.exe
+          artifacts: dist/gestion_dettes.exe
           artifactContentType: application/octet-stream
           draft: false
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
-          body: |
-            ## Gestion Perso ${{ github.ref_name }}
-
-            ### Téléchargements
-            | Fichier | Description |
-            |---------|-------------|
-            | `Gestion Perso_Setup.exe` | **Installateur recommandé** — installe l'app, crée un raccourci Bureau/Menu Démarrer, apparaît dans Programmes |
-            | `gestion_dettes.exe` | Version portable — double-clic, aucune installation |
-
-            ### Installation
-            1. Télécharge `Gestion Perso_Setup.exe`
-            2. Double-clique et suis les étapes
-            3. L'app se lance automatiquement
-
-            > Tes données (`dettes.db`) sont conservées dans `%APPDATA%\Gestion Perso\` et ne sont pas supprimées lors d'une désinstallation.
 
       - name: Prepare latest.json
         shell: pwsh
@@ -143,15 +104,14 @@ jobs:
           $obj | ConvertTo-Json | Out-File -FilePath latest.json -Encoding utf8
           Get-Content latest.json
 
-      - name: Commit latest.json via PR
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "ci: update latest.json for ${{ github.ref_name }}"
-          branch: "update-latest-${{ github.ref_name }}"
-          title: "Update latest.json for ${{ github.ref_name }}"
-          body: "Automated update of latest.json"
-          base: main
-          add-paths: |
-            latest.json
-            sha256.txt
+      - name: Push latest.json directly to main
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          git add latest.json sha256.txt
+          git diff --cached --quiet && echo "No changes" || git commit -m "ci: update latest.json for ${{ github.ref_name }} [skip ci]"
+          git push origin main
+          Write-Host "latest.json pousse sur main directement"
