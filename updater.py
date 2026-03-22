@@ -99,26 +99,29 @@ def download_update(url, dest, expected_sha=None, progress_cb=None):
 
 def apply_update_windows(new_exe, current_exe):
     """
-    Sur Windows, l'exe en cours ne peut pas être remplacé directement.
-    On crée un script .bat qui attend la fermeture de l'app, remplace, relance.
+    Sur Windows, l exe en cours ne peut pas etre remplace directement.
+    On cree un script .bat qui attend la fermeture de l app, remplace, relance.
     """
-    bat = tempfile.NamedTemporaryFile(suffix=".bat", delete=False, mode="w", encoding="utf-8")
-    bat.write(f"""@echo off
-timeout /t 4 /nobreak >nul
-move /y "{new_exe}" "{current_exe}"
-if exist "{current_exe}" (
-    start "" "{current_exe}"
-) else (
-    echo ERREUR : remplacement echoue
-    pause
-)
-del "%~f0"
-""")
-    bat.close()
+    import time as _time
+    bat_path = os.path.join(os.path.dirname(current_exe), "_gp_update.bat")
+    with open(bat_path, "w", encoding="ascii") as f:
+        f.write("@echo off\r\n")
+        f.write("echo Mise a jour en cours...\r\n")
+        f.write("timeout /t 3 /nobreak >nul\r\n")
+        f.write(f"move /y \"{new_exe}\" \"{current_exe}\"\r\n")
+        f.write("if %errorlevel% equ 0 (\r\n")
+        f.write(f"    start \"\" \"{current_exe}\"\r\n")
+        f.write("    echo Redemarrage lance.\r\n")
+        f.write(") else (\r\n")
+        f.write("    echo ERREUR remplacement.\r\n")
+        f.write("    pause\r\n")
+        f.write(")\r\n")
+        f.write(f"del \"{bat_path}\"\r\n")
+
     subprocess.Popen(
-        ["cmd", "/c", bat.name],
-        creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
-        close_fds=True
+        f'cmd /c "{bat_path}"',
+        shell=True,
+        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
     )
 
 def check_and_update(on_update_available=None, on_progress=None, on_done=None):
