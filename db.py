@@ -1,4 +1,4 @@
-﻿# db.py — Gestion dettes Premium
+# db.py — Gestion dettes Premium
 import sqlite3
 import hashlib
 import os
@@ -81,6 +81,26 @@ def init_db():
         client_cols = {row[1] for row in c.execute("PRAGMA table_info(clients)").fetchall()}
         if "created_at" not in client_cols:
             c.execute("ALTER TABLE clients ADD COLUMN created_at TEXT DEFAULT NULL")
+
+        # ── Migration complète table auth ──────────────────────────────────────
+        auth_cols = {row[1] for row in c.execute("PRAGMA table_info(auth)").fetchall()}
+        if not auth_cols:
+            c.execute("""CREATE TABLE auth (
+                id INTEGER PRIMARY KEY CHECK(id=1),
+                pin_hash TEXT, salt TEXT,
+                pin_length INTEGER DEFAULT 4,
+                auth_type TEXT DEFAULT 'pin',
+                created_at TEXT DEFAULT (datetime('now'))
+            )""")
+        else:
+            if "pin_hash" not in auth_cols:
+                c.execute("ALTER TABLE auth ADD COLUMN pin_hash TEXT")
+            if "salt" not in auth_cols:
+                c.execute("ALTER TABLE auth ADD COLUMN salt TEXT")
+            if "pin_length" not in auth_cols:
+                c.execute("ALTER TABLE auth ADD COLUMN pin_length INTEGER DEFAULT 4")
+            if "auth_type" not in auth_cols:
+                c.execute("ALTER TABLE auth ADD COLUMN auth_type TEXT DEFAULT 'pin'")
 
         # ── Migration table auth ──────────────────────────────────────────────
         # Vérifie si la table auth existe et quelles colonnes elle a
