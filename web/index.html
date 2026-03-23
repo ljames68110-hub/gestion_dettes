@@ -198,6 +198,9 @@ select option{background:var(--bg3)}
     <div class="nav-item" data-page="rappels" onclick="goPage('rappels',this)"><span class="nav-icon">🔔</span> Rappels</div>
     <div class="nav-item" onclick="openModal('transaction')"><span class="nav-icon">＋</span> Nouvelle transaction</div>
     <div class="nav-item" onclick="exportAll()"><span class="nav-icon">↓</span> Export CSV complet</div>
+    <div class="nav-item" onclick="exportDB()"><span class="nav-icon">💾</span> Exporter la base</div>
+    <div class="nav-item" onclick="document.getElementById('importDBInput').click()"><span class="nav-icon">📂</span> Importer une base</div>
+    <input type="file" id="importDBInput" accept=".db" style="display:none" onchange="importDB(this)">
     <div class="sidebar-footer">
       <div class="sidebar-user">
         <div class="avatar">YL</div>
@@ -476,6 +479,23 @@ select option{background:var(--bg3)}
 </div>
 
 <div class="notif" id="notif"></div>
+
+<!-- MODAL IMPORT DB -->
+<div class="modal-bg" id="modalImportDB" onclick="if(event.target===this)closeModal('importDB')">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title">📂 Importer une base</div>
+    <div class="modal-sub">Cette opération va remplacer toutes vos données actuelles</div>
+    <div style="background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.3);border-radius:var(--radius2);padding:14px;margin-bottom:16px;font-size:13px;color:var(--red)">
+      ⚠️ Attention : vos clients, transactions et rappels actuels seront <strong>remplacés</strong> par ceux du fichier importé.
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:8px">Fichier sélectionné :</div>
+    <div id="importFileName" style="font-size:14px;color:var(--gold2);font-family:'DM Mono',monospace;margin-bottom:16px">—</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('importDB');document.getElementById('importDBInput').value=''">Annuler</button>
+      <button class="btn-save" style="background:linear-gradient(135deg,rgba(231,76,60,.2),rgba(231,76,60,.05));border-color:rgba(231,76,60,.4);color:var(--red)" onclick="confirmImportDB()">⚠️ Remplacer mes données</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ── CONFIG ──
@@ -1092,6 +1112,66 @@ function initApp(){
 <!-- Chart.js chargé de façon non-bloquante -->
 <script>
 (function(){var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';s.onerror=function(){console.warn('Chart.js bloqué');};document.head.appendChild(s);})();
+
+// ══════════════════════════════════════════════════════
+// EXPORT / IMPORT BASE DE DONNÉES
+// ══════════════════════════════════════════════════════
+
+async function exportDB() {
+  notify('Export de la base en cours...');
+  try {
+    const res = await fetch('/api/export/db?token=' + TOKEN);
+    if (!res.ok) { notify('Erreur export', 'error'); return; }
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const date = new Date().toISOString().slice(0,10);
+    a.href     = url;
+    a.download = 'GestionPerso_backup_' + date + '.db';
+    a.click();
+    URL.revokeObjectURL(url);
+    notify('Base exportée avec succès !');
+  } catch(e) {
+    notify('Erreur : ' + e.message, 'error');
+  }
+}
+
+let _importFile = null;
+
+function importDB(input) {
+  const file = input.files[0];
+  if (!file) return;
+  _importFile = file;
+  document.getElementById('importFileName').textContent = file.name + ' (' + Math.round(file.size/1024) + ' KB)';
+  document.getElementById('modalImportDB').classList.add('open');
+}
+
+async function confirmImportDB() {
+  if (!_importFile) return;
+  closeModal('importDB');
+  notify('Import en cours...');
+  try {
+    const formData = new FormData();
+    formData.append('db', _importFile);
+    const res = await fetch('/api/import/db', {
+      method: 'POST',
+      headers: {'X-Session-Token': TOKEN},
+      body: formData
+    });
+    const json = await res.json();
+    if (json.ok) {
+      notify('Base importée ! Rechargement...');
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      notify('Erreur import : ' + (json.error || 'Fichier invalide'), 'error');
+    }
+  } catch(e) {
+    notify('Erreur : ' + e.message, 'error');
+  }
+  _importFile = null;
+  document.getElementById('importDBInput').value = '';
+}
+
 </script>
 </body>
 </html>

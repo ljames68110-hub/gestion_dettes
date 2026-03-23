@@ -365,6 +365,64 @@ def rappels_delete_by_client(cid):
     db.delete_rappel_by_client(cid)
     return ok({"deleted_client": cid})
 
+
+# ── EXPORT / IMPORT BASE DE DONNÉES ──────────────────────────────────────────
+
+@app.route("/api/export/db")
+@require_auth
+def export_db():
+    """Télécharge le fichier dettes.db complet."""
+    import shutil, tempfile
+    from flask import send_file
+    db_path = db.DB_FILE
+    if not os.path.exists(db_path):
+        return err("Base de données introuvable", 404)
+    # Copier dans un temp pour éviter les locks SQLite
+    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+    tmp.close()
+    shutil.copy2(db_path, tmp.name)
+    from datetime import datetime
+    date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return send_file(
+        tmp.name,
+        as_attachment=True,
+        download_name=f"GestionPerso_backup_{date_str}.db",
+        mimetype="application/octet-stream"
+    )
+
+@app.route("/api/import/db", methods=["POST"])
+@require_auth
+def import_db():
+    """Remplace la base de données par le fichier uploadé."""
+    import shutil, tempfile, sqlite3
+    if "db" not in request.files:
+        return err("Fichier manquant")
+    f = request.files["db"]
+    if not f.filename.endswith(".db"):
+        return err("Le fichier doit être un .db SQLite")
+    # Sauvegarder dans un temp
+    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+    f.save(tmp.name)
+    tmp.close()
+    # Vérifier que c'est bien un fichier SQLite valide
+    try:
+        conn = sqlite3.connect(tmp.name)
+        conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+        conn.close()
+    except Exception as e:
+        os.remove(tmp.name)
+        return err(f"Fichier SQLite invalide : {e}")
+    # Backup de l'ancienne base
+    db_path = db.DB_FILE
+    backup_path = db_path + ".backup"
+    if os.path.exists(db_path):
+        shutil.copy2(db_path, backup_path)
+    # Remplacer la base
+    shutil.move(tmp.name, db_path)
+    # Réinitialiser la connexion
+    db.init_db()
+    return ok({"message": "Base importée avec succès"})
+
 # ── SERVE FRONTEND ────────────────────────────────────────────────────────────
 
 @app.route("/", defaults={"path": ""})
