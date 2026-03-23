@@ -368,6 +368,46 @@ def rappels_delete_by_client(cid):
 
 # ── EXPORT / IMPORT BASE DE DONNÉES ──────────────────────────────────────────
 
+
+@app.route("/api/export/db/save", methods=["POST"])
+@require_auth
+def export_db_save():
+    """Sauvegarde la base via boite de dialogue Windows ou dans Documents."""
+    import shutil
+    from datetime import datetime
+    date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"GestionPerso_backup_{date_str}.db"
+    db_path  = db.DB_FILE
+    if not os.path.exists(db_path):
+        return err("Base introuvable", 404)
+
+    # Essayer boite de dialogue Windows
+    save_path = None
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        save_path = filedialog.asksaveasfilename(
+            defaultextension=".db",
+            filetypes=[("Base SQLite", "*.db"), ("Tous les fichiers", "*.*")],
+            initialfile=filename,
+            title="Exporter la base de données"
+        )
+        root.destroy()
+    except Exception:
+        pass
+
+    if not save_path:
+        # Fallback : sauvegarder dans Documents
+        docs = os.path.join(os.path.expanduser("~"), "Documents")
+        os.makedirs(docs, exist_ok=True)
+        save_path = os.path.join(docs, filename)
+
+    shutil.copy2(db_path, save_path)
+    return ok({"path": save_path, "filename": filename})
+
 @app.route("/api/export/db")
 @require_auth
 def export_db():

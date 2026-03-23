@@ -1118,19 +1118,15 @@ function initApp(){
 // ══════════════════════════════════════════════════════
 
 async function exportDB() {
-  notify('Export de la base en cours...');
+  notify('Export en cours...');
   try {
-    const res = await fetch('/api/export/db?token=' + TOKEN);
-    if (!res.ok) { notify('Erreur export', 'error'); return; }
-    const blob = await res.blob();
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    const date = new Date().toISOString().slice(0,10);
-    a.href     = url;
-    a.download = 'GestionPerso_backup_' + date + '.db';
-    a.click();
-    URL.revokeObjectURL(url);
-    notify('Base exportée avec succès !');
+    // Demander au serveur de sauvegarder le fichier via boite de dialogue Windows
+    const res = await api('/api/export/db/save', {method:'POST'});
+    if (res && res.ok) {
+      notify('Base exportée : ' + res.data.path);
+    } else {
+      notify(res?.error || 'Erreur export', 'error');
+    }
   } catch(e) {
     notify('Erreur : ' + e.message, 'error');
   }
