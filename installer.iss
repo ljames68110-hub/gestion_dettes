@@ -1,5 +1,4 @@
-; installer.iss — Script Inno Setup pour Gestion Perso
-; Génère un installateur Windows professionnel
+; installer.iss — Gestion Perso
 
 #define AppName "Gestion Perso"
 #define AppVersion "1.0"
@@ -22,8 +21,7 @@ SetupIconFile=app_icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
-PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
+PrivilegesRequired=admin
 UninstallDisplayIcon={app}\{#AppExeName}
 UninstallDisplayName={#AppName}
 VersionInfoVersion={#AppVersion}
@@ -31,51 +29,35 @@ VersionInfoCompany={#AppPublisher}
 VersionInfoDescription={#AppName} Installer
 CloseApplications=yes
 RestartApplications=no
-; Créer un dossier data dans AppData pour la base de données
 UsePreviousAppDir=yes
+CreateAppDir=yes
 
 [Languages]
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "Créer un raccourci sur le Bureau"; GroupDescription: "Raccourcis :"; Flags: unchecked
-Name: "startupicon"; Description: "Lancer au démarrage de Windows"; GroupDescription: "Démarrage :"; Flags: unchecked
+Name: "desktopicon"; Description: "Creer un raccourci sur le Bureau"; GroupDescription: "Raccourcis :"; Flags: checkedonce
+Name: "startmenuicon"; Description: "Creer un raccourci dans le menu Demarrer"; GroupDescription: "Raccourcis :"; Flags: checkedonce
 
 [Files]
 Source: "dist\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "app_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-; Menu Démarrer
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
-Name: "{group}\Désinstaller {#AppName}"; Filename: "{uninstallexe}"
-; Bureau (optionnel)
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
-
-[Registry]
-; Lancer au démarrage (optionnel)
-Root: HKCU; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"; \
-  ValueType: string; ValueName: "{#AppName}"; \
-  ValueData: """{app}\{#AppExeName}"""; \
-  Flags: uninsdeletevalue; Tasks: startupicon
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\app_icon.ico"; Tasks: startmenuicon
+Name: "{group}\Desinstaller {#AppName}"; Filename: "{uninstallexe}"; Tasks: startmenuicon
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\app_icon.ico"; Tasks: desktopicon
 
 [Run]
-; Proposer de lancer l'app après installation
-Filename: "{app}\{#AppExeName}"; \
-  Description: "Lancer {#AppName} maintenant"; \
-  Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExeName}"; Description: "Lancer {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-; Fermer l'app avant désinstallation
 Filename: "taskkill.exe"; Parameters: "/F /IM {#AppExeName}"; Flags: runhidden; RunOnceId: "KillApp"
 
 [Code]
-// Vérifier si l'app tourne avant de désinstaller
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usUninstall then
   begin
-    // La base dettes.db est dans AppData — on ne la supprime pas
-    // L'utilisateur garde ses données même après désinstallation
   end;
 end;
