@@ -650,7 +650,7 @@ async function loadDashboard(){
   if(!tres.data.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">Aucune transaction</td></tr>';return;}
   tres.data.forEach(t=>{
     const tr=document.createElement('tr');
-    tr.innerHTML='<td>'+fmtDate(t.date)+'</td><td style="color:var(--text)">'+(t.client_nom||'—')+'</td><td>'+t.motif+'</td><td>'+t.mode_paiement+'</td><td><span class="badge '+t.type+'">'+(t.type==='credit'?'Crédit':'Débit')+'</span></td><td style="text-align:right"><span class="mono" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</span></td>';
+    tr.innerHTML='<td>'+fmtDate(t.date)+'</td><td style="color:var(--text)">'+(t.client_nom||'—')+'</td><td>'+t.motif+'</td><td>'+(t.type==='debit'?'<span style="color:var(--text3)">—</span>':t.mode_paiement)+'</td><td><span class="badge '+t.type+'">'+(t.type==='credit'?'Crédit':'Débit')+'</span></td><td style="text-align:right"><span class="mono" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</span></td>';
     tbody.appendChild(tr);
   });
 }
@@ -741,7 +741,7 @@ function renderTransactions(){
   list.forEach(t=>{
     const tr=document.createElement('tr');tr.style.cursor='pointer';
     tr.onclick=(e)=>{if(!e.target.closest('button'))openTransDetail(t.id);};
-    tr.innerHTML='<td>'+fmtDate(t.date)+'</td><td style="color:var(--text)">'+(t.client_nom||'—')+'</td><td>'+t.motif+'</td><td>'+t.mode_paiement+'</td><td>'+t.quantite+'</td><td class="mono">'+fmt(t.prix_unitaire)+'</td><td class="mono">'+fmt(t.montant_brut)+'</td><td class="mono" style="color:var(--red)">'+fmt(t.frais)+'</td><td><span class="badge '+t.type+'">'+(t.type==='credit'?'Crédit':'Débit')+'</span></td><td style="text-align:right"><span class="mono" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</span></td><td style="display:flex;gap:4px"><button class="btn" style="padding:4px 8px;font-size:11px" onclick="openEditTrans('+t.id+')">✏</button><button class="btn danger" style="padding:4px 8px;font-size:11px" onclick="deleteTrans('+t.id+')">✕</button></td>';
+    tr.innerHTML='<td>'+fmtDate(t.date)+'</td><td style="color:var(--text)">'+(t.client_nom||'—')+'</td><td>'+t.motif+'</td><td>'+(t.type==='debit'?'<span style="color:var(--text3)">—</span>':t.mode_paiement)+'</td><td>'+t.quantite+'</td><td class="mono">'+fmt(t.prix_unitaire)+'</td><td class="mono">'+fmt(t.montant_brut)+'</td><td class="mono" style="color:var(--red)">'+fmt(t.frais)+'</td><td><span class="badge '+t.type+'">'+(t.type==='credit'?'Crédit':'Débit')+'</span></td><td style="text-align:right"><span class="mono" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</span></td><td style="display:flex;gap:4px"><button class="btn" style="padding:4px 8px;font-size:11px" onclick="openEditTrans('+t.id+')">✏</button><button class="btn danger" style="padding:4px 8px;font-size:11px" onclick="deleteTrans('+t.id+')">✕</button></td>';
     tbody.appendChild(tr);
   });
 }
