@@ -1,0 +1,113 @@
+# main.py — Point d'entrée Gestion Perso
+"""
+Lance Flask en arrière-plan puis ouvre une fenêtre native via PyWebView.
+Si PyWebView n'est pas disponible, fallback sur le navigateur.
+Compatible PyInstaller --onefile et installateur Inno Setup.
+"""
+
+import sys
+import os
+import time
+import threading
+
+def base_dir():
+    if getattr(sys, "frozen", False):
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
+
+def data_dir():
+    if getattr(sys, "frozen", False):
+        # Toujours stocker les donnees dans AppData/Roaming/GestionPerso
+        # Peu importe ou est installe l exe
+        appdata = os.environ.get("APPDATA", os.path.expanduser("~"))
+        d = os.path.join(appdata, "GestionPerso")
+        os.makedirs(d, exist_ok=True)
+        return d
+    return os.path.dirname(os.path.abspath(__file__))
+
+DATA_DIR = data_dir()
+DB_PATH  = os.path.join(DATA_DIR, "dettes.db")
+os.chdir(DATA_DIR)
+sys.path.insert(0, base_dir())
+
+import db
+import api
+
+db.DB_FILE = DB_PATH
+
+# Chiffrement desactive
+HOST = "127.0.0.1"
+PORT = 5000
+URL  = f"http://{HOST}:{PORT}"
+
+def get_icon_path():
+    for p in [
+        os.path.join(base_dir(), "app_icon.ico"),
+        os.path.join(os.path.dirname(sys.executable), "app_icon.ico"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "app_icon.ico"),
+    ]:
+        if os.path.exists(p): return p
+    return None
+
+def wait_for_flask():
+    import urllib.request
+    for _ in range(40):
+        time.sleep(0.25)
+        try:
+            urllib.request.urlopen(f"{URL}/api/auth/status", timeout=1)
+            return True
+        except: continue
+    return False
+
+def start_flask():
+    api.start(host=HOST, port=PORT, debug=False)
+
+def main():
+    print(f"[Gestion Perso] Demarrage {URL}")
+    print(f"[Gestion Perso] DB : {DB_PATH}")
+
+    # Chiffrement désactivé temporairement — base SQLite standard
+    db.init_db()
+    if not db.has_pin():
+        db.set_pin("1234")
+        print("[Gestion Perso] PIN par defaut cree : 1234")
+
+    try:
+        import updater
+        updater.check_in_background(
+            notify_flask_fn=lambda r: print(f"[Gestion Perso] MAJ : {r.get('version')}")
+        )
+    except ImportError: pass
+
+    flask_thread = threading.Thread(target=start_flask, daemon=True)
+    flask_thread.start()
+
+    print("[Gestion Perso] Attente Flask...")
+    if not wait_for_flask():
+        print("[Gestion Perso] Timeout — fallback navigateur")
+        import webbrowser; webbrowser.open(URL)
+        flask_thread.join(); return
+
+    print("[Gestion Perso] Flask OK !")
+
+    try:
+        import webview
+        icon = get_icon_path()
+        print("[Gestion Perso] PyWebView — fenetre native")
+        window = webview.create_window(
+            title            = "Gestion Perso",
+            url              = URL,
+            width            = 1280,
+            height           = 800,
+            min_size         = (900, 600),
+            resizable        = True,
+            background_color = "#0a0a0f",
+        )
+        webview.start(debug=False, icon=icon)
+    except ImportError:
+        print("[Gestion Perso] PyWebView absent — navigateur")
+        import webbrowser; webbrowser.open(URL)
+        flask_thread.join()
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.spec
+dist/
+build/
+*.db
+*.db.enc
+*.db.backup
+.gp_tmp_*
+installer_output/
