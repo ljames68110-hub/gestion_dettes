@@ -387,6 +387,13 @@ select option{background:var(--bg3)}
       <div class="form-group"><label>Type</label><select id="mType" onchange="toggleTypeFields()"><option value="debit">Débit (vente)</option><option value="credit">Crédit (remboursement)</option></select></div>
       <div class="form-group"><label>Motif</label><select id="mMotif"><option>Tabac</option><option>Bedo</option><option>Recharge</option><option>Pot</option><option>Cigarette</option><option>Achat</option><option>Autre</option></select></div>
       <div class="form-group" id="mModeGroup"><label>Mode paiement</label><select id="mMode" onchange="calcModal()"><option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS (7%)</option><option value="Paysafecard">Paysafecard (5%)</option><option value="WesternUnion">Western Union</option></select></div>
+      <div class="form-group full" id="mDettesGroup" style="display:none">
+        <label>Dette à rembourser</label>
+        <select id="mDetteSelect" onchange="onDetteSelect()" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;font-family:'Outfit',sans-serif">
+          <option value="">-- Sélectionner une dette --</option>
+        </select>
+        <div id="mDetteInfo" style="margin-top:8px;padding:10px;background:var(--bg3);border-radius:var(--radius2);border:1px solid var(--border);font-size:12px;color:var(--text2);display:none"></div>
+      </div>
       <div class="form-group"><label>Quantité</label><input type="number" id="mQty" value="1" min="1" oninput="calcModal()"></div>
       <div class="form-group"><label>Prix unitaire (€)</label><input type="number" id="mPrix" value="0" step="0.01" min="0" oninput="calcModal()"></div>
     </div>
@@ -715,6 +722,17 @@ function openClientSolde(cid){
   document.getElementById('soldeClientSel').value=cid;loadSolde();
 }
 function populateClientSelects(){
+  // Écouter changement client dans modal transaction
+  const mc=document.getElementById('mClient');
+  if(mc&&!mc._hasListener){
+    mc._hasListener=true;
+    mc.addEventListener('change',async()=>{
+      const type=document.getElementById('mType').value;
+      if(type==='credit'){
+        await loadDettesOuvertes(parseInt(mc.value));
+      }
+    });
+  }
   ['mClient','filterClient','soldeClientSel'].forEach(id=>{
     const sel=document.getElementById(id);const prev=sel.value;
     const isFilter=id==='filterClient';
@@ -782,13 +800,54 @@ function closeModal(type){
   const ids={trans:'modalTrans',client:'modalClient',editTrans:'modalEditTrans',update:'modalUpdate',detail:'modalDetail',rappel:'modalRappel'};
   const el=document.getElementById(ids[type]||type);if(el)el.classList.remove('open');
 }
-function toggleTypeFields(){
+async function toggleTypeFields(){
   const isDebit=document.getElementById('mType').value==='debit';
   const mg=document.getElementById('mModeGroup');
   mg.style.opacity=isDebit?'0.35':'1';mg.style.pointerEvents=isDebit?'none':'auto';
   document.getElementById('cFraisRow').style.display=isDebit?'none':'flex';
   if(isDebit)document.getElementById('mMode').value='Liquide';
+
+  // Afficher/masquer section dettes ouvertes
+  const dg=document.getElementById('mDettesGroup');
+  if(!isDebit){
+    dg.style.display='block';
+    const cid=parseInt(document.getElementById('mClient').value);
+    if(cid) await loadDettesOuvertes(cid);
+  } else {
+    dg.style.display='none';
+  }
   calcModal();
+}
+
+async function loadDettesOuvertes(cid){
+  const sel=document.getElementById('mDetteSelect');
+  sel.innerHTML='<option value="">-- Sélectionner une dette (optionnel) --</option>';
+  document.getElementById('mDetteInfo').style.display='none';
+  if(!cid)return;
+  const res=await api('/api/clients/'+cid+'/dettes-ouvertes');
+  if(!res||!res.ok||!res.data.length){
+    sel.innerHTML='<option value="">✓ Aucune dette ouverte</option>';
+    return;
+  }
+  res.data.forEach(d=>{
+    const o=document.createElement('option');
+    o.value=d.id;
+    o.dataset.restant=d.restant;
+    o.dataset.motif=d.motif;
+    o.dataset.date=d.date;
+    o.textContent=fmtDate(d.date)+' — '+d.motif+' — Reste : '+fmt(d.restant);
+    sel.appendChild(o);
+  });
+}
+
+function fillDetteAmount(v){document.getElementById('mPrix').value=v;calcModal();}
+function onDetteSelect(){
+  const sel=document.getElementById('mDetteSelect');
+  const opt=sel.options[sel.selectedIndex];
+  const info=document.getElementById('mDetteInfo');
+  if(!sel.value){info.style.display='none';return;}
+  const restant=parseFloat(opt.dataset.restant)||0;
+  info.style.display='block';
 }
 function calcModal(){
   const qty=parseFloat(document.getElementById('mQty').value)||0;
@@ -803,7 +862,9 @@ function calcModal(){
 }
 async function saveTrans(){
   const btn=document.getElementById('btnSaveTrans');btn.textContent='...';btn.disabled=true;
-  const body={client_id:parseInt(document.getElementById('mClient').value),type:document.getElementById('mType').value,motif:document.getElementById('mMotif').value,quantite:parseInt(document.getElementById('mQty').value)||1,prix_unitaire:parseFloat(document.getElementById('mPrix').value)||0,mode_paiement:document.getElementById('mMode').value,notes:document.getElementById('mNotes').value};
+  const debtSel=document.getElementById('mDetteSelect');
+  const linked_debit_id=debtSel&&debtSel.value?parseInt(debtSel.value):null;
+  const body={client_id:parseInt(document.getElementById('mClient').value),type:document.getElementById('mType').value,motif:document.getElementById('mMotif').value,quantite:parseInt(document.getElementById('mQty').value)||1,prix_unitaire:parseFloat(document.getElementById('mPrix').value)||0,mode_paiement:document.getElementById('mMode').value,notes:document.getElementById('mNotes').value,linked_debit_id};
   const res=await api('/api/transactions',{method:'POST',body});
   btn.textContent='Enregistrer';btn.disabled=false;
   if(res&&res.ok){closeModal('trans');notify('Transaction enregistrée');document.getElementById('mQty').value='1';document.getElementById('mPrix').value='0';document.getElementById('mNotes').value='';loadDashboard();if(document.getElementById('pg-transactions').classList.contains('active'))loadTransactions();}
