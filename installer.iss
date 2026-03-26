@@ -1,7 +1,7 @@
 ; installer.iss — Gestion Perso
 
 #define AppName "Gestion Perso"
-#define AppVersion "1.0"
+#define AppVersion "0.1.59"
 #define AppPublisher "Yoann L."
 #define AppExeName "GestionPerso.exe"
 #define AppId "{{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
