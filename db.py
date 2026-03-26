@@ -82,6 +82,13 @@ def init_db():
         if "created_at" not in client_cols:
             c.execute("ALTER TABLE clients ADD COLUMN created_at TEXT DEFAULT NULL")
 
+        # ── Migration colonne linked_debit_id dans transactions ────────────────
+        trans_cols = {row[1] for row in c.execute("PRAGMA table_info(transactions)").fetchall()}
+        if "linked_debit_id" not in trans_cols:
+            c.execute("ALTER TABLE transactions ADD COLUMN linked_debit_id INTEGER DEFAULT NULL")
+        if "solde_restant" not in trans_cols:
+            c.execute("ALTER TABLE transactions ADD COLUMN solde_restant REAL DEFAULT NULL")
+
         # ── Migration complète table auth ──────────────────────────────────────
         auth_cols = {row[1] for row in c.execute("PRAGMA table_info(auth)").fetchall()}
         if not auth_cols:

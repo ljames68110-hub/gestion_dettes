@@ -331,6 +331,44 @@ def update_apply():
     return ok({"message": f"Téléchargement de {PENDING_UPDATE['version']} en cours..."})
 
 
+
+@app.route("/api/clients/<int:cid>/dettes-ouvertes")
+@require_auth
+def dettes_ouvertes(cid):
+    """Retourne les débits non totalement remboursés d'un client."""
+    with db.get_conn() as conn:
+        # Récupérer tous les débits du client
+        debits = conn.execute("""
+            SELECT id, date, motif, montant_net, mode_paiement, notes
+            FROM transactions
+            WHERE client_id=? AND type='debit'
+            ORDER BY date DESC
+        """, (cid,)).fetchall()
+
+        result = []
+        for d in debits:
+            did = d[0]
+            # Total crédité lié à ce débit
+            row = conn.execute("""
+                SELECT COALESCE(SUM(montant_net), 0)
+                FROM transactions
+                WHERE linked_debit_id=? AND type='credit'
+            """, (did,)).fetchone()
+            total_credite = row[0] if row else 0
+            restant = d[3] - total_credite
+            if restant > 0.01:  # dette pas encore totalement remboursée
+                result.append({
+                    "id": did,
+                    "date": d[1],
+                    "motif": d[2],
+                    "montant_net": d[3],
+                    "mode_paiement": d[4],
+                    "notes": d[5] or "",
+                    "total_credite": round(total_credite, 2),
+                    "restant": round(restant, 2)
+                })
+    return ok(result)
+
 # ── RAPPELS ───────────────────────────────────────────────────────────────────
 
 @app.route("/api/rappels")
