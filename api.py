@@ -369,6 +369,79 @@ def dettes_ouvertes(cid):
                 })
     return ok(result)
 
+
+# ── ENTRÉES MATÉRIEL ──────────────────────────────────────────────────────────
+
+@app.route("/api/entrees")
+@require_auth
+def entrees_list():
+    return ok(db.get_entrees())
+
+@app.route("/api/entrees", methods=["POST"])
+@require_auth
+def entrees_create():
+    data = request.json or {}
+    if not data.get("description"):
+        return err("Description requise")
+    eid = db.add_entree(
+        description = data["description"],
+        quantite    = float(data.get("quantite", 1)),
+        prix_achat  = float(data.get("prix_achat", 0)),
+        date        = data.get("date", ""),
+        notes       = data.get("notes", ""),
+    )
+    return ok({"id": eid}), 201
+
+@app.route("/api/entrees/<int:eid>", methods=["PUT"])
+@require_auth
+def entrees_update(eid):
+    data = request.json or {}
+    db.update_entree(eid, data.get("description",""), float(data.get("quantite",1)),
+                     float(data.get("prix_achat",0)), data.get("date",""), data.get("notes",""))
+    return ok({"updated": eid})
+
+@app.route("/api/entrees/<int:eid>", methods=["DELETE"])
+@require_auth
+def entrees_delete(eid):
+    db.delete_entree(eid)
+    return ok({"deleted": eid})
+
+# ── RÉCAPITULATIF MENSUEL ─────────────────────────────────────────────────────
+
+@app.route("/api/recap-mensuel")
+@require_auth
+def recap_mensuel():
+    mois = request.args.get("mois", "")  # format YYYY-MM
+    with db.get_conn() as conn:
+        # Ventes du mois
+        q = """
+            SELECT t.*, c.nom as client_nom,
+                   e.description as entree_desc, e.date as entree_date
+            FROM transactions t
+            LEFT JOIN clients c ON t.client_id = c.id
+            LEFT JOIN entrees_materiel e ON t.entree_id = e.id
+            WHERE 1=1
+        """
+        params = []
+        if mois:
+            q += " AND substr(t.date,1,7) = ?"
+            params.append(mois)
+        q += " ORDER BY t.date DESC"
+        rows = conn.execute(q, params).fetchall()
+        transactions = [dict(r) for r in rows]
+
+        # Entrées matériel du mois
+        eq = "SELECT * FROM entrees_materiel WHERE 1=1"
+        eparams = []
+        if mois:
+            eq += " AND substr(date,1,7) = ?"
+            eparams.append(mois)
+        eq += " ORDER BY date DESC"
+        erows = conn.execute(eq, eparams).fetchall()
+        entrees = [dict(r) for r in erows]
+
+    return ok({"transactions": transactions, "entrees": entrees})
+
 # ── RAPPELS ───────────────────────────────────────────────────────────────────
 
 @app.route("/api/rappels")

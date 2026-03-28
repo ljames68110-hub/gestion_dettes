@@ -197,6 +197,8 @@ select option{background:var(--bg3)}
     <div class="nav-item" onclick="goPage('settings',this)"><span class="nav-icon">⚙</span> Paramètres</div>
     <div class="nav-item" data-page="rappels" onclick="goPage('rappels',this)"><span class="nav-icon">🔔</span> Rappels</div>
     <div class="nav-item" onclick="openModal('transaction')"><span class="nav-icon">＋</span> Nouvelle transaction</div>
+    <div class="nav-item" onclick="goPage('entrees',this)"><span class="nav-icon">📦</span> Entrées matériel</div>
+    <div class="nav-item" onclick="goPage('recap',this)"><span class="nav-icon">📊</span> Récap mensuel</div>
     <div class="nav-item" onclick="exportAll()"><span class="nav-icon">↓</span> Export CSV complet</div>
     <div class="nav-item" onclick="exportDB()"><span class="nav-icon">💾</span> Exporter la base</div>
     <div class="nav-item" onclick="document.getElementById('importDBInput').click()"><span class="nav-icon">📂</span> Importer une base</div>
@@ -353,6 +355,43 @@ select option{background:var(--bg3)}
         </div>
       </div>
 
+      <!-- ENTRÉES MATÉRIEL -->
+      <div class="page" id="pg-entrees">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+          <button class="btn primary" onclick="openModalEntree()">+ Nouvelle entrée</button>
+        </div>
+        <div class="table-wrap">
+          <div class="table-header"><span>Entrées matériel</span></div>
+          <table><thead><tr><th>Date</th><th>Description</th><th>Quantité</th><th>Prix achat</th><th>Notes</th><th></th></tr></thead>
+          <tbody id="entreesTbody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- RÉCAP MENSUEL -->
+      <div class="page" id="pg-recap">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;align-items:center;gap:16px">
+          <label style="font-size:13px;color:var(--text2)">Mois :</label>
+          <select id="recapMois" onchange="loadRecap()" style="padding:9px 14px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:'Outfit',sans-serif"></select>
+          <button class="btn" onclick="exportRecapCSV()">↓ Export CSV</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px" id="recapStats">
+          <div class="stat-card green"><div class="stat-label">Total ventes</div><div class="stat-value" id="recapTotalVentes">—</div></div>
+          <div class="stat-card gold"><div class="stat-label">Total remboursements</div><div class="stat-value" id="recapTotalRembours">—</div></div>
+          <div class="stat-card red"><div class="stat-label">Total frais</div><div class="stat-value" id="recapTotalFrais">—</div></div>
+          <div class="stat-card blue"><div class="stat-label">Entrées matériel</div><div class="stat-value" id="recapNbEntrees">—</div></div>
+        </div>
+        <div class="table-wrap">
+          <div class="table-header"><span>Ventes & Remboursements</span></div>
+          <table><thead><tr><th>Date</th><th>Client</th><th>Type</th><th>Motif</th><th>Entrée matériel</th><th>Dette liée</th><th style="text-align:right">Net</th></tr></thead>
+          <tbody id="recapTbody"></tbody></table>
+        </div>
+        <div class="table-wrap">
+          <div class="table-header"><span>Entrées matériel du mois</span></div>
+          <table><thead><tr><th>Date</th><th>Description</th><th>Quantité</th><th>Prix achat</th><th>Notes</th></tr></thead>
+          <tbody id="recapEntreesTbody"></tbody></table>
+        </div>
+      </div>
+
       <!-- RAPPELS -->
       <div class="page" id="pg-rappels">
         <div style="display:flex;justify-content:flex-end"><button class="btn primary" onclick="openModalRappel()">+ Ajouter un rappel</button></div>
@@ -384,9 +423,16 @@ select option{background:var(--bg3)}
     <div class="modal-sub">Enregistrer un crédit ou un débit</div>
     <div class="form-grid">
       <div class="form-group"><label>Client</label><select id="mClient"></select></div>
-      <div class="form-group"><label>Type</label><select id="mType" onchange="toggleTypeFields()"><option value="debit">Débit (vente)</option><option value="credit">Crédit (remboursement)</option></select></div>
+      <div class="form-group"><label>Type</label><select id="mType" onchange="toggleTypeFields()"><option value="debit">Vente</option><option value="credit">Remboursement</option></select></div>
       <div class="form-group"><label>Motif</label><select id="mMotif"><option>Tabac</option><option>Bedo</option><option>Recharge</option><option>Pot</option><option>Cigarette</option><option>Achat</option><option>Autre</option></select></div>
       <div class="form-group" id="mModeGroup"><label>Mode paiement</label><select id="mMode" onchange="calcModal()"><option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS (7%)</option><option value="Paysafecard">Paysafecard (5%)</option><option value="WesternUnion">Western Union</option></select></div>
+      <div class="form-group" id="mFraisOptGroup" style="display:none">
+        <label>Déduire les frais au client ?</label>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button id="mFraisOui" onclick="setFraisOpt(true)" class="btn" style="flex:1;padding:8px;font-size:13px;border-color:rgba(231,76,60,.4);color:var(--red)">✓ Oui — client paie les frais</button>
+          <button id="mFraisNon" onclick="setFraisOpt(false)" class="btn primary" style="flex:1;padding:8px;font-size:13px">✗ Non — j'absorbe les frais</button>
+        </div>
+      </div>
       <div class="form-group full" id="mDettesGroup" style="display:none">
         <label>Dette à rembourser</label>
         <select id="mDetteSelect" onchange="onDetteSelect()" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;font-family:'Outfit',sans-serif">
@@ -402,6 +448,12 @@ select option{background:var(--bg3)}
       <div class="calc-item" id="cFraisRow"><div class="c-label">Frais</div><div class="c-val" style="color:var(--red)" id="cFrais">0.00 €</div></div>
       <div class="calc-item"><div class="c-label">Net</div><div class="c-val" id="cNet">0.00 €</div></div>
     </div>
+    <div class="form-group full" id="mEntreeGroup" style="display:none">
+        <label>Entrée matériel associée</label>
+        <select id="mEntreeSelect" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;font-family:'Outfit',sans-serif">
+          <option value="">-- Aucune entrée --</option>
+        </select>
+      </div>
     <div class="form-group full"><label>Notes</label><input type="text" id="mNotes" placeholder="Facultatif..."></div>
     <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('trans')">Annuler</button><button class="btn-save" id="btnSaveTrans" onclick="saveTrans()">Enregistrer</button></div>
   </div>
@@ -432,7 +484,7 @@ select option{background:var(--bg3)}
     <div class="modal-title">Modifier la transaction</div>
     <div class="modal-sub">Mettre à jour les informations</div>
     <div class="form-grid">
-      <div class="form-group"><label>Type</label><select id="etType" onchange="toggleEditTypeFields()"><option value="debit">Débit (vente)</option><option value="credit">Crédit (remboursement)</option></select></div>
+      <div class="form-group"><label>Type</label><select id="etType" onchange="toggleEditTypeFields()"><option value="debit">Vente</option><option value="credit">Remboursement</option></select></div>
       <div class="form-group"><label>Motif</label><select id="etMotif"><option>Tabac</option><option>Bedo</option><option>Recharge</option><option>Pot</option><option>Cigarette</option><option>Achat</option><option>Autre</option></select></div>
       <div class="form-group" id="etModeGroup"><label>Mode paiement</label><select id="etMode" onchange="calcEditModal()"><option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS (7%)</option><option value="Paysafecard">Paysafecard (5%)</option><option value="WesternUnion">Western Union</option></select></div>
       <div class="form-group"><label>Date</label><input type="date" id="etDate"></div>
@@ -458,6 +510,26 @@ select option{background:var(--bg3)}
       <button class="btn danger" onclick="deleteTransFromDetail()">🗑 Supprimer</button>
       <button class="btn-cancel" onclick="closeModal('detail')">Fermer</button>
       <button class="btn-save" onclick="editTransFromDetail()">✏ Modifier</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalEntree" onclick="if(event.target===this)closeModal('entree')">
+  <div class="modal" style="max-width:440px">
+    <input type="hidden" id="entreeId">
+    <div class="modal-title" id="entreeModalTitle">Nouvelle entrée matériel</div>
+    <div class="modal-sub">Enregistrer un stock entrant</div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Description *</label><input type="text" id="entreeDesc" placeholder="Ex: 50g Bedo, Tabac x10..."></div>
+      <div class="form-group"><label>Quantité</label><input type="number" id="entreeQty" value="1" min="0" step="0.1"></div>
+      <div class="form-group"><label>Prix d'achat (€)</label><input type="number" id="entreePrix" value="0" step="0.01" min="0"></div>
+      <div class="form-group"><label>Date</label><input type="date" id="entreeDate"></div>
+      <div class="form-group full"><label>Notes</label><input type="text" id="entreeNotes" placeholder="Facultatif..."></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="btnDeleteEntree" style="margin-right:auto;display:none" onclick="deleteEntree()">🗑 Supprimer</button>
+      <button class="btn-cancel" onclick="closeModal('entree')">Annuler</button>
+      <button class="btn-save" onclick="saveEntree()">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -615,7 +687,7 @@ async function refreshPinLength(){
 }
 
 // ── NAVIGATION ──
-const TITLES={dashboard:'Tableau de bord',clients:'Clients',transactions:'Transactions',soldes:'Soldes & Dettes',settings:'Paramètres',rappels:'Rappels & Relances'};
+const TITLES={dashboard:'Tableau de bord',clients:'Clients',transactions:'Transactions',soldes:'Soldes & Dettes',settings:'Paramètres',rappels:'Rappels & Relances',entrees:'Entrées matériel',recap:'Récapitulatif mensuel'};
 function goPage(name,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -630,6 +702,8 @@ function goPage(name,el){
   if(name==='soldes')initSoldes();
   if(name==='settings')initSettings();
   if(name==='rappels')loadRappels();
+  if(name==='entrees')loadEntrees();
+  if(name==='recap')initRecap();
 }
 
 // ── DASHBOARD ──
@@ -657,7 +731,7 @@ async function loadDashboard(){
   if(!tres.data.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">Aucune transaction</td></tr>';return;}
   tres.data.forEach(t=>{
     const tr=document.createElement('tr');
-    tr.innerHTML='<td>'+fmtDate(t.date)+'</td><td style="color:var(--text)">'+(t.client_nom||'—')+'</td><td>'+t.motif+'</td><td>'+(t.type==='debit'?'<span style="color:var(--text3)">—</span>':t.mode_paiement)+'</td><td><span class="badge '+t.type+'">'+(t.type==='credit'?'Crédit':'Débit')+'</span></td><td style="text-align:right"><span class="mono" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</span></td>';
+    tr.innerHTML='<td>'+fmtDate(t.date)+'</td><td style="color:var(--text)">'+(t.client_nom||'—')+'</td><td>'+t.motif+'</td><td>'+(t.type==='debit'?'<span style="color:var(--text3)">—</span>':t.mode_paiement)+'</td><td><span class="badge '+t.type+'">'+(t.type==='credit'?'Remboursement':'Vente')+'</span></td><td style="text-align:right"><span class="mono" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</span></td>';
     tbody.appendChild(tr);
   });
 }
@@ -759,7 +833,7 @@ function renderTransactions(){
   list.forEach(t=>{
     const tr=document.createElement('tr');tr.style.cursor='pointer';
     tr.onclick=(e)=>{if(!e.target.closest('button'))openTransDetail(t.id);};
-    tr.innerHTML='<td>'+fmtDate(t.date)+'</td><td style="color:var(--text)">'+(t.client_nom||'—')+'</td><td>'+t.motif+'</td><td>'+(t.type==='debit'?'<span style="color:var(--text3)">—</span>':t.mode_paiement)+'</td><td>'+t.quantite+'</td><td class="mono">'+fmt(t.prix_unitaire)+'</td><td class="mono">'+fmt(t.montant_brut)+'</td><td class="mono" style="color:var(--red)">'+fmt(t.frais)+'</td><td><span class="badge '+t.type+'">'+(t.type==='credit'?'Crédit':'Débit')+'</span></td><td style="text-align:right"><span class="mono" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</span></td><td style="display:flex;gap:4px"><button class="btn" style="padding:4px 8px;font-size:11px" onclick="openEditTrans('+t.id+')">✏</button><button class="btn danger" style="padding:4px 8px;font-size:11px" onclick="deleteTrans('+t.id+')">✕</button></td>';
+    tr.innerHTML='<td>'+fmtDate(t.date)+'</td><td style="color:var(--text)">'+(t.client_nom||'—')+'</td><td>'+t.motif+'</td><td>'+(t.type==='debit'?'<span style="color:var(--text3)">—</span>':t.mode_paiement)+'</td><td>'+t.quantite+'</td><td class="mono">'+fmt(t.prix_unitaire)+'</td><td class="mono">'+fmt(t.montant_brut)+'</td><td class="mono" style="color:var(--red)">'+fmt(t.frais)+'</td><td><span class="badge '+t.type+'">'+(t.type==='credit'?'Remboursement':'Vente')+'</span></td><td style="text-align:right"><span class="mono" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</span></td><td style="display:flex;gap:4px"><button class="btn" style="padding:4px 8px;font-size:11px" onclick="openEditTrans('+t.id+')">✏</button><button class="btn danger" style="padding:4px 8px;font-size:11px" onclick="deleteTrans('+t.id+')">✕</button></td>';
     tbody.appendChild(tr);
   });
 }
@@ -854,17 +928,28 @@ function calcModal(){
   const prix=parseFloat(document.getElementById('mPrix').value)||0;
   const type=document.getElementById('mType').value;
   const mode=document.getElementById('mMode').value;
-  const brut=qty*prix;const frais=type==='credit'?brut*(FEES[mode]||0):0;const net=brut-frais;
+  const brut=qty*prix;
+  const fraisRate=FEES[mode]||0;
+  // Afficher/masquer option frais
+  const fg=document.getElementById('mFraisOptGroup');
+  if(fg)fg.style.display=(type==='credit'&&fraisRate>0)?'block':'none';
+  const frais=(type==='credit'&&_fraisDeduits)?brut*fraisRate:0;
+  const net=brut-frais;
   document.getElementById('cBrut').textContent=brut.toFixed(2)+' €';
   document.getElementById('cFrais').textContent=frais.toFixed(2)+' €';
   document.getElementById('cNet').textContent=net.toFixed(2)+' €';
   document.getElementById('cNet').style.color=type==='debit'?'var(--green)':'var(--red)';
+  // Afficher entrée matériel uniquement pour les ventes
+  const eg=document.getElementById('mEntreeGroup');
+  if(eg)eg.style.display=type==='debit'?'block':'none';
 }
 async function saveTrans(){
   const btn=document.getElementById('btnSaveTrans');btn.textContent='...';btn.disabled=true;
   const debtSel=document.getElementById('mDetteSelect');
   const linked_debit_id=debtSel&&debtSel.value?parseInt(debtSel.value):null;
-  const body={client_id:parseInt(document.getElementById('mClient').value),type:document.getElementById('mType').value,motif:document.getElementById('mMotif').value,quantite:parseInt(document.getElementById('mQty').value)||1,prix_unitaire:parseFloat(document.getElementById('mPrix').value)||0,mode_paiement:document.getElementById('mMode').value,notes:document.getElementById('mNotes').value,linked_debit_id};
+  const entreeSel=document.getElementById('mEntreeSelect');
+  const entree_id=entreeSel&&entreeSel.value?parseInt(entreeSel.value):null;
+  const body={client_id:parseInt(document.getElementById('mClient').value),type:document.getElementById('mType').value,motif:document.getElementById('mMotif').value,quantite:parseInt(document.getElementById('mQty').value)||1,prix_unitaire:parseFloat(document.getElementById('mPrix').value)||0,mode_paiement:document.getElementById('mMode').value,notes:document.getElementById('mNotes').value,linked_debit_id,entree_id,frais_deduits:_fraisDeduits?1:0};
   const res=await api('/api/transactions',{method:'POST',body});
   btn.textContent='Enregistrer';btn.disabled=false;
   if(res&&res.ok){closeModal('trans');notify('Transaction enregistrée');document.getElementById('mQty').value='1';document.getElementById('mPrix').value='0';document.getElementById('mNotes').value='';loadDashboard();if(document.getElementById('pg-transactions').classList.contains('active'))loadTransactions();}
@@ -958,7 +1043,7 @@ function openTransDetail(id){
   id=parseInt(id);const t=allTransactions.find(x=>x.id===id);if(!t)return;
   currentDetailId=id;
   document.getElementById('detailTitle').textContent=t.motif+' — '+fmtDate(t.date);
-  document.getElementById('detailSub').innerHTML='<span class="badge '+t.type+'">'+(t.type==='credit'?'Crédit':'Débit')+'</span>';
+  document.getElementById('detailSub').innerHTML='<span class="badge '+t.type+'">'+(t.type==='credit'?'Remboursement':'Vente')+'</span>';
   const col=t.type==='debit'?'var(--green)':'var(--red)';
   document.getElementById('detailBody').innerHTML='<div style="background:var(--bg3);border-radius:var(--radius2);padding:20px;text-align:center;margin-bottom:16px"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">'+(t.type==='debit'?'Montant vendu':'Remboursement reçu')+'</div><div style="font-size:36px;font-weight:600;font-family:DM Mono,monospace;color:'+col+'">'+(t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</div></div>'+drRow('Client',t.client_nom||'—',null)+drRow('Date',fmtDate(t.date),null)+drRow('Motif',t.motif,null)+drRow('Mode',t.mode_paiement,null)+drRow('Quantité',t.quantite,null)+drRow('Prix unitaire',fmt(t.prix_unitaire),null)+drRow('Montant brut',fmt(t.montant_brut),null)+drRow('Frais',fmt(t.frais),t.frais>0?'var(--red)':null)+drRow('Montant net',fmt(t.montant_net),col)+(t.notes?drRow('Notes',t.notes,'var(--gold2)'):'')+(t.reference?drRow('Référence',t.reference,null):'');
   document.getElementById('modalDetail').classList.add('open');
@@ -1162,7 +1247,7 @@ async function checkRappelsBadge(){
 
 // ── INIT ──
 function initApp(){
-  loadDashboard();loadSavedPalette();
+  loadDashboard();loadSavedPalette();loadEntrees();
   setTimeout(checkRappelsBadge,2000);
 }
 (async()=>{
@@ -1227,6 +1312,203 @@ async function confirmImportDB() {
   }
   _importFile = null;
   document.getElementById('importDBInput').value = '';
+}
+
+
+// ══════════════════════════════════════════════════════
+// FRAIS OPTIONNELS
+// ══════════════════════════════════════════════════════
+let _fraisDeduits = true;
+
+function setFraisOpt(val) {
+  _fraisDeduits = val;
+  document.getElementById('mFraisOui').style.opacity = val ? '1' : '0.4';
+  document.getElementById('mFraisNon').style.opacity = val ? '0.4' : '1';
+  calcModal();
+}
+
+// ══════════════════════════════════════════════════════
+// ENTRÉES MATÉRIEL
+// ══════════════════════════════════════════════════════
+let entreesCache = [];
+
+async function loadEntrees() {
+  const res = await api('/api/entrees');
+  if (!res || !res.ok) return;
+  entreesCache = res.data;
+  renderEntrees();
+  // Mettre à jour le select dans le modal transaction
+  const sel = document.getElementById('mEntreeSelect');
+  if (sel) {
+    sel.innerHTML = '<option value="">-- Aucune entrée --</option>';
+    entreesCache.forEach(e => {
+      const o = document.createElement('option');
+      o.value = e.id;
+      o.textContent = fmtDate(e.date) + ' — ' + e.description + ' (x' + e.quantite + ')';
+      sel.appendChild(o);
+    });
+  }
+}
+
+function renderEntrees() {
+  const tbody = document.getElementById('entreesTbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  if (!entreesCache.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">Aucune entrée enregistrée</td></tr>';
+    return;
+  }
+  entreesCache.forEach(e => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + fmtDate(e.date) + '</td>'
+      + '<td style="color:var(--text);font-weight:500">' + e.description + '</td>'
+      + '<td class="mono">' + e.quantite + '</td>'
+      + '<td class="mono" style="color:var(--red)">' + fmt(e.prix_achat) + '</td>'
+      + '<td style="color:var(--text3)">' + (e.notes || '—') + '</td>'
+      + '<td><button class="btn" style="padding:4px 8px;font-size:11px" onclick="openEditEntree(' + e.id + ')">✏</button></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function openModalEntree() {
+  document.getElementById('entreeId').value = '';
+  document.getElementById('entreeDesc').value = '';
+  document.getElementById('entreeQty').value = '1';
+  document.getElementById('entreePrix').value = '0';
+  document.getElementById('entreeDate').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('entreeNotes').value = '';
+  document.getElementById('entreeModalTitle').textContent = 'Nouvelle entrée matériel';
+  document.getElementById('btnDeleteEntree').style.display = 'none';
+  document.getElementById('modalEntree').classList.add('open');
+  document.getElementById('entreeDesc').focus();
+}
+
+function openEditEntree(eid) {
+  const e = entreesCache.find(x => x.id === eid);
+  if (!e) return;
+  document.getElementById('entreeId').value = eid;
+  document.getElementById('entreeDesc').value = e.description;
+  document.getElementById('entreeQty').value = e.quantite;
+  document.getElementById('entreePrix').value = e.prix_achat;
+  document.getElementById('entreeDate').value = e.date || '';
+  document.getElementById('entreeNotes').value = e.notes || '';
+  document.getElementById('entreeModalTitle').textContent = 'Modifier l'entrée';
+  document.getElementById('btnDeleteEntree').style.display = 'inline-flex';
+  document.getElementById('modalEntree').classList.add('open');
+}
+
+async function saveEntree() {
+  const desc = document.getElementById('entreeDesc').value.trim();
+  if (!desc) { notify('Description requise', 'error'); return; }
+  const eid = document.getElementById('entreeId').value;
+  const body = {
+    description: desc,
+    quantite: parseFloat(document.getElementById('entreeQty').value) || 1,
+    prix_achat: parseFloat(document.getElementById('entreePrix').value) || 0,
+    date: document.getElementById('entreeDate').value,
+    notes: document.getElementById('entreeNotes').value,
+  };
+  const res = eid
+    ? await api('/api/entrees/' + eid, {method:'PUT', body})
+    : await api('/api/entrees', {method:'POST', body});
+  if (res && res.ok) {
+    closeModal('entree');
+    notify(eid ? 'Entrée modifiée' : 'Entrée enregistrée');
+    await loadEntrees();
+  } else notify('Erreur', 'error');
+}
+
+async function deleteEntree() {
+  const eid = document.getElementById('entreeId').value;
+  if (!eid || !confirm('Supprimer cette entrée ?')) return;
+  await api('/api/entrees/' + eid, {method:'DELETE'});
+  closeModal('entree');
+  notify('Entrée supprimée');
+  await loadEntrees();
+}
+
+// ══════════════════════════════════════════════════════
+// RÉCAPITULATIF MENSUEL
+// ══════════════════════════════════════════════════════
+
+function initRecap() {
+  // Construire la liste des mois
+  const sel = document.getElementById('recapMois');
+  const now = new Date();
+  const noms = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  const prev = sel.value;
+  sel.innerHTML = '';
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const val = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    const o = document.createElement('option');
+    o.value = val;
+    o.textContent = noms[d.getMonth()] + ' ' + d.getFullYear();
+    sel.appendChild(o);
+  }
+  if (prev) sel.value = prev;
+  loadRecap();
+}
+
+async function loadRecap() {
+  const mois = document.getElementById('recapMois').value;
+  const res = await api('/api/recap-mensuel?mois=' + mois);
+  if (!res || !res.ok) return;
+  const {transactions, entrees} = res.data;
+
+  // Stats
+  const ventes = transactions.filter(t => t.type === 'debit');
+  const remboursements = transactions.filter(t => t.type === 'credit');
+  const totalVentes = ventes.reduce((s,t) => s + t.montant_net, 0);
+  const totalRembours = remboursements.reduce((s,t) => s + t.montant_net, 0);
+  const totalFrais = transactions.reduce((s,t) => s + (t.frais || 0), 0);
+  document.getElementById('recapTotalVentes').textContent = fmt(totalVentes);
+  document.getElementById('recapTotalRembours').textContent = fmt(totalRembours);
+  document.getElementById('recapTotalFrais').textContent = fmt(totalFrais);
+  document.getElementById('recapNbEntrees').textContent = entrees.length;
+
+  // Tableau transactions
+  const tbody = document.getElementById('recapTbody');
+  tbody.innerHTML = '';
+  if (!transactions.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Aucune transaction ce mois</td></tr>';
+  } else {
+    transactions.forEach(t => {
+      const isVente = t.type === 'debit';
+      const col = isVente ? 'var(--green)' : 'var(--red)';
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + fmtDate(t.date) + '</td>'
+        + '<td style="color:var(--text)">' + (t.client_nom || '—') + '</td>'
+        + '<td><span class="badge ' + t.type + '">' + (isVente ? 'Vente' : 'Remboursement') + '</span></td>'
+        + '<td>' + t.motif + '</td>'
+        + '<td style="color:var(--gold2);font-size:12px">' + (t.entree_desc ? '📦 ' + t.entree_desc : '—') + '</td>'
+        + '<td style="color:var(--blue);font-size:12px">' + (t.linked_debit_id ? '🔗 Lié #' + t.linked_debit_id : '—') + '</td>'
+        + '<td style="text-align:right"><span class="mono" style="color:' + col + '">' + (isVente?'+':'-') + fmt(t.montant_net) + '</span></td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Tableau entrées matériel
+  const etbody = document.getElementById('recapEntreesTbody');
+  etbody.innerHTML = '';
+  if (!entrees.length) {
+    etbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Aucune entrée ce mois</td></tr>';
+  } else {
+    entrees.forEach(e => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + fmtDate(e.date) + '</td>'
+        + '<td style="color:var(--text);font-weight:500">📦 ' + e.description + '</td>'
+        + '<td class="mono">' + e.quantite + '</td>'
+        + '<td class="mono" style="color:var(--red)">-' + fmt(e.prix_achat) + '</td>'
+        + '<td style="color:var(--text3)">' + (e.notes || '—') + '</td>';
+      etbody.appendChild(tr);
+    });
+  }
+}
+
+function exportRecapCSV() {
+  const mois = document.getElementById('recapMois').value;
+  window.location.href = '/api/export/csv/all?mois=' + mois + '&token=' + TOKEN;
 }
 
 </script>
