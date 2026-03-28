@@ -90,6 +90,15 @@ def init_db():
             c.execute("ALTER TABLE transactions ADD COLUMN entree_id INTEGER DEFAULT NULL")
         if "frais_deduits" not in trans_cols:
             c.execute("ALTER TABLE transactions ADD COLUMN frais_deduits INTEGER DEFAULT 1")
+        if "unite" not in trans_cols:
+            c.execute("ALTER TABLE transactions ADD COLUMN unite TEXT DEFAULT 'piece'")
+
+        # ── Migration colonnes entrees_materiel ───────────────────────────────
+        ent_cols = {row[1] for row in c.execute("PRAGMA table_info(entrees_materiel)").fetchall()}
+        if "unite" not in ent_cols:
+            c.execute("ALTER TABLE entrees_materiel ADD COLUMN unite TEXT DEFAULT 'piece'")
+        if "stock_restant" not in ent_cols:
+            c.execute("ALTER TABLE entrees_materiel ADD COLUMN stock_restant REAL DEFAULT NULL")
 
         # ── Table entrées matériel ─────────────────────────────────────────────
         c.execute("""
@@ -255,9 +264,14 @@ def add_transaction(client_id, type_, motif, quantite, prix_unitaire,
 def get_transactions(client_id: int):
     with get_conn() as conn:
         rows = conn.execute(
-            """SELECT id,date,type,motif,quantite,prix_unitaire,
-                      montant_brut,mode_paiement,frais,montant_net,reference,notes
-               FROM transactions WHERE client_id=? ORDER BY date DESC""",
+            """SELECT t.id,t.date,t.type,t.motif,t.quantite,t.prix_unitaire,
+                      t.montant_brut,t.mode_paiement,t.frais,t.montant_net,
+                      t.reference,t.notes,t.entree_id,t.linked_debit_id,
+                      COALESCE(t.unite,'piece') as unite,
+                      e.description as entree_description
+               FROM transactions t
+               LEFT JOIN entrees_materiel e ON t.entree_id = e.id
+               WHERE t.client_id=? ORDER BY t.date DESC""",
             (client_id,)
         ).fetchall()
     return [dict(r) for r in rows]
@@ -266,13 +280,17 @@ def get_all_transactions(limit=200):
     """Toutes les transactions avec le nom du client."""
     with get_conn() as conn:
         rows = conn.execute(
-            """SELECT t.*, c.nom as client_nom
+            """SELECT t.*, c.nom as client_nom,
+                      COALESCE(t.unite,'piece') as unite,
+                      e.description as entree_description
                FROM transactions t
-               JOIN clients c ON c.id = t.client_id
+               LEFT JOIN clients c ON t.client_id = c.id
+               LEFT JOIN entrees_materiel e ON t.entree_id = e.id
                ORDER BY t.date DESC LIMIT ?""",
             (limit,)
         ).fetchall()
     return [dict(r) for r in rows]
+
 
 def delete_transaction(trans_id: int):
     with get_conn() as conn:
@@ -432,24 +450,56 @@ def get_entrees(limit=100):
         ).fetchall()
     return [dict(r) for r in rows]
 
-def add_entree(description, quantite, prix_achat, date=None, notes=""):
+def add_entree(description, quantite, prix_achat, date=None, notes="", unite="piece"):
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO entrees_materiel (description,quantite,prix_achat,date,notes) VALUES (?,?,?,?,?)",
-            (description, quantite, prix_achat, date or "", notes or "")
+            "INSERT INTO entrees_materiel (description,quantite,prix_achat,date,notes,unite,stock_restant) VALUES (?,?,?,?,?,?,?)",
+            (description, quantite, prix_achat, date or "", notes or "", unite, quantite)
         )
         conn.commit()
         return cur.lastrowid
 
-def update_entree(eid, description, quantite, prix_achat, date, notes=""):
+def update_stock(entree_id, quantite_vendue):
+    """Déduit la quantité vendue du stock de l'entrée."""
+    with get_conn() as conn:
+        conn.execute("""
+            UPDATE entrees_materiel
+            SET stock_restant = MAX(0, COALESCE(stock_restant, quantite) - ?)
+            WHERE id = ?
+        """, (quantite_vendue, entree_id))
+        conn.commit()
+
+def update_entree(eid, description, quantite, prix_achat, date, notes="", unite="piece"):
     with get_conn() as conn:
         conn.execute(
-            "UPDATE entrees_materiel SET description=?,quantite=?,prix_achat=?,date=?,notes=? WHERE id=?",
-            (description, quantite, prix_achat, date, notes or "", eid)
+            "UPDATE entrees_materiel SET description=?,quantite=?,prix_achat=?,date=?,notes=?,unite=? WHERE id=?",
+            (description, quantite, prix_achat, date, notes or "", unite, eid)
         )
         conn.commit()
 
 def delete_entree(eid):
     with get_conn() as conn:
         conn.execute("DELETE FROM entrees_materiel WHERE id=?", (eid,))
+        conn.commit()
+
+# ── MOTIFS ───────────────────────────────────────────────────────────────────
+
+def get_motifs():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM motifs WHERE actif=1 ORDER BY nom").fetchall()
+    return [dict(r) for r in rows]
+
+def add_motif(nom):
+    with get_conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO motifs (nom) VALUES (?)", (nom.strip(),))
+        conn.commit()
+
+def delete_motif(mid):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM motifs WHERE id=?", (mid,))
+        conn.commit()
+
+def update_motif(mid, nom):
+    with get_conn() as conn:
+        conn.execute("UPDATE motifs SET nom=? WHERE id=?", (nom.strip(), mid))
         conn.commit()

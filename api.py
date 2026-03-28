@@ -209,11 +209,18 @@ def transactions_create():
     if not db.get_client(data["client_id"]):
         return err("Client introuvable", 404)
 
-    qty   = max(int(data["quantite"]), 1)
+    qty   = float(data["quantite"]) if data.get("unite","piece") == "gramme" else max(int(data["quantite"]), 1)
     pu    = float(data["prix_unitaire"])
     mode  = data["mode_paiement"]
+    unite = data.get("unite", "piece")
+    entree_id = data.get("entree_id")
+    linked_debit_id = data.get("linked_debit_id")
+    frais_deduits = int(data.get("frais_deduits", 1))
+
     brut  = round(qty * pu, 2)
-    frais = round(brut * FEES.get(mode, 0), 2)
+    # Frais seulement si remboursement ET frais_deduits=1
+    frais_rate = FEES.get(mode, 0) if (type_ == "credit" and frais_deduits) else 0
+    frais = round(brut * frais_rate, 2)
     net   = round(brut - frais, 2)
 
     tid = db.add_transaction(
@@ -229,7 +236,18 @@ def transactions_create():
         reference     = data.get("reference", ""),
         notes         = data.get("notes", ""),
     )
-    # Retourner la transaction créée avec les montants calculés
+
+    # Sauvegarder entree_id, linked_debit_id, unite dans la transaction
+    if entree_id or linked_debit_id or unite != "piece":
+        with db.get_conn() as conn:
+            conn.execute("""UPDATE transactions SET entree_id=?, linked_debit_id=?, unite=?
+                           WHERE id=?""", (entree_id, linked_debit_id, unite, tid))
+            conn.commit()
+
+    # Mettre à jour le stock si vente liée à une entrée
+    if entree_id and type_ == "debit":
+        db.update_stock(int(entree_id), qty)
+
     trans = db.get_transactions(data["client_id"])
     created = next((t for t in trans if t["id"] == tid), None)
     return ok(created), 201
@@ -370,6 +388,40 @@ def dettes_ouvertes(cid):
     return ok(result)
 
 
+
+# ── MOTIFS ────────────────────────────────────────────────────────────────────
+
+@app.route("/api/motifs")
+@require_auth
+def motifs_list():
+    return ok(db.get_motifs())
+
+@app.route("/api/motifs", methods=["POST"])
+@require_auth
+def motifs_create():
+    data = request.json or {}
+    nom = data.get("nom", "").strip()
+    if not nom:
+        return err("Nom requis")
+    db.add_motif(nom)
+    return ok({"created": nom}), 201
+
+@app.route("/api/motifs/<int:mid>", methods=["PUT"])
+@require_auth
+def motifs_update(mid):
+    data = request.json or {}
+    nom = data.get("nom", "").strip()
+    if not nom:
+        return err("Nom requis")
+    db.update_motif(mid, nom)
+    return ok({"updated": mid})
+
+@app.route("/api/motifs/<int:mid>", methods=["DELETE"])
+@require_auth
+def motifs_delete(mid):
+    db.delete_motif(mid)
+    return ok({"deleted": mid})
+
 # ── ENTRÉES MATÉRIEL ──────────────────────────────────────────────────────────
 
 @app.route("/api/entrees")
@@ -389,6 +441,7 @@ def entrees_create():
         prix_achat  = float(data.get("prix_achat", 0)),
         date        = data.get("date", ""),
         notes       = data.get("notes", ""),
+        unite       = data.get("unite", "piece"),
     )
     return ok({"id": eid}), 201
 
@@ -397,7 +450,8 @@ def entrees_create():
 def entrees_update(eid):
     data = request.json or {}
     db.update_entree(eid, data.get("description",""), float(data.get("quantite",1)),
-                     float(data.get("prix_achat",0)), data.get("date",""), data.get("notes",""))
+                     float(data.get("prix_achat",0)), data.get("date",""), data.get("notes",""),
+                     data.get("unite","piece"))
     return ok({"updated": eid})
 
 @app.route("/api/entrees/<int:eid>", methods=["DELETE"])

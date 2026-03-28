@@ -209,7 +209,8 @@ select option{background:var(--bg3)}
     <div class="nav-item" data-page="rappels" onclick="goPage('rappels',this)"><span class="nav-icon">🔔</span> Rappels</div>
     <div class="nav-item" onclick="openModal('transaction')"><span class="nav-icon">＋</span> Nouvelle transaction</div>
     <div class="nav-item" onclick="goPage('assistant',this)"><span class="nav-icon">🤖</span> Assistant IA</div>
-    <div class="nav-item" onclick="goPage('entrees',this)"><span class="nav-icon">📦</span> Entrées matériel</div>
+    <div class="nav-item" onclick="goPage('entrees',this)"><span class="nav-icon">📦</span> Entrees materiel</div>
+    <div class="nav-item" onclick="goPage('stock',this)"><span class="nav-icon">📊</span> Stock</div>
     <div class="nav-item" onclick="goPage('recap',this)"><span class="nav-icon">📊</span> Récap mensuel</div>
     <div class="nav-item" onclick="openModalImprimer()"><span class="nav-icon">🖨</span> Imprimer</div>
     <div class="nav-item" onclick="exportAll()"><span class="nav-icon">↓</span> Export CSV complet</div>
@@ -356,6 +357,15 @@ select option{background:var(--bg3)}
             <button class="btn primary" style="margin-top:12px" onclick="saveRappelSettings()">💾 Enregistrer</button>
           </div>
           <div class="card" style="grid-column:1/-1">
+            <div class="card-title">📋 Articles / Motifs de vente</div>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <input type="text" id="newMotifInput" placeholder="Nouveau motif..." style="flex:1;padding:9px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif" onkeydown="if(event.key==='Enter')addMotif()">
+              <button class="btn primary" onclick="addMotif()">+ Ajouter</button>
+            </div>
+            <div id="motifsList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+          </div>
+
+          <div class="card" style="grid-column:1/-1">
             <div class="card-title">🎨 Thème & Couleurs</div>
             <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:4px" id="paletteGrid">
               <div class="palette-card active" data-palette="gold" onclick="applyPalette('gold')"><div style="display:flex;gap:4px;margin-bottom:8px"><div style="width:20px;height:20px;border-radius:50%;background:#0a0a0f"></div><div style="width:20px;height:20px;border-radius:50%;background:#e8c97e"></div><div style="width:20px;height:20px;border-radius:50%;background:#2ecc71"></div></div><div style="font-size:13px;font-weight:500">Or Noir</div><div style="font-size:11px;color:var(--text3)">Défaut</div></div>
@@ -439,6 +449,22 @@ select option{background:var(--bg3)}
         </div>
       </div>
 
+      <!-- STOCK -->
+      <div class="page" id="pg-stock">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+          <div class="stat-card red"><div class="stat-label">Total investi</div><div class="stat-value" id="stockTotalInvesti">—</div></div>
+          <div class="stat-card green"><div class="stat-label">Stock total restant</div><div class="stat-value" id="stockTotalRestant">—</div></div>
+          <div class="stat-card gold"><div class="stat-label">Articles en rupture</div><div class="stat-value" id="stockRupture">—</div></div>
+        </div>
+        <div class="table-wrap">
+          <div class="table-header"><span>Stock actuel</span><button class="btn primary" onclick="goPage('entrees',document.querySelector('.nav-item[onclick*=entrees]'))">+ Nouvelle entree</button></div>
+          <table>
+            <thead><tr><th>Description</th><th>Unite</th><th>Stock initial</th><th>Vendu</th><th>Restant</th><th>Prix achat</th><th>Statut</th></tr></thead>
+            <tbody id="stockTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- RÉCAP MENSUEL -->
       <div class="page" id="pg-recap">
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
@@ -502,7 +528,7 @@ select option{background:var(--bg3)}
     <div class="form-grid">
       <div class="form-group"><label>Client</label><select id="mClient"></select></div>
       <div class="form-group"><label>Type</label><select id="mType" onchange="toggleTypeFields()"><option value="debit">Vente</option><option value="credit">Remboursement</option></select></div>
-      <div class="form-group"><label>Motif</label><select id="mMotif"><option>Tabac</option><option>Bedo</option><option>Recharge</option><option>Pot</option><option>Cigarette</option><option>Achat</option><option>Autre</option></select></div>
+      <div class="form-group"><label>Motif</label><select id="mMotif"></select></div>
       <div class="form-group" id="mModeGroup"><label>Mode paiement</label><select id="mMode" onchange="calcModal()"><option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS (7%)</option><option value="Paysafecard">Paysafecard (5%)</option><option value="WesternUnion">Western Union</option></select></div>
       <div class="form-group" id="mFraisOptGroup" style="display:none">
         <label>Déduire les frais au client ?</label>
@@ -518,8 +544,14 @@ select option{background:var(--bg3)}
         </select>
         <div id="mDetteInfo" style="margin-top:8px;padding:10px;background:var(--bg3);border-radius:var(--radius2);border:1px solid var(--border);font-size:12px;color:var(--text2);display:none"></div>
       </div>
-      <div class="form-group"><label>Quantité</label><input type="number" id="mQty" value="1" min="1" oninput="calcModal()"></div>
-      <div class="form-group"><label>Prix unitaire (€)</label><input type="number" id="mPrix" value="0" step="0.01" min="0" oninput="calcModal()"></div>
+      <div class="form-group"><label>Quantite</label><input type="number" id="mQty" value="1" min="0.01" step="0.01" oninput="calcModal()"></div>
+      <div class="form-group"><label>Unite</label>
+        <select id="mUnite" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif">
+          <option value="piece">Piece(s)</option>
+          <option value="gramme">Gramme(s)</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Prix unitaire (EUR)</label><input type="number" id="mPrix" value="0" step="0.01" min="0" oninput="calcModal()"></div>
     </div>
     <div class="calc-display">
       <div class="calc-item"><div class="c-label">Brut</div><div class="c-val" id="cBrut">0.00 €</div></div>
@@ -563,7 +595,7 @@ select option{background:var(--bg3)}
     <div class="modal-sub">Mettre à jour les informations</div>
     <div class="form-grid">
       <div class="form-group"><label>Type</label><select id="etType" onchange="toggleEditTypeFields()"><option value="debit">Vente</option><option value="credit">Remboursement</option></select></div>
-      <div class="form-group"><label>Motif</label><select id="etMotif"><option>Tabac</option><option>Bedo</option><option>Recharge</option><option>Pot</option><option>Cigarette</option><option>Achat</option><option>Autre</option></select></div>
+      <div class="form-group"><label>Motif</label><select id="etMotif"></select></div>
       <div class="form-group" id="etModeGroup"><label>Mode paiement</label><select id="etMode" onchange="calcEditModal()"><option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS (7%)</option><option value="Paysafecard">Paysafecard (5%)</option><option value="WesternUnion">Western Union</option></select></div>
       <div class="form-group"><label>Date</label><input type="date" id="etDate"></div>
       <div class="form-group"><label>Quantité</label><input type="number" id="etQty" value="1" min="1" oninput="calcEditModal()"></div>
@@ -599,8 +631,14 @@ select option{background:var(--bg3)}
     <div class="modal-sub">Enregistrer un stock entrant</div>
     <div class="form-grid">
       <div class="form-group full"><label>Description *</label><input type="text" id="entreeDesc" placeholder="Ex: 50g Bedo, Tabac x10..."></div>
-      <div class="form-group"><label>Quantité</label><input type="number" id="entreeQty" value="1" min="0" step="0.1"></div>
-      <div class="form-group"><label>Prix d'achat (€)</label><input type="number" id="entreePrix" value="0" step="0.01" min="0"></div>
+      <div class="form-group"><label>Quantite</label><input type="number" id="entreeQty" value="1" min="0" step="0.01"></div>
+      <div class="form-group"><label>Unite</label>
+        <select id="entreeUnite" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif">
+          <option value="piece">Piece(s)</option>
+          <option value="gramme">Gramme(s)</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Prix achat (EUR)</label><input type="number" id="entreePrix" value="0" step="0.01" min="0"></div>
       <div class="form-group"><label>Date</label><input type="date" id="entreeDate"></div>
       <div class="form-group full"><label>Notes</label><input type="text" id="entreeNotes" placeholder="Facultatif..."></div>
     </div>
@@ -869,7 +907,7 @@ async function refreshPinLength(){
 }
 
 // ── NAVIGATION ──
-const TITLES={assistant:'Assistant IA',dashboard:'Tableau de bord',clients:'Clients',transactions:'Transactions',soldes:'Soldes & Dettes',settings:'Parametres',rappels:'Rappels et Relances',entrees:'Entrees materiel',recap:'Recap mensuel'};
+const TITLES={assistant:'Assistant IA',stock:'Stock',dashboard:'Tableau de bord',clients:'Clients',transactions:'Transactions',soldes:'Soldes & Dettes',settings:'Parametres',rappels:'Rappels et Relances',entrees:'Entrees materiel',recap:'Recap mensuel'};
 function goPage(name,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -882,10 +920,11 @@ function goPage(name,el){
   if(name==='clients')loadClients();
   if(name==='transactions')loadTransactions();
   if(name==='soldes')initSoldes();
-  if(name==='settings')initSettings();
+  if(name==='settings'){initSettings();loadMotifs();}
   if(name==='rappels')loadRappels();
   if(name==='assistant')initAssistant();
   if(name==='entrees')loadEntrees();
+  if(name==='stock')loadStock();
   if(name==='recap')initRecap();
 }
 
@@ -1136,7 +1175,9 @@ async function saveTrans(){
   const linked_debit_id=debtSel&&debtSel.value?parseInt(debtSel.value):null;
   const entreeSel=document.getElementById('mEntreeSelect');
   const entree_id=entreeSel&&entreeSel.value?parseInt(entreeSel.value):null;
-  const body={client_id:parseInt(document.getElementById('mClient').value),type:document.getElementById('mType').value,motif:document.getElementById('mMotif').value,quantite:parseInt(document.getElementById('mQty').value)||1,prix_unitaire:parseFloat(document.getElementById('mPrix').value)||0,mode_paiement:document.getElementById('mMode').value,notes:document.getElementById('mNotes').value,linked_debit_id,entree_id,frais_deduits:_fraisDeduits?1:0};
+  const unite=document.getElementById('mUnite').value;
+  const qty=parseFloat(document.getElementById('mQty').value)||1;
+  const body={client_id:parseInt(document.getElementById('mClient').value),type:document.getElementById('mType').value,motif:document.getElementById('mMotif').value,quantite:qty,unite:unite,prix_unitaire:parseFloat(document.getElementById('mPrix').value)||0,mode_paiement:document.getElementById('mMode').value,notes:document.getElementById('mNotes').value,linked_debit_id,entree_id,frais_deduits:_fraisDeduits?1:0};
   const res=await api('/api/transactions',{method:'POST',body});
   btn.textContent='Enregistrer';btn.disabled=false;
   if(res&&res.ok){closeModal('trans');notify('Transaction enregistrée');document.getElementById('mQty').value='1';document.getElementById('mPrix').value='0';document.getElementById('mNotes').value='';loadDashboard();if(document.getElementById('pg-transactions').classList.contains('active'))loadTransactions();}
@@ -1434,7 +1475,7 @@ async function checkRappelsBadge(){
 
 // ── INIT ──
 function initApp(){
-  loadDashboard();loadSavedPalette();loadEntrees();
+  loadDashboard();loadSavedPalette();loadEntrees();loadMotifs();
   setTimeout(checkRappelsBadge,2000);
 }
 (async()=>{
@@ -1576,6 +1617,7 @@ function openEditEntree(eid) {
   document.getElementById('entreeId').value = eid;
   document.getElementById('entreeDesc').value = e.description;
   document.getElementById('entreeQty').value = e.quantite;
+  document.getElementById('entreeUnite').value = e.unite || 'piece';
   document.getElementById('entreePrix').value = e.prix_achat;
   document.getElementById('entreeDate').value = e.date || '';
   document.getElementById('entreeNotes').value = e.notes || '';
@@ -1591,6 +1633,7 @@ async function saveEntree() {
   const body = {
     description: desc,
     quantite: parseFloat(document.getElementById('entreeQty').value) || 1,
+    unite: document.getElementById('entreeUnite').value,
     prix_achat: parseFloat(document.getElementById('entreePrix').value) || 0,
     date: document.getElementById('entreeDate').value,
     notes: document.getElementById('entreeNotes').value,
@@ -1907,13 +1950,25 @@ function imprimerDeselectAll() {
 }
 
 async function lancerImpression() {
-  var cids = [...document.querySelectorAll("#imprimerClientList input:checked")].map(function(cb){return parseInt(cb.value);});
-  if (!cids.length) { notify("Selectionnez au moins un client", "error"); return; }
   closeModal("imprimer");
   var res = await api("/api/transactions?limit=5000");
   if (!res || !res.ok) return;
-  var transactions = res.data.filter(function(t){return cids.includes(t.client_id);});
-  if (!transactions.length) { notify("Aucune transaction", "error"); return; }
+  var transactions = res.data;
+
+  // Filtrer par client seulement si mode "client"
+  if (_imprimerType === "client") {
+    var cids = Array.from(document.querySelectorAll("#imprimerClientList input:checked")).map(function(cb){return parseInt(cb.value);});
+    if (!cids.length) { notify("Selectionnez au moins un client", "error"); return; }
+    transactions = transactions.filter(function(t){return cids.includes(t.client_id);});
+  }
+
+  // Filtrer par periode si renseignee
+  var dateFrom = document.getElementById("impDateFrom") ? document.getElementById("impDateFrom").value : "";
+  var dateTo = document.getElementById("impDateTo") ? document.getElementById("impDateTo").value : "";
+  if (dateFrom) transactions = transactions.filter(function(t){return t.date >= dateFrom;});
+  if (dateTo) transactions = transactions.filter(function(t){return t.date <= dateTo;});
+
+  if (!transactions.length) { notify("Aucune transaction a imprimer", "error"); return; }
   _printTransactions = transactions;
   doPrint();
 }
@@ -2125,6 +2180,141 @@ function clearChat() {
   chatHistory = [];
   const container = document.getElementById('chatMessages');
   container.innerHTML = '<div class="ai-msg ai-msg-bot"><div class="ai-avatar">🤖</div><div class="ai-bubble">Conversation effacee. Comment puis-je vous aider ?</div></div>';
+}
+
+
+// ══════════════════════════════════════════════════════
+// STOCK
+// ══════════════════════════════════════════════════════
+async function loadStock() {
+  const res = await api('/api/stock');
+  if (!res || !res.ok) return;
+  const items = res.data;
+
+  var totalInvesti = 0;
+  var totalRestant = 0;
+  var nbRupture = 0;
+
+  const tbody = document.getElementById('stockTbody');
+  tbody.innerHTML = '';
+
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:24px">Aucune entree enregistree</td></tr>';
+    return;
+  }
+
+  items.forEach(function(e) {
+    const unite = e.unite === 'gramme' ? 'g' : 'pcs';
+    const restant = e.stock_restant !== null ? e.stock_restant : (e.quantite - (e.total_vendu || 0));
+    const pct = e.quantite > 0 ? Math.round((restant / e.quantite) * 100) : 0;
+    const color = restant <= 0 ? 'var(--red)' : pct < 20 ? 'var(--gold2)' : 'var(--green)';
+    const statut = restant <= 0 ? '🔴 Rupture' : pct < 20 ? '🟡 Faible' : '🟢 OK';
+
+    totalInvesti += e.prix_achat;
+    totalRestant += restant;
+    if (restant <= 0) nbRupture++;
+
+    const barWidth = Math.max(0, Math.min(100, pct));
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td style="color:var(--text);font-weight:500">📦 ' + e.description + '</td>'
+      + '<td style="color:var(--text3)">' + unite + '</td>'
+      + '<td class="mono">' + e.quantite + ' ' + unite + '</td>'
+      + '<td class="mono" style="color:var(--red)">' + (e.total_vendu || 0).toFixed(1) + ' ' + unite + '</td>'
+      + '<td><div style="display:flex;align-items:center;gap:8px"><span class="mono" style="color:' + color + ';font-weight:600;min-width:60px">' + restant.toFixed(1) + ' ' + unite + '</span><div style="flex:1;height:6px;background:var(--bg4);border-radius:3px;min-width:60px"><div style="width:' + barWidth + '%;height:100%;background:' + color + ';border-radius:3px;transition:width .3s"></div></div><span style="font-size:11px;color:var(--text3)">' + pct + '%</span></div></td>'
+      + '<td class="mono" style="color:var(--red)">-' + fmt(e.prix_achat) + '</td>'
+      + '<td>' + statut + '</td>';
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('stockTotalInvesti').textContent = fmt(totalInvesti);
+  document.getElementById('stockTotalRestant').textContent = totalRestant.toFixed(1);
+  document.getElementById('stockRupture').textContent = nbRupture;
+}
+
+
+// ══════════════════════════════════════════════════════
+// MOTIFS
+// ══════════════════════════════════════════════════════
+var motifsCache = [];
+
+async function loadMotifs() {
+  var res = await api('/api/motifs');
+  if (!res || !res.ok) return;
+  motifsCache = res.data;
+  renderMotifsSettings();
+  populateMotifSelects();
+}
+
+function populateMotifSelects() {
+  ['mMotif','etMotif'].forEach(function(id) {
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    var prev = sel.value;
+    sel.innerHTML = '';
+    motifsCache.forEach(function(m) {
+      var o = document.createElement('option');
+      o.value = m.nom;
+      o.textContent = m.nom;
+      sel.appendChild(o);
+    });
+    if (prev) sel.value = prev;
+  });
+}
+
+function renderMotifsSettings() {
+  var container = document.getElementById('motifsList');
+  if (!container) return;
+  container.innerHTML = '';
+  motifsCache.forEach(function(m) {
+    var div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:5px 12px';
+
+    var span = document.createElement('span');
+    span.textContent = m.nom;
+    span.style.cssText = 'font-size:13px;color:var(--text)';
+
+    var btnEdit = document.createElement('button');
+    btnEdit.textContent = '✏';
+    btnEdit.style.cssText = 'background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:0 4px';
+    btnEdit.onclick = (function(id, nom) { return function() { editMotif(id, nom); }; })(m.id, m.nom);
+
+    var btnDel = document.createElement('button');
+    btnDel.textContent = '×';
+    btnDel.style.cssText = 'background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:0 4px;line-height:1';
+    btnDel.onclick = (function(id) { return function() { deleteMotif(id); }; })(m.id);
+
+    div.appendChild(span);
+    div.appendChild(btnEdit);
+    div.appendChild(btnDel);
+    container.appendChild(div);
+  });
+}
+
+async function addMotif() {
+  var input = document.getElementById('newMotifInput');
+  var nom = input.value.trim();
+  if (!nom) return;
+  var res = await api('/api/motifs', {method:'POST', body:{nom:nom}});
+  if (res && res.ok) {
+    input.value = '';
+    notify('Article "' + nom + '" ajoute');
+    await loadMotifs();
+  } else notify('Erreur ou article deja existant', 'error');
+}
+
+async function editMotif(mid, oldNom) {
+  var newNom = prompt('Renommer "' + oldNom + '" en :', oldNom);
+  if (!newNom || newNom === oldNom) return;
+  var res = await api('/api/motifs/' + mid, {method:'PUT', body:{nom:newNom}});
+  if (res && res.ok) { notify('Article renomme'); await loadMotifs(); }
+  else notify('Erreur', 'error');
+}
+
+async function deleteMotif(mid) {
+  if (!confirm('Supprimer cet article ?')) return;
+  await api('/api/motifs/' + mid, {method:'DELETE'});
+  notify('Article supprime');
+  await loadMotifs();
 }
 
 </script>
