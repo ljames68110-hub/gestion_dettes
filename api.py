@@ -634,6 +634,52 @@ def export_csv_save():
 
     return ok({"path": save_path})
 
+
+# ── ASSISTANT IA ──────────────────────────────────────────────────────────────
+
+@app.route("/api/ai/claude", methods=["POST"])
+@require_auth
+def ai_claude():
+    """Proxy vers l API Claude pour l assistant IA."""
+    import urllib.request, json as _json
+    data = request.json or {}
+    message = data.get("message", "")
+    context = data.get("context", "")
+    history = data.get("history", [])
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return err("Cle API Claude non configuree. Ajoutez ANTHROPIC_API_KEY dans les variables d environnement.")
+
+    messages = [{"role":"user","content":context}]
+    for h in history[-6:]:
+        messages.append(h)
+    messages.append({"role":"user","content":message})
+
+    payload = _json.dumps({
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 500,
+        "messages": messages
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01"
+        },
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            result = _json.loads(r.read().decode())
+            response = result["content"][0]["text"]
+            return ok({"response": response})
+    except Exception as e:
+        return err(f"Erreur Claude API : {e}")
+
 # ── SERVE FRONTEND ────────────────────────────────────────────────────────────
 
 @app.route("/", defaults={"path": ""})

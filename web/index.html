@@ -142,6 +142,17 @@ select option{background:var(--bg3)}
 .fade{animation:fadeUp .3s ease both}
 .palette-card{padding:14px;border-radius:var(--radius);border:2px solid var(--border);cursor:pointer;transition:all .2s;background:var(--bg3)}
 .palette-card:hover{border-color:var(--gold);transform:translateY(-2px)}
+.ai-msg{display:flex;gap:10px;align-items:flex-start}
+.ai-msg-user{flex-direction:row-reverse}
+.ai-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background:var(--bg4);border:1px solid var(--border)}
+.ai-bubble{padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.6;max-width:85%;white-space:pre-wrap}
+.ai-msg-bot .ai-bubble{background:var(--bg3);border:1px solid var(--border);color:var(--text)}
+.ai-msg-user .ai-bubble{background:linear-gradient(135deg,rgba(201,168,76,.2),rgba(201,168,76,.08));border:1px solid rgba(201,168,76,.3);color:var(--gold2)}
+.ai-typing{display:flex;gap:4px;align-items:center;padding:12px 14px}
+.ai-dot{width:6px;height:6px;border-radius:50%;background:var(--text3);animation:aiDot .8s infinite}
+.ai-dot:nth-child(2){animation-delay:.2s}
+.ai-dot:nth-child(3){animation-delay:.4s}
+@keyframes aiDot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-8px)}}
 .palette-card.active{border-color:var(--gold2);background:rgba(201,168,76,.08)}
 #pinMode .pin-dots{margin-bottom:8px}
 #pwdMode{flex-direction:column;align-items:center;gap:12px;width:280px}
@@ -197,6 +208,7 @@ select option{background:var(--bg3)}
     <div class="nav-item" onclick="goPage('settings',this)"><span class="nav-icon">⚙</span> Paramètres</div>
     <div class="nav-item" data-page="rappels" onclick="goPage('rappels',this)"><span class="nav-icon">🔔</span> Rappels</div>
     <div class="nav-item" onclick="openModal('transaction')"><span class="nav-icon">＋</span> Nouvelle transaction</div>
+    <div class="nav-item" onclick="goPage('assistant',this)"><span class="nav-icon">🤖</span> Assistant IA</div>
     <div class="nav-item" onclick="goPage('entrees',this)"><span class="nav-icon">📦</span> Entrées matériel</div>
     <div class="nav-item" onclick="goPage('recap',this)"><span class="nav-icon">📊</span> Récap mensuel</div>
     <div class="nav-item" onclick="openModalImprimer()"><span class="nav-icon">🖨</span> Imprimer</div>
@@ -353,6 +365,60 @@ select option{background:var(--bg3)}
               <div class="palette-card" data-palette="forest" onclick="applyPalette('forest')"><div style="display:flex;gap:4px;margin-bottom:8px"><div style="width:20px;height:20px;border-radius:50%;background:#050f08"></div><div style="width:20px;height:20px;border-radius:50%;background:#00ff88"></div><div style="width:20px;height:20px;border-radius:50%;background:#66ffaa"></div></div><div style="font-size:13px;font-weight:500">Forêt</div><div style="font-size:11px;color:var(--text3)">Vert électrique</div></div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- ASSISTANT IA -->
+      <div class="page" id="pg-assistant">
+        <div style="display:grid;grid-template-columns:1fr 320px;gap:16px;height:calc(100vh - 140px)">
+
+          <!-- Chat -->
+          <div class="card" style="display:flex;flex-direction:column;gap:0;padding:0;overflow:hidden">
+            <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <div style="font-size:15px;font-weight:500;color:var(--text)">🤖 Assistant Gestion Perso</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px" id="aiStatus">Detection automatique...</div>
+              </div>
+              <button class="btn" style="font-size:12px" onclick="clearChat()">🗑 Effacer</button>
+            </div>
+            <div id="chatMessages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px">
+              <div class="ai-msg ai-msg-bot">
+                <div class="ai-avatar">🤖</div>
+                <div class="ai-bubble">Bonjour ! Je suis votre assistant financier. Je connais vos clients, vos transactions et vos dettes. Posez-moi n'importe quelle question sur votre activité !</div>
+              </div>
+            </div>
+            <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px">
+              <input type="text" id="chatInput" placeholder="Posez votre question..." style="flex:1;padding:10px 14px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif" onkeydown="if(event.key==='Enter')sendMessage()">
+              <button class="btn primary" onclick="sendMessage()" id="btnSendMsg" style="padding:10px 18px">Envoyer</button>
+            </div>
+          </div>
+
+          <!-- Suggestions rapides -->
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="card">
+              <div class="card-title">💡 Questions rapides</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <button class="btn" style="text-align:left;padding:10px 12px;font-size:12px;white-space:normal;height:auto" onclick="askQuick('Qui me doit le plus argent')">💰 Qui me doit le plus ?</button>
+                <button class="btn" style="text-align:left;padding:10px 12px;font-size:12px;white-space:normal;height:auto" onclick="askQuick('Resume mon activite du mois')">📊 Résumé du mois</button>
+                <button class="btn" style="text-align:left;padding:10px 12px;font-size:12px;white-space:normal;height:auto" onclick="askQuick('Quels clients ont des retards de paiement')">⏰ Clients en retard</button>
+                <button class="btn" style="text-align:left;padding:10px 12px;font-size:12px;white-space:normal;height:auto" onclick="askQuick('Quel est mon meilleur client ce mois')">⭐ Meilleur client</button>
+                <button class="btn" style="text-align:left;padding:10px 12px;font-size:12px;white-space:normal;height:auto" onclick="askQuick('Analyse mes entrees materiel non remboursees')">📦 Etat du stock</button>
+                <button class="btn" style="text-align:left;padding:10px 12px;font-size:12px;white-space:normal;height:auto" onclick="askQuick('Genere un message de relance pour clients en retard')">📨 Message de relance</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">⚙ Modèle IA</div>
+              <div style="font-size:12px;color:var(--text3);margin-bottom:8px">Moteur utilisé :</div>
+              <select id="aiModel" style="width:100%;padding:8px 10px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;font-family:Outfit,sans-serif">
+                <option value="auto" selected>🔄 Auto (Claude si internet, Mistral sinon)</option>
+                <option value="mistral">Mistral 7B (toujours local)</option>
+                <option value="llama3">Llama 3 (toujours local)</option>
+                <option value="claude">Claude API (toujours internet)</option>
+              </select>
+              <div style="font-size:11px;color:var(--text3);margin-top:8px" id="aiModelInfo">Detecte automatiquement la connexion</div>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -540,7 +606,7 @@ select option{background:var(--bg3)}
     </div>
     <div class="modal-actions">
       <button class="btn danger" id="btnDeleteEntree" style="margin-right:auto;display:none" onclick="deleteEntree()">🗑 Supprimer</button>
-      <button class="btn-cancel" onclick="document.getElementById('modalEntree').classList.remove('open')">Annuler</button>
+      <button class="btn" onclick="fermerEntree()">Annuler</button>
       <button class="btn-save" onclick="saveEntree()">Enregistrer</button>
     </div>
   </div>
@@ -654,7 +720,7 @@ select option{background:var(--bg3)}
     </div>
 
     <div class="modal-actions" style="margin-top:16px">
-      <button class="btn-cancel" onclick="closeModal('imprimer')">Annuler</button>
+<button class="btn" onclick="document.getElementById('modalImprimer').classList.remove('open')">Annuler</button>
       <button class="btn-save" id="btnImprimerGo" onclick="lancerImpression()" style="display:none">🖨 Imprimer</button>
     </div>
   </div>
@@ -706,7 +772,7 @@ let PIN_LENGTH = 4;
 let AUTH_TYPE = 'pin';
 let _mem = {};
 const store = {
-  get:(k)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return _mem[k]??null;}},
+  get:(k)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return _mem[k]!==undefined?_mem[k]:null;}},
   set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}_mem[k]=v;}
 };
 
@@ -715,7 +781,7 @@ async function api(path,opts={}){
   const headers={'Content-Type':'application/json'};
   if(TOKEN)headers['X-Session-Token']=TOKEN;
   if(opts.body&&typeof opts.body==='object')opts.body=JSON.stringify(opts.body);
-  const res=await fetch(path,{...opts,headers});
+  var fetchOpts = {}; for(var k in opts){fetchOpts[k]=opts[k];} fetchOpts.headers=headers; const res=await fetch(path,fetchOpts);
   const json=await res.json().catch(()=>({}));
   if(!res.ok&&res.status===401&&path!=='/api/auth/login'){lockApp();return null;}
   return json;
@@ -803,7 +869,7 @@ async function refreshPinLength(){
 }
 
 // ── NAVIGATION ──
-const TITLES={dashboard:'Tableau de bord',clients:'Clients',transactions:'Transactions',soldes:'Soldes & Dettes',settings:'Parametres',rappels:'Rappels et Relances',entrees:'Entrees materiel',recap:'Recap mensuel'};
+const TITLES={assistant:'Assistant IA',dashboard:'Tableau de bord',clients:'Clients',transactions:'Transactions',soldes:'Soldes & Dettes',settings:'Parametres',rappels:'Rappels et Relances',entrees:'Entrees materiel',recap:'Recap mensuel'};
 function goPage(name,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -818,6 +884,7 @@ function goPage(name,el){
   if(name==='soldes')initSoldes();
   if(name==='settings')initSettings();
   if(name==='rappels')loadRappels();
+  if(name==='assistant')initAssistant();
   if(name==='entrees')loadEntrees();
   if(name==='recap')initRecap();
 }
@@ -861,7 +928,7 @@ async function loadMensual(){
 }
 function buildMoisSelect(){
   const s=new Set();mensualData.forEach(t=>{if(t.date)s.add(t.date.slice(0,7));});
-  const list=[...s].sort().reverse();
+  const list=Array.from(s).sort().reverse();
   const sel=document.getElementById('mensualMois');
   const prev=sel.value;sel.innerHTML='<option value="">Tous les mois</option>';
   list.forEach(m=>{const[y,mo]=m.split('-');const noms=['','Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];const o=document.createElement('option');o.value=m;o.textContent=noms[parseInt(mo)]+' '+y;sel.appendChild(o);});
@@ -873,7 +940,7 @@ function renderMensual(){
   const map={};
   filtered.forEach(t=>{if(!map[t.client_id])map[t.client_id]={nom:t.client_nom||'—',vendu:0,rembourse:0};if(t.type==='debit')map[t.client_id].vendu+=t.montant_net;else map[t.client_id].rembourse+=t.montant_net;});
   const cumul={};mensualData.forEach(t=>{if(!cumul[t.client_id])cumul[t.client_id]=0;if(t.type==='debit')cumul[t.client_id]+=t.montant_net;else cumul[t.client_id]-=t.montant_net;});
-  const rows=Object.entries(map).map(([cid,v])=>({nom:v.nom,vendu:v.vendu,rembourse:v.rembourse,dette:v.vendu-v.rembourse,cumul:cumul[cid]||0})).sort((a,b)=>b.dette-a.dette);
+  const rows=Object.keys(map).map(function(cid){var v=map[cid];return {nom:v.nom,vendu:v.vendu,rembourse:v.rembourse,dette:v.vendu-v.rembourse,cumul:cumul[cid]||0};}).sort(function(a,b){return b.dette-a.dette;});
   const tbody=document.getElementById('mensualTbody');tbody.innerHTML='';
   if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Aucune donnée</td></tr>';document.getElementById('mensualTotal').innerHTML='';return;}
   rows.forEach(r=>{
@@ -941,7 +1008,7 @@ async function loadTransactions(){
 function renderTransactions(){
   const fc=document.getElementById('filterClient').value;
   const ft=document.getElementById('filterType').value;
-  let list=[...allTransactions];
+  let list=allTransactions.slice();
   if(fc)list=list.filter(t=>String(t.client_id)===fc);
   if(ft)list=list.filter(t=>t.type===ft);
   const tbody=document.getElementById('transTbody');tbody.innerHTML='';
@@ -968,7 +1035,7 @@ async function loadSolde(){
   if(!cid){content.style.display='none';document.getElementById('exportCsvBtn').style.display='none';return;}
   const[sr,tr2]=await Promise.all([api('/api/clients/'+cid+'/stats'),api('/api/clients/'+cid+'/transactions')]);
   if(!sr||!sr.ok)return;
-  const s=sr.data;const trans=tr2?.data||[];
+  const s=sr.data;const trans=(tr2 && tr2.data ? tr2.data : []);
   const dette=s.total_debit-s.total_credit;
   const isPos=dette>0;const col=isPos?'var(--green)':dette<0?'var(--red)':'var(--text3)';
   const msg=isPos?'🟢 Ce client vous doit de l\'argent':dette<0?'🔴 Vous devez de l\'argent à ce client':'⚖️ Compte soldé';
@@ -985,6 +1052,10 @@ function openModal(type){
     document.getElementById('mType').value='debit';toggleTypeFields();
     document.getElementById('modalTrans').classList.add('open');
   }else{openAddClientFresh();}
+}
+function fermerEntree(){
+  var m = document.getElementById('modalEntree');
+  if(m) m.classList.remove('open');
 }
 function closeModal(type){
   const ids={trans:'modalTrans',client:'modalClient',editTrans:'modalEditTrans',update:'modalUpdate',detail:'modalDetail',rappel:'modalRappel',entree:'modalEntree',importDB:'modalImportDB',modalPrint:'modalPrint',printPreview:'modalPrintPreview'};
@@ -1069,7 +1140,7 @@ async function saveTrans(){
   const res=await api('/api/transactions',{method:'POST',body});
   btn.textContent='Enregistrer';btn.disabled=false;
   if(res&&res.ok){closeModal('trans');notify('Transaction enregistrée');document.getElementById('mQty').value='1';document.getElementById('mPrix').value='0';document.getElementById('mNotes').value='';loadDashboard();if(document.getElementById('pg-transactions').classList.contains('active'))loadTransactions();}
-  else notify(res?.error||'Erreur','error');
+  else notify((res && res.error ? res.error : 'Erreur'),'error');
 }
 
 // ── CLIENTS CRUD ──
@@ -1102,7 +1173,7 @@ async function saveClient(){
   const res=cid?await api('/api/clients/'+cid,{method:'PUT',body}):await api('/api/clients',{method:'POST',body});
   btn.textContent=cid?'Enregistrer':'Créer';btn.disabled=false;
   if(res&&res.ok){closeModal('client');notify(cid?'Client modifié':'Client créé');await loadClients();}
-  else notify(res?.error||'Erreur','error');
+  else notify((res && res.error ? res.error : 'Erreur'),'error');
 }
 async function confirmDeleteClient(cid,nom){
   if(!confirm('Supprimer '+nom+' et toutes ses transactions ?'))return;
@@ -1151,7 +1222,7 @@ async function saveEditTrans(){
   const res=await api('/api/transactions/'+id,{method:'PUT',body});
   btn.textContent='Enregistrer';btn.disabled=false;
   if(res&&res.ok){closeModal('editTrans');notify('Transaction modifiée');loadTransactions();loadDashboard();}
-  else notify(res?.error||'Erreur','error');
+  else notify((res && res.error ? res.error : 'Erreur'),'error');
 }
 
 // ── DETAIL TRANSACTION ──
@@ -1174,7 +1245,7 @@ function exportAll(){window.location.href='/api/export/csv/all?token='+TOKEN;not
 
 // ── SEARCH ──
 function doSearch(v){
-  v=v.toLowerCase();const active=document.querySelector('.page.active')?.id;
+  v=v.toLowerCase();const active=(document.querySelector('.page.active') ? document.querySelector('.page.active').id : '');
   if(active==='pg-clients')renderClients(clientsCache.filter(c=>c.nom.toLowerCase().includes(v)||(c.email||'').toLowerCase().includes(v)));
   else if(active==='pg-dashboard')document.querySelectorAll('#dashTbody tr').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(v)?'':'none';});
   else if(active==='pg-transactions')document.querySelectorAll('#transTbody tr').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(v)?'':'none';});
@@ -1207,7 +1278,7 @@ async function changePin(){
   const old=prompt('Code actuel pour confirmer :')||'';
   const res=await api('/api/auth/change-pin',{method:'POST',body:{old_pin:old,new_pin:np,auth_type:'pin'}});
   if(res&&res.ok){document.getElementById('newPin').value='';document.getElementById('confirmPin').value='';await refreshPinLength();}
-  else notify(res?.error||'Erreur','error');
+  else notify((res && res.error ? res.error : 'Erreur'),'error');
 }
 async function changePassword(){
   const np=document.getElementById('newPwd').value,cp=document.getElementById('confirmPwd').value;
@@ -1216,7 +1287,7 @@ async function changePassword(){
   const old=prompt('Code actuel pour confirmer :')||'';
   const res=await api('/api/auth/change-pin',{method:'POST',body:{old_pin:old,new_pin:np,auth_type:'password'}});
   if(res&&res.ok){document.getElementById('newPwd').value='';document.getElementById('confirmPwd').value='';await refreshPinLength();}
-  else notify(res?.error||'Erreur','error');
+  else notify((res && res.error ? res.error : 'Erreur'),'error');
 }
 
 // ── PALETTES ──
@@ -1229,7 +1300,7 @@ const PALETTES={
 };
 function applyPalette(name){
   const p=PALETTES[name];if(!p)return;
-  Object.entries(p).forEach(([k,v])=>document.documentElement.style.setProperty(k,v));
+  Object.keys(p).forEach(function(k){document.documentElement.style.setProperty(k,p[k]);});
   document.querySelectorAll('.palette-card').forEach(c=>c.classList.toggle('active',c.dataset.palette===name));
   store.set('palette',name);notify('Thème appliqué');
 }
@@ -1257,7 +1328,7 @@ async function loadRappels(){
   const delEl=document.getElementById('rDelaiLabel');if(delEl)delEl.textContent='Délai: '+rappelSettings.delai+' jours';
   const[cr,tr2,rr]=await Promise.all([api('/api/clients'),api('/api/transactions?limit=2000'),api('/api/rappels')]);
   if(!cr||!cr.ok)return;
-  clientsCache=cr.data;const clients=cr.data;const allTrans=tr2?.data||[];const rappelsDB=rr?.data||[];
+  clientsCache=cr.data;const clients=cr.data;const allTrans=(tr2 && tr2.data ? tr2.data : []);const rappelsDB=(rr && rr.data ? rr.data : []);
   const today=new Date();const retards=[];
   clients.forEach(c=>{
     const ct=allTrans.filter(t=>t.client_id===c.id);if(!ct.length)return;
@@ -1282,7 +1353,7 @@ async function loadRappels(){
     tbody.appendChild(tr);
   });
   const rTbody=document.getElementById('relanceTbody');rTbody.innerHTML='';
-  const sorted=[...rappelsDB].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,30);
+  const sorted=rappelsDB.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,30);
   if(!sorted.length)rTbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Aucune relance</td></tr>';
   else sorted.forEach(r=>{
     const tr=document.createElement('tr');
@@ -1345,7 +1416,7 @@ async function checkRappelsBadge(){
   loadRappelSettingsFromStorage();if(!rappelSettings.actif)return;
   const[cr,tr2]=await Promise.all([api('/api/clients'),api('/api/transactions?limit=2000')]);
   if(!cr||!cr.ok)return;
-  const clients=cr.data;const allTrans=tr2?.data||[];const today=new Date();let nb=0;
+  const clients=cr.data;const allTrans=(tr2 && tr2.data ? tr2.data : []);const today=new Date();let nb=0;
   clients.forEach(c=>{
     const ct=allTrans.filter(t=>t.client_id===c.id);
     const dette=ct.reduce((s,t)=>s+(t.type==='debit'?t.montant_net:-t.montant_net),0);
@@ -1387,7 +1458,7 @@ async function exportDB() {
     if (res && res.ok) {
       notify('Base exportée : ' + res.data.path);
     } else {
-      notify(res?.error || 'Erreur export', 'error');
+      notify((res && res.error ? res.error : 'Erreur export'), 'error');
     }
   } catch(e) {
     notify('Erreur : ' + e.message, 'error');
@@ -1711,87 +1782,61 @@ async function doPrint() {
 
   if (!transactions.length) { notify('Aucune transaction à imprimer', 'error'); return; }
 
+  // Generer HTML sans template literals (compatibilite PyWebView)
+  var date_str = new Date().toLocaleDateString("fr-FR", {day:"2-digit",month:"long",year:"numeric"});
+  var html = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\">";
+  html += "<title>Gestion Perso - Impression</title>";
+  html += "<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:20px}";
+  html += "h1{font-size:20px;margin-bottom:4px}.subtitle{font-size:12px;color:#666;margin-bottom:20px}";
+  html += ".client-section{margin-bottom:30px;page-break-inside:avoid}.client-title{font-size:15px;font-weight:bold;background:#f0f0f0;padding:8px 12px;border-left:4px solid #c9a84c;margin-bottom:8px}";
+  html += "table{width:100%;border-collapse:collapse}th{background:#333;color:#fff;padding:6px 8px;text-align:left;font-size:11px}";
+  html += "td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px}tr:nth-child(even) td{background:#f9f9f9}";
+  html += ".vente{color:#16a34a;font-weight:bold}.remboursement{color:#dc2626;font-weight:bold}";
+  html += ".total-row{font-weight:bold;background:#f0f0f0!important}.total-row td{border-top:2px solid #ccc;padding:7px 8px}";
+  html += ".footer{margin-top:30px;font-size:10px;color:#999;text-align:center;border-top:1px solid #eee;padding-top:10px}";
+  html += "</style></head><body>";
+  html += "<h1>Gestion Perso - Releve de transactions</h1>";
+  html += "<div class=\"subtitle\">Imprime le " + date_str + "</div>";
+
   // Grouper par client
-  const byClient = {};
-  transactions.forEach(t => {
-    const nom = t.client_nom || 'Inconnu';
+  var byClient = {};
+  transactions.forEach(function(t) {
+    var nom = t.client_nom || "Inconnu";
     if (!byClient[nom]) byClient[nom] = [];
     byClient[nom].push(t);
   });
 
-  // Générer HTML d'impression
-  let html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Gestion Perso — Impression</title>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:20px}
-    h1{font-size:20px;margin-bottom:4px;color:#111}
-    .subtitle{font-size:12px;color:#666;margin-bottom:20px}
-    .client-section{margin-bottom:30px;page-break-inside:avoid}
-    .client-title{font-size:15px;font-weight:bold;background:#f0f0f0;padding:8px 12px;border-left:4px solid #c9a84c;margin-bottom:8px}
-    table{width:100%;border-collapse:collapse;margin-bottom:10px}
-    th{background:#333;color:#fff;padding:6px 8px;text-align:left;font-size:11px}
-    td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px}
-    tr:nth-child(even) td{background:#f9f9f9}
-    .vente{color:#16a34a;font-weight:bold}
-    .remboursement{color:#dc2626;font-weight:bold}
-    .total-row{font-weight:bold;background:#f0f0f0!important}
-    .total-row td{border-top:2px solid #ccc;padding:7px 8px}
-    .footer{margin-top:30px;font-size:10px;color:#999;text-align:center;border-top:1px solid #eee;padding-top:10px}
-    @media print{body{padding:10px}.no-print{display:none}}
-  </style>
-  </head><body>
-  <h1>🏦 Gestion Perso — Relevé de transactions</h1>
-  <div class="subtitle">Imprimé le ${new Date().toLocaleDateString('fr-FR', {day:'2-digit',month:'long',year:'numeric'})}</div>`;
-
-  Object.entries(byClient).forEach(([nom, trans]) => {
-    const totalVentes = trans.filter(t=>t.type==='debit').reduce((s,t)=>s+t.montant_net,0);
-    const totalRembours = trans.filter(t=>t.type==='credit').reduce((s,t)=>s+t.montant_net,0);
-    const dette = totalVentes - totalRembours;
-    html += `<div class="client-section">
-    <div class="client-title">👤 ${nom} — Dette nette : ${dette>=0?'+':''}${dette.toFixed(2)} €</div>
-    <table>
-      <thead><tr><th>Date</th><th>Type</th><th>Motif</th><th>Mode</th><th>Qté</th><th>P.U</th><th>Frais</th><th>Net</th></tr></thead>
-      <tbody>`;
-    trans.forEach(t => {
-      const isV = t.type === 'debit';
-      html += `<tr>
-        <td>${fmtDate(t.date)}</td>
-        <td class="${isV?'vente':'remboursement'}">${isV?'Vente':'Remboursement'}</td>
-        <td>${t.motif}</td>
-        <td>${isV?'—':t.mode_paiement}</td>
-        <td>${t.quantite}</td>
-        <td>${parseFloat(t.prix_unitaire||0).toFixed(2)} €</td>
-        <td>${parseFloat(t.frais||0).toFixed(2)} €</td>
-        <td class="${isV?'vente':'remboursement'}">${isV?'+':'-'}${parseFloat(t.montant_net||0).toFixed(2)} €</td>
-      </tr>`;
+  Object.keys(byClient).forEach(function(nom) {
+    var trans = byClient[nom];
+    var tv = trans.filter(function(t){return t.type==="debit";}).reduce(function(s,t){return s+t.montant_net;},0);
+    var tr2 = trans.filter(function(t){return t.type==="credit";}).reduce(function(s,t){return s+t.montant_net;},0);
+    var dette = tv - tr2;
+    html += "<div class=\"client-section\">";
+    html += "<div class=\"client-title\">Client : " + nom + " - Dette nette : " + (dette>=0?"+":"") + dette.toFixed(2) + " EUR</div>";
+    html += "<table><thead><tr><th>Date</th><th>Type</th><th>Motif</th><th>Mode</th><th>Net</th></tr></thead><tbody>";
+    trans.forEach(function(t) {
+      var isV = t.type === "debit";
+      html += "<tr><td>" + fmtDate(t.date) + "</td>";
+      html += "<td class=\"" + (isV?"vente":"remboursement") + "\">" + (isV?"Vente":"Remboursement") + "</td>";
+      html += "<td>" + t.motif + "</td><td>" + (isV?"—":t.mode_paiement) + "</td>";
+      html += "<td class=\"" + (isV?"vente":"remboursement") + "\">" + (isV?"+":"-") + parseFloat(t.montant_net||0).toFixed(2) + " EUR</td></tr>";
     });
-    html += `<tr class="total-row">
-      <td colspan="6">Total ${nom}</td>
-      <td></td>
-      <td>Dette : ${dette>=0?'+':''}${dette.toFixed(2)} €</td>
-    </tr>`;
-    html += '</tbody></table></div>';
+    html += "<tr class=\"total-row\"><td colspan=\"4\">Total " + nom + "</td><td>Dette : " + (dette>=0?"+":"") + dette.toFixed(2) + " EUR</td></tr>";
+    html += "</tbody></table></div>";
   });
 
-  const grandTotal = transactions.filter(t=>t.type==='debit').reduce((s,t)=>s+t.montant_net,0)
-                   - transactions.filter(t=>t.type==='credit').reduce((s,t)=>s+t.montant_net,0);
-  html += `<div class="footer">Total général — Dette nette : ${grandTotal>=0?'+':''}${grandTotal.toFixed(2)} € | ${transactions.length} transaction(s) | Gestion Perso</div>
-  </body></html>`;
+  var grandTotal = transactions.filter(function(t){return t.type==="debit";}).reduce(function(s,t){return s+t.montant_net;},0)
+                 - transactions.filter(function(t){return t.type==="credit";}).reduce(function(s,t){return s+t.montant_net;},0);
+  html += "<div class=\"footer\">Total general : " + (grandTotal>=0?"+":"") + grandTotal.toFixed(2) + " EUR | " + transactions.length + " transaction(s) | Gestion Perso</div>";
+  html += "</body></html>";
 
-  // Créer un blob et l'ouvrir - compatible PyWebView
-  const blob = new Blob([html], {type: 'text/html'});
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.target   = '_blank';
-  // Fallback : afficher dans modal impression
-  const printFrame = document.getElementById('printFrame');
+  // Ouvrir dans iframe modal
+  var blob = new Blob([html], {type: "text/html"});
+  var url  = URL.createObjectURL(blob);
+  var printFrame = document.getElementById("printFrame");
   if (printFrame) {
     printFrame.src = url;
-    document.getElementById('modalPrintPreview').classList.add('open');
-  } else {
-    window.location.href = url;
+    document.getElementById("modalPrintPreview").classList.add("open");
   }
   _printTransactions = [];
 }
@@ -1862,101 +1907,224 @@ function imprimerDeselectAll() {
 }
 
 async function lancerImpression() {
-  let transactions = [...allTransactions];
-
-  // Filtrer par client si nécessaire
-  if (_imprimerType === 'client') {
-    const cids = [...document.querySelectorAll('#imprimerClientList input:checked')].map(cb => parseInt(cb.value));
-    if (!cids.length) { notify('Sélectionnez au moins un client', 'error'); return; }
-    transactions = transactions.filter(t => cids.includes(t.client_id));
-  }
-
-  // Filtrer par période
-  const du = document.getElementById('impDu').value;
-  const au = document.getElementById('impAu').value;
-  if (du) transactions = transactions.filter(t => t.date >= du);
-  if (au) transactions = transactions.filter(t => t.date <= au);
-
-  if (!transactions.length) { notify('Aucune transaction à imprimer', 'error'); return; }
-
-  closeModal('imprimer');
-  genererPDF(transactions);
+  var cids = [...document.querySelectorAll("#imprimerClientList input:checked")].map(function(cb){return parseInt(cb.value);});
+  if (!cids.length) { notify("Selectionnez au moins un client", "error"); return; }
+  closeModal("imprimer");
+  var res = await api("/api/transactions?limit=5000");
+  if (!res || !res.ok) return;
+  var transactions = res.data.filter(function(t){return cids.includes(t.client_id);});
+  if (!transactions.length) { notify("Aucune transaction", "error"); return; }
+  _printTransactions = transactions;
+  doPrint();
 }
 
 function genererPDF(transactions) {
-  const now = new Date().toLocaleDateString('fr-FR');
-  const totalVentes = transactions.filter(t=>t.type==='debit').reduce((s,t)=>s+t.montant_net,0);
-  const totalRembours = transactions.filter(t=>t.type==='credit').reduce((s,t)=>s+t.montant_net,0);
+  _printTransactions = transactions;
+  doPrint();
+}
 
-  // Grouper par client
-  const byClient = {};
-  transactions.forEach(t => {
-    const nom = t.client_nom || 'Inconnu';
-    if (!byClient[nom]) byClient[nom] = [];
-    byClient[nom].push(t);
+
+// ══════════════════════════════════════════════════════
+// ASSISTANT IA
+// ══════════════════════════════════════════════════════
+let chatHistory = [];
+
+function initAssistant() {
+  document.getElementById('aiModel').addEventListener('change', function() {
+    const info = document.getElementById('aiModelInfo');
+    if (this.value === 'claude') {
+      info.textContent = 'Necessite une connexion internet';
+      info.style.color = 'var(--gold2)';
+    } else {
+      info.textContent = 'Fonctionne sans internet via Ollama';
+      info.style.color = 'var(--text3)';
+    }
+  });
+}
+
+async function buildContext() {
+  var res1 = await api("/api/clients");
+  var res2 = await api("/api/transactions?limit=500");
+  var res3 = await api("/api/entrees");
+  var clients = res1 && res1.data ? res1.data : [];
+  var transactions = res2 && res2.data ? res2.data : [];
+  var entrees = res3 && res3.data ? res3.data : [];
+  var today = new Date().toISOString().slice(0,10);
+  var moisCourant = today.slice(0,7);
+  var dettes = {};
+  clients.forEach(function(c) {
+    var ct = transactions.filter(function(t){return t.client_id===c.id;});
+    var d = ct.reduce(function(s,t){return s+(t.type==="debit"?t.montant_net:-t.montant_net);},0);
+    dettes[c.nom] = Math.round(d*100)/100;
+  });
+  var transMois = transactions.filter(function(t){return t.date&&t.date.startsWith(moisCourant);});
+  var venteMois = transMois.filter(function(t){return t.type==="debit";}).reduce(function(s,t){return s+t.montant_net;},0);
+  var remboMois = transMois.filter(function(t){return t.type==="credit";}).reduce(function(s,t){return s+t.montant_net;},0);
+  var entreesOuvertes = entrees.filter(function(e) {
+    var v = transactions.filter(function(t){return t.entree_id===e.id&&t.type==="debit";}).reduce(function(s,t){return s+t.montant_net;},0);
+    return v < e.prix_achat;
+  });
+  var ctx = "Tu es un assistant financier personnel. Date : " + today + "\n\n";
+  ctx += "CLIENTS ET DETTES :\n";
+  clients.forEach(function(c) {
+    ctx += "- " + c.nom + " : " + (dettes[c.nom]>=0?"vous doit":"vous devez") + " " + Math.abs(dettes[c.nom]).toFixed(2) + " EUR\n";
+  });
+  ctx += "\nACTIVITE " + moisCourant + " :\n";
+  ctx += "- Ventes : " + venteMois.toFixed(2) + " EUR\n";
+  ctx += "- Remboursements : " + remboMois.toFixed(2) + " EUR\n";
+  ctx += "- Nb transactions : " + transMois.length + "\n";
+  ctx += "\nDERNIERES TRANSACTIONS :\n";
+  transactions.slice(0,10).forEach(function(t) {
+    ctx += "- " + t.date + " | " + (t.client_nom||"?") + " | " + (t.type==="debit"?"Vente":"Remboursement") + " | " + t.motif + " | " + t.montant_net.toFixed(2) + " EUR\n";
+  });
+  ctx += "\nENTREES NON REMBOURSEES :\n";
+  if (entreesOuvertes.length) {
+    entreesOuvertes.forEach(function(e){ctx += "- " + e.description + " : " + e.prix_achat.toFixed(2) + " EUR\n";});
+  } else { ctx += "Toutes remboursees\n"; }
+  ctx += "\nReponds en francais, de facon concise et utile.";
+  return ctx;
+}
+
+
+function checkInternet() {
+  return new Promise(function(resolve) {
+    var img = new Image();
+    img.onload = function() { resolve(true); };
+    img.onerror = function() { resolve(false); };
+    img.src = 'https://www.google.com/favicon.ico?' + Date.now();
+    setTimeout(function() { resolve(false); }, 2000);
+  });
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+
+  input.value = '';
+  addMessage(msg, 'user');
+  chatHistory.push({role:'user', content:msg});
+
+  const typingId = addTyping();
+  document.getElementById('btnSendMsg').disabled = true;
+
+  try {
+    let response = '';
+    const manualModel = document.getElementById('aiModel').value;
+
+    if (manualModel === 'claude') {
+      // Forcé Claude
+      document.getElementById('aiStatus').textContent = 'Claude API — Internet';
+      response = await askClaude(msg);
+    } else if (manualModel !== 'auto') {
+      // Forcé Ollama
+      document.getElementById('aiStatus').textContent = 'Mistral 7B — Local';
+      response = await askOllama(msg, manualModel === 'llama3' ? 'llama3' : 'mistral');
+    } else {
+      // Auto : essayer Claude en premier si internet dispo
+      const online = await checkInternet();
+      if (online) {
+        try {
+          document.getElementById('aiStatus').textContent = '✓ Claude API — Internet';
+          document.getElementById('aiStatus').style.color = 'var(--green)';
+          response = await askClaude(msg);
+        } catch(e) {
+          // Claude échoue → fallback Mistral
+          document.getElementById('aiStatus').textContent = 'Mistral 7B — Local (fallback)';
+          document.getElementById('aiStatus').style.color = 'var(--gold2)';
+          response = await askOllama(msg, 'mistral');
+        }
+      } else {
+        document.getElementById('aiStatus').textContent = 'Mistral 7B — Local (hors ligne)';
+        document.getElementById('aiStatus').style.color = 'var(--text3)';
+        response = await askOllama(msg, 'mistral');
+      }
+    }
+
+    removeTyping(typingId);
+    addMessage(response, 'bot');
+    chatHistory.push({role:'assistant', content:response});
+  } catch(e) {
+    removeTyping(typingId);
+    addMessage('Erreur : ' + e.message + ' - Verifiez qu Ollama est bien lance avec : ollama serve', 'bot');
+  }
+
+  document.getElementById('btnSendMsg').disabled = false;
+  input.focus();
+}
+
+async function askOllama(userMsg, model) {
+  const context = await buildContext();
+  const messages = [
+    {role:'system', content: context},
+    ...chatHistory.slice(-6), // 6 derniers messages pour le contexte
+    {role:'user', content: userMsg}
+  ];
+
+  const res = await fetch('http://localhost:11434/api/chat', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      model: model,
+      messages: messages,
+      stream: false,
+      options: {temperature: 0.7, num_predict: 500}
+    })
   });
 
-  let html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Gestion Perso — Export ${now}</title>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:20px}
-    h1{font-size:20px;margin-bottom:4px;color:#111}
-    .subtitle{color:#666;font-size:12px;margin-bottom:20px}
-    .stats{display:flex;gap:20px;margin-bottom:20px;padding:12px;background:#f5f5f5;border-radius:6px}
-    .stat{text-align:center}.stat-label{font-size:10px;color:#666;text-transform:uppercase}
-    .stat-val{font-size:16px;font-weight:700;margin-top:2px}
-    .client-section{margin-bottom:24px;page-break-inside:avoid}
-    .client-title{font-size:14px;font-weight:700;background:#111;color:#fff;padding:6px 10px;border-radius:4px 4px 0 0;margin-bottom:0}
-    table{width:100%;border-collapse:collapse;font-size:11px}
-    th{background:#f0f0f0;padding:6px 8px;text-align:left;border:1px solid #ddd;font-weight:600}
-    td{padding:5px 8px;border:1px solid #ddd}
-    .vente{color:#16a34a;font-weight:700}.remboursement{color:#dc2626;font-weight:700}
-    .total-row{background:#f9f9f9;font-weight:700}
-    .footer{margin-top:30px;text-align:center;color:#999;font-size:10px;border-top:1px solid #ddd;padding-top:10px}
-    @media print{body{padding:10px}.no-print{display:none}}
-  </style></head><body>
-  <div class="no-print" style="margin-bottom:16px">
-    <button onclick="window.print()" style="padding:10px 24px;background:#111;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer">🖨 Imprimer / Enregistrer PDF</button>
-    <button onclick="window.close()" style="margin-left:10px;padding:10px 24px;background:#eee;color:#111;border:none;border-radius:6px;font-size:14px;cursor:pointer">✕ Fermer</button>
-  </div>
-  <h1>📊 Gestion Perso</h1>
-  <div class="subtitle">Export du ${now} — ${transactions.length} transaction(s)</div>
-  <div class="stats">
-    <div class="stat"><div class="stat-label">Total ventes</div><div class="stat-val" style="color:#16a34a">+${totalVentes.toFixed(2)} €</div></div>
-    <div class="stat"><div class="stat-label">Total remboursements</div><div class="stat-val" style="color:#dc2626">-${totalRembours.toFixed(2)} €</div></div>
-    <div class="stat"><div class="stat-label">Solde net</div><div class="stat-val">${(totalVentes-totalRembours).toFixed(2)} €</div></div>
-    <div class="stat"><div class="stat-label">Nb clients</div><div class="stat-val">${Object.keys(byClient).length}</div></div>
-  </div>`;
+  if (!res.ok) throw new Error('Ollama non disponible - lancez "ollama serve"');
+  const data = await res.json();
+  return (data.message && data.message.content ? data.message.content : 'Pas de reponse');
+}
 
-  Object.entries(byClient).forEach(([nom, trans]) => {
-    const dette = trans.reduce((s,t)=>s+(t.type==='debit'?t.montant_net:-t.montant_net),0);
-    html += `<div class="client-section">
-    <div class="client-title">👤 ${nom} — Dette nette : ${dette>=0?'+':''}${dette.toFixed(2)} €</div>
-    <table><thead><tr><th>Date</th><th>Type</th><th>Motif</th><th>Mode</th><th>Qté</th><th>P.U</th><th>Net</th></tr></thead><tbody>`;
-    trans.forEach(t => {
-      const isV = t.type==='debit';
-      html += `<tr>
-        <td>${t.date?t.date.slice(0,10).split('-').reverse().join('/'):'—'}</td>
-        <td class="${isV?'vente':'remboursement'}">${isV?'Vente':'Remboursement'}</td>
-        <td>${t.motif}</td>
-        <td>${isV?'—':t.mode_paiement}</td>
-        <td>${t.quantite}</td>
-        <td>${parseFloat(t.prix_unitaire||0).toFixed(2)} €</td>
-        <td class="${isV?'vente':'remboursement'}">${isV?'+':'-'}${parseFloat(t.montant_net||0).toFixed(2)} €</td>
-      </tr>`;
-    });
-    const tv=trans.filter(t=>t.type==='debit').reduce((s,t)=>s+t.montant_net,0);
-    const tr2=trans.filter(t=>t.type==='credit').reduce((s,t)=>s+t.montant_net,0);
-    html+=`<tr class="total-row"><td colspan="6" style="text-align:right">Totaux</td><td>${tv.toFixed(2)} € / -${tr2.toFixed(2)} €</td></tr>`;
-    html += `</tbody></table></div>`;
+async function askClaude(userMsg) {
+  // Via l'API Flask qui proxifie vers Claude
+  const context = await buildContext();
+  const res = await api('/api/ai/claude', {
+    method: 'POST',
+    body: {message: userMsg, context, history: chatHistory.slice(-6)}
   });
+  if (!res || !res.ok) throw new Error(res && res.error ? res.error : 'Erreur API Claude');
+  return res.data.response;
+}
 
-  html += `<div class="footer">Gestion Perso — Généré le ${now}</div></body></html>`;
+function askQuick(question) {
+  document.getElementById('chatInput').value = question;
+  sendMessage();
+}
 
-  const win = window.open('', '_blank', 'width=900,height=700');
-  win.document.write(html);
-  win.document.close();
+function addMessage(text, type) {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'ai-msg ai-msg-' + (type==='user'?'user':'bot');
+  const avatar = type==='user' ? '👤' : '🤖';
+  div.innerHTML = '<div class="ai-avatar">' + avatar + '</div>'
+    + '<div class="ai-bubble">' + text.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>') + '</div>';
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div;
+}
+
+function addTyping() {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'ai-msg ai-msg-bot';
+  div.id = 'typing_' + Date.now();
+  div.innerHTML = '<div class="ai-avatar">🤖</div><div class="ai-bubble ai-typing"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div.id;
+}
+
+function removeTyping(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+function clearChat() {
+  chatHistory = [];
+  const container = document.getElementById('chatMessages');
+  container.innerHTML = '<div class="ai-msg ai-msg-bot"><div class="ai-avatar">🤖</div><div class="ai-bubble">Conversation effacee. Comment puis-je vous aider ?</div></div>';
 }
 
 </script>
