@@ -82,12 +82,27 @@ def init_db():
         if "created_at" not in client_cols:
             c.execute("ALTER TABLE clients ADD COLUMN created_at TEXT DEFAULT NULL")
 
-        # ── Migration colonne linked_debit_id dans transactions ────────────────
+        # ── Migration colonnes transactions ────────────────────────────────────
         trans_cols = {row[1] for row in c.execute("PRAGMA table_info(transactions)").fetchall()}
         if "linked_debit_id" not in trans_cols:
             c.execute("ALTER TABLE transactions ADD COLUMN linked_debit_id INTEGER DEFAULT NULL")
-        if "solde_restant" not in trans_cols:
-            c.execute("ALTER TABLE transactions ADD COLUMN solde_restant REAL DEFAULT NULL")
+        if "entree_id" not in trans_cols:
+            c.execute("ALTER TABLE transactions ADD COLUMN entree_id INTEGER DEFAULT NULL")
+        if "frais_deduits" not in trans_cols:
+            c.execute("ALTER TABLE transactions ADD COLUMN frais_deduits INTEGER DEFAULT 1")
+
+        # ── Table entrées matériel ─────────────────────────────────────────────
+        c.execute("""
+        CREATE TABLE IF NOT EXISTS entrees_materiel (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            date        TEXT DEFAULT (date('now')),
+            description TEXT NOT NULL,
+            quantite    REAL DEFAULT 1,
+            prix_achat  REAL DEFAULT 0,
+            notes       TEXT DEFAULT '',
+            created_at  TEXT DEFAULT (datetime('now'))
+        )
+        """)
 
         # ── Migration complète table auth ──────────────────────────────────────
         auth_cols = {row[1] for row in c.execute("PRAGMA table_info(auth)").fetchall()}
@@ -406,4 +421,35 @@ def delete_rappel(rappel_id):
 def delete_rappel_by_client(client_id):
     with get_conn() as conn:
         conn.execute("DELETE FROM rappels WHERE client_id=?", (client_id,))
+        conn.commit()
+
+# ── ENTRÉES MATÉRIEL ──────────────────────────────────────────────────────────
+
+def get_entrees(limit=100):
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM entrees_materiel ORDER BY date DESC LIMIT ?", (limit,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+def add_entree(description, quantite, prix_achat, date=None, notes=""):
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO entrees_materiel (description,quantite,prix_achat,date,notes) VALUES (?,?,?,?,?)",
+            (description, quantite, prix_achat, date or "", notes or "")
+        )
+        conn.commit()
+        return cur.lastrowid
+
+def update_entree(eid, description, quantite, prix_achat, date, notes=""):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE entrees_materiel SET description=?,quantite=?,prix_achat=?,date=?,notes=? WHERE id=?",
+            (description, quantite, prix_achat, date, notes or "", eid)
+        )
+        conn.commit()
+
+def delete_entree(eid):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM entrees_materiel WHERE id=?", (eid,))
         conn.commit()
