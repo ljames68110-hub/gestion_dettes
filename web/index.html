@@ -199,7 +199,6 @@ select option{background:var(--bg3)}
     <div class="nav-item" onclick="openModal('transaction')"><span class="nav-icon">＋</span> Nouvelle transaction</div>
     <div class="nav-item" onclick="goPage('entrees',this)"><span class="nav-icon">📦</span> Entrées matériel</div>
     <div class="nav-item" onclick="goPage('recap',this)"><span class="nav-icon">📊</span> Récap mensuel</div>
-    <div class="nav-item" onclick="openModalPrint()"><span class="nav-icon">🖨</span> Imprimer</div>
     <div class="nav-item" onclick="openModalImprimer()"><span class="nav-icon">🖨</span> Imprimer</div>
     <div class="nav-item" onclick="exportAll()"><span class="nav-icon">↓</span> Export CSV complet</div>
     <div class="nav-item" onclick="exportDB()"><span class="nav-icon">💾</span> Exporter la base</div>
@@ -541,7 +540,7 @@ select option{background:var(--bg3)}
     </div>
     <div class="modal-actions">
       <button class="btn danger" id="btnDeleteEntree" style="margin-right:auto;display:none" onclick="deleteEntree()">🗑 Supprimer</button>
-      <button class="btn-cancel" onclick="closeModal('entree')">Annuler</button>
+      <button class="btn-cancel" onclick="document.getElementById('modalEntree').classList.remove('open')">Annuler</button>
       <button class="btn-save" onclick="saveEntree()">Enregistrer</button>
     </div>
   </div>
@@ -664,6 +663,19 @@ select option{background:var(--bg3)}
 <div class="notif" id="notif"></div>
 
 <!-- MODAL IMPORT DB -->
+<div class="modal-bg" id="modalPrintPreview" onclick="if(event.target===this)closeModal('printPreview')" style="align-items:stretch;padding:20px">
+  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:900px;display:flex;flex-direction:column;overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)">
+      <span style="font-size:16px;font-weight:500;color:var(--gold2)">🖨 Aperçu avant impression</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn-save" onclick="document.getElementById('printFrame').contentWindow.print()">🖨 Imprimer</button>
+        <button class="btn-cancel" onclick="closeModal('printPreview')">Fermer</button>
+      </div>
+    </div>
+    <iframe id="printFrame" style="flex:1;border:none;min-height:70vh;background:white"></iframe>
+  </div>
+</div>
+
 <div class="modal-bg" id="modalImportDB" onclick="if(event.target===this)closeModal('importDB')">
   <div class="modal" style="max-width:420px">
     <div class="modal-title">📂 Importer une base</div>
@@ -975,7 +987,7 @@ function openModal(type){
   }else{openAddClientFresh();}
 }
 function closeModal(type){
-  const ids={trans:'modalTrans',client:'modalClient',editTrans:'modalEditTrans',update:'modalUpdate',detail:'modalDetail',rappel:'modalRappel'};
+  const ids={trans:'modalTrans',client:'modalClient',editTrans:'modalEditTrans',update:'modalUpdate',detail:'modalDetail',rappel:'modalRappel',entree:'modalEntree',importDB:'modalImportDB',modalPrint:'modalPrint',printPreview:'modalPrintPreview'};
   const el=document.getElementById(ids[type]||type);if(el)el.classList.remove('open');
 }
 async function toggleTypeFields(){
@@ -1558,10 +1570,10 @@ async function loadRecap() {
   const mois = document.getElementById('recapMois').value;
   const res = await api('/api/recap-mensuel?mois=' + mois);
   if (!res || !res.ok) return;
-  const {transactions, entrees} = res.data;
+  let {transactions, entrees} = res.data;
 
   // Stats
-  // Filtre catégorie
+  // Filtre categorie
   const categorie = document.getElementById('recapCategorie').value;
   if (categorie) transactions = transactions.filter(t => t.type === categorie);
   const ventes = transactions.filter(t => t.type === 'debit');
@@ -1767,12 +1779,20 @@ async function doPrint() {
   html += `<div class="footer">Total général — Dette nette : ${grandTotal>=0?'+':''}${grandTotal.toFixed(2)} € | ${transactions.length} transaction(s) | Gestion Perso</div>
   </body></html>`;
 
-  // Ouvrir dans une nouvelle fenêtre et imprimer
-  const win = window.open('', '_blank', 'width=900,height=700');
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  setTimeout(() => { win.print(); }, 500);
+  // Créer un blob et l'ouvrir - compatible PyWebView
+  const blob = new Blob([html], {type: 'text/html'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.target   = '_blank';
+  // Fallback : afficher dans modal impression
+  const printFrame = document.getElementById('printFrame');
+  if (printFrame) {
+    printFrame.src = url;
+    document.getElementById('modalPrintPreview').classList.add('open');
+  } else {
+    window.location.href = url;
+  }
   _printTransactions = [];
 }
 

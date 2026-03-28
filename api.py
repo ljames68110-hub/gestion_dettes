@@ -574,6 +574,66 @@ def import_db():
     db.init_db()
     return ok({"message": "Base importée avec succès"})
 
+
+@app.route("/api/export/csv/save", methods=["POST"])
+@require_auth
+def export_csv_save():
+    """Export CSV complet avec boite de dialogue Windows."""
+    import csv, io, tempfile
+    from datetime import datetime
+    date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"GestionPerso_export_{date_str}.csv"
+
+    # Générer le CSV
+    with db.get_conn() as conn:
+        rows = conn.execute("""
+            SELECT t.date, c.nom, t.type, t.motif, t.mode_paiement,
+                   t.quantite, t.prix_unitaire, t.montant_brut, t.frais, t.montant_net,
+                   e.description as entree, t.notes
+            FROM transactions t
+            LEFT JOIN clients c ON t.client_id = c.id
+            LEFT JOIN entrees_materiel e ON t.entree_id = e.id
+            ORDER BY t.date DESC
+        """).fetchall()
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow(['Date','Client','Type','Motif','Mode','Quantite','Prix unitaire',
+                     'Montant brut','Frais','Montant net','Entree materiel','Notes'])
+    for r in rows:
+        writer.writerow([
+            r[0], r[1],
+            'Vente' if r[2]=='debit' else 'Remboursement',
+            r[3], r[4], r[5], r[6], r[7], r[8], r[9],
+            r[10] or '', r[11] or ''
+        ])
+
+    csv_content = output.getvalue()
+
+    # Boite de dialogue Windows
+    save_path = None
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk(); root.withdraw(); root.attributes('-topmost', True)
+        save_path = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV", "*.csv"), ("Tous les fichiers", "*.*")],
+            initialfile=filename, title="Exporter les transactions"
+        )
+        root.destroy()
+    except Exception: pass
+
+    if not save_path:
+        docs = os.path.join(os.path.expanduser("~"), "Documents")
+        os.makedirs(docs, exist_ok=True)
+        save_path = os.path.join(docs, filename)
+
+    with open(save_path, 'w', encoding='utf-8-sig', newline='') as f:
+        f.write(csv_content)
+
+    return ok({"path": save_path})
+
 # ── SERVE FRONTEND ────────────────────────────────────────────────────────────
 
 @app.route("/", defaults={"path": ""})
