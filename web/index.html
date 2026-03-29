@@ -1302,9 +1302,11 @@ function populateStockSelect(){
   if(!esel) return;
   esel.innerHTML = '<option value="">-- Aucun stock lie --</option>';
   entreesCache.forEach(function(e){
-    var stockRestant = (e.stock_restant!==null&&e.stock_restant!==undefined&&e.stock_restant!==undefined)
-      ? parseFloat(e.stock_restant)
-      : Math.max(0, parseFloat(e.quantite) - parseFloat(e.total_vendu||0));
+    // Calculer le stock réel depuis allTransactions (pas depuis l'API)
+    var totalVendu = allTransactions
+      .filter(function(t){ return parseInt(t.entree_id)===parseInt(e.id) && t.type==='debit'; })
+      .reduce(function(s,t){ return s+parseFloat(t.quantite||0); }, 0);
+    var stockRestant = Math.max(0, parseFloat(e.quantite||0) - totalVendu);
     if(stockRestant<=0) return;
     var unite = e.unite||'piece';
     var uniteLabel = unite==='gramme' ? 'g' : ' pcs';
