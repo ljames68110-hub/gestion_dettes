@@ -394,7 +394,31 @@ def dettes_ouvertes(cid):
 @app.route("/api/motifs")
 @require_auth
 def motifs_list():
-    return ok(db.get_motifs())
+    try:
+        return ok(db.get_motifs())
+    except Exception as e:
+        import traceback
+        print(f"[MOTIFS ERROR] {type(e).__name__}: {e}")
+        traceback.print_exc()
+        # Fallback: retourner liste vide si table pas encore créée
+        try:
+            import sqlite3
+            conn = sqlite3.connect(db.DB_FILE)
+            conn.execute("""CREATE TABLE IF NOT EXISTS motifs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nom TEXT NOT NULL UNIQUE,
+                actif INTEGER DEFAULT 1
+            )""")
+            for m in ["Achat","Bedo","Blonde","Cigarette","Pot","Recharge","Tabac","Autre"]:
+                try: conn.execute("INSERT INTO motifs (nom) VALUES (?)", (m,))
+                except: pass
+            conn.commit()
+            rows = conn.execute("SELECT * FROM motifs WHERE actif=1 ORDER BY nom").fetchall()
+            result = [{"id": r[0], "nom": r[1], "actif": r[2]} for r in rows]
+            conn.close()
+            return ok(result)
+        except Exception as e2:
+            return err(f"Erreur motifs: {str(e2)}", 500)
 
 @app.route("/api/motifs", methods=["POST"])
 @require_auth

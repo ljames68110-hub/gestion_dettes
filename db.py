@@ -484,14 +484,35 @@ def delete_entree(eid):
 
 # ── MOTIFS ───────────────────────────────────────────────────────────────────
 
+def _ensure_motifs_table():
+    """Crée la table motifs si elle n existe pas."""
+    with get_conn() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS motifs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL UNIQUE,
+            actif INTEGER DEFAULT 1
+        )""")
+        count = conn.execute("SELECT COUNT(*) FROM motifs").fetchone()[0]
+        if count == 0:
+            for m in ["Achat","Bedo","Blonde","Cigarette","Pot","Recharge","Tabac","Autre"]:
+                try:
+                    conn.execute("INSERT INTO motifs (nom) VALUES (?)", (m,))
+                except: pass
+        conn.commit()
+
 def get_motifs():
+    _ensure_motifs_table()
     with get_conn() as conn:
         rows = conn.execute("SELECT * FROM motifs WHERE actif=1 ORDER BY nom").fetchall()
     return [dict(r) for r in rows]
 
 def add_motif(nom):
+    _ensure_motifs_table()
     with get_conn() as conn:
-        conn.execute("INSERT OR IGNORE INTO motifs (nom) VALUES (?)", (nom.strip(),))
+        exists = conn.execute("SELECT COUNT(*) FROM motifs WHERE nom=?", (nom.strip(),)).fetchone()[0]
+        if exists > 0:
+            raise ValueError("Article deja existant")
+        conn.execute("INSERT INTO motifs (nom) VALUES (?)", (nom.strip(),))
         conn.commit()
 
 def delete_motif(mid):
