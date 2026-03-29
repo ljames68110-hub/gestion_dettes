@@ -1,0 +1,14 @@
+{
+  "name": "Gestion Perso",
+  "short_name": "GestionPerso",
+  "description": "Application de gestion de dettes et créances",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#c9a84c",
+  "orientation": "portrait",
+  "icons": [
+    {"src": "/app_icon.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/app_icon.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}

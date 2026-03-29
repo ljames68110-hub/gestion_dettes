@@ -2,6 +2,12 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+  <meta name="theme-color" content="#0a0a0f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Gestion Perso">
+  <link rel="manifest" href="/manifest.json">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Gestion Perso</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -294,6 +300,7 @@ select option{background:var(--bg3)}
           <label style="font-size:13px;color:var(--text2);white-space:nowrap">Sélectionner un client :</label>
           <select id="soldeClientSel" onchange="loadSolde()" style="padding:9px 14px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:'Outfit',sans-serif;flex:1"><option value="">-- Choisir --</option></select>
           <button class="btn" id="exportCsvBtn" onclick="exportClient()" style="display:none">↓ CSV</button>
+          <button class="btn" id="exportPdfBtn" onclick="exportClientPDF()" style="display:none">📄 PDF</button>
         </div>
         <div id="soldeContent" style="display:none;flex-direction:column;gap:16px"></div>
       </div>
@@ -541,6 +548,7 @@ select option{background:var(--bg3)}
         <select id="mType" onchange="toggleTypeFields()">
           <option value="debit">Vente</option>
           <option value="credit">Remboursement</option>
+          <option value="achat">Achat (je dois)</option>
         </select>
       </div>
 
@@ -680,6 +688,31 @@ select option{background:var(--bg3)}
         </div>
       </div>
 
+      <!-- ACHAT -->
+      <div id="mAchatSection" style="display:none;grid-column:1/-1">
+        <div class="form-grid">
+          <div class="form-group full" style="background:rgba(231,76,60,.08);border:1px solid rgba(231,76,60,.3);border-radius:var(--radius2);padding:12px;grid-column:1/-1">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span style="font-size:16px">🛒</span>
+              <strong style="color:var(--red)">Achat — Tu dois de l argent au client</strong>
+            </div>
+            <div style="font-size:12px;color:var(--text3)">Cette transaction crée une dette de ta part. Si le client te doit deja, cela deduit de sa dette.</div>
+          </div>
+          <div class="form-group"><label>Motif / Article achete</label><select id="mMotifAchat" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif"></select></div>
+          <div class="form-group"><label>Mode paiement</label>
+            <select id="mModeAchat" onchange="calcModal()" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif">
+              <option value="Liquide">💵 Liquide</option>
+              <option value="Virement">🏦 Virement</option>
+              <option value="Cantine">🍽 Cantine</option>
+              <option value="Tabac">🚬 Tabac</option>
+              <option value="Blonde">🚬 Blonde</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Quantite</label><input type="number" id="mQtyAchat" value="1" min="0.01" step="0.01" oninput="calcModal()"></div>
+          <div class="form-group"><label>Prix unitaire (EUR)</label><input type="number" id="mPrixAchat" value="0" step="0.01" min="0" oninput="calcModal()"></div>
+        </div>
+      </div>
+
       <div id="cFraisRow" style="display:none"></div>
       <div class="form-group full"><label>Notes</label><input type="text" id="mNotes" placeholder="Facultatif..."></div>
     </div>
@@ -724,6 +757,13 @@ select option{background:var(--bg3)}
     <div class="form-grid">
       <div class="form-group"><label>Type</label><select id="etType" onchange="toggleEditTypeFields()"><option value="debit">Vente</option><option value="credit">Remboursement</option></select></div>
       <div class="form-group"><label>Motif</label><select id="etMotif"></select></div>
+      <div class="form-group"><label>Compte</label>
+        <select id="etCompte" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif">
+          <option value="euro">💶 Euros</option>
+          <option value="cantine">🍽 Cantine</option>
+          <option value="tabac">🚬 Tabac</option>
+        </select>
+      </div>
       <div class="form-group" id="etModeGroup"><label>Mode paiement</label><select id="etMode" onchange="calcEditModal()"><option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS (7%)</option><option value="Paysafecard">Paysafecard (5%)</option><option value="WesternUnion">Western Union</option></select></div>
       <div class="form-group"><label>Date</label><input type="date" id="etDate"></div>
       <div class="form-group"><label>Quantité</label><input type="number" id="etQty" value="1" min="1" oninput="calcEditModal()"></div>
@@ -1220,13 +1260,17 @@ async function loadSolde(){
   const dette=comptes.euro.solde;
   const isPos=dette>0;const col=isPos?'var(--green)':dette<0?'var(--red)':'var(--text3)';
   const msg=isPos?'Ce client vous doit '+fmt(dette):'<span style="color:var(--red)">⚠️ Vous devez '+fmt(Math.abs(dette))+' a ce client</span>';
-  content.style.display='flex';document.getElementById('exportCsvBtn').style.display='inline-flex';
+  content.style.display='flex';
+  document.getElementById('exportCsvBtn').style.display='inline-flex';
+  var pdfBtn=document.getElementById('exportPdfBtn');if(pdfBtn)pdfBtn.style.display='inline-flex';
   content.innerHTML='<div class="solde-grid fade">'
   + '<div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase">💶 Compte euros</div><div class="solde-amount" style="color:'+col+'">'+(dette>0?'+':'')+fmt(dette)+'</div><div style="font-size:13px;color:'+col+';margin-top:6px">'+msg+'</div></div>'
   + '<div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">🍽 Compte cantine</div><div style="font-size:28px;font-weight:700;color:'+(comptes.cantine.solde>0?'var(--green)':'var(--text3)')+'">'+(comptes.cantine.solde>0?'+':'')+fmt(comptes.cantine.solde)+'</div></div>'
   + '<div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">🚬 Compte tabac</div><div style="font-size:28px;font-weight:700;color:'+(comptes.tabac.solde>0?'var(--green)':'var(--text3)')+'">'+(comptes.tabac.solde>0?'+':'')+fmt(comptes.tabac.solde)+'</div></div><div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px">Résumé</div><div style="display:grid;gap:10px">'+rowS('Total vendu (débits)','+'+fmt(s.total_debit),'var(--green)')+rowS('Total remboursé (crédits)','-'+fmt(s.total_credit),'var(--red)')+rowS('Frais reçus',fmt(s.total_frais),'var(--text2)')+rowS('Nb transactions',s.nb_transactions,'var(--text)')+'</div></div><div class="card" style="grid-column:1/-1"><div class="card-title">Historique</div>'+trans.slice(0,20).map(t=>'<div class="timeline-item"><div class="tl-dot" style="background:'+(t.type==='debit'?'var(--green)':'var(--red)')+'"></div><div class="tl-info"><div class="tl-title">'+t.motif+' · '+t.mode_paiement+'</div><div class="tl-date">'+fmtDate(t.date)+' · Qté '+t.quantite+' × '+fmt(t.prix_unitaire)+'</div></div><div class="tl-amount" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</div></div>').join('')+(!trans.length?'<p style="color:var(--text3);text-align:center;padding:20px">Aucune transaction</p>':'')+'</div></div>'
   // Section frais par remboursement
-  +buildFraisSection(trans, cid)
+  +buildFraisSection(trans, cid);
+  // Charger section dettes
+  setTimeout(function(){ loadDettesSection(cid); }, 100);
   +'</div>';
   document.getElementById('soldeContent').innerHTML += ''; // flush
 }
@@ -1313,6 +1357,7 @@ function openModal(type){
     document.getElementById('mNotes').value='';
     setStatutPaiement('recu');
     setAffectation('benef');
+    document.getElementById('mType').value='debit';
     var alertBox3 = document.getElementById('mDetteNegativeAlert');
     if(alertBox3) alertBox3.style.display='none';
     document.getElementById('modalTrans').classList.add('open');
@@ -1351,12 +1396,19 @@ function closeModal(type){
   const el=document.getElementById(ids[type]||type);if(el)el.classList.remove('open');
 }
 async function toggleTypeFields(){
-  const isDebit = document.getElementById('mType').value === 'debit';
+  const type = document.getElementById('mType').value;
+  const isDebit = type === 'debit';
+  const isAchat = type === 'achat';
+  const isCredit = type === 'credit';
   const venteSection = document.getElementById('mVenteSection');
   const rembSection = document.getElementById('mRembSection');
+  const achatSection = document.getElementById('mAchatSection');
+
   if(venteSection) venteSection.style.display = isDebit ? 'contents' : 'none';
-  if(rembSection) rembSection.style.display = isDebit ? 'none' : 'block';
-  if(!isDebit){
+  if(rembSection) rembSection.style.display = isCredit ? 'block' : 'none';
+  if(achatSection) achatSection.style.display = isAchat ? 'block' : 'none';
+
+  if(isCredit){
     const cid = parseInt(document.getElementById('mClient').value);
     if(cid) await loadDettesOuvertes(cid);
   }
@@ -1564,6 +1616,16 @@ function calcModal(){
   var type = document.getElementById('mType').value;
   var brut=0, frais=0, net=0;
 
+  if(type==='achat'){
+    var qtyA = parseFloat(document.getElementById('mQtyAchat') ? document.getElementById('mQtyAchat').value : 1)||0;
+    var prixA = parseFloat(document.getElementById('mPrixAchat') ? document.getElementById('mPrixAchat').value : 0)||0;
+    var brutA = qtyA*prixA;
+    document.getElementById('cBrut').textContent = brutA.toFixed(2)+' €';
+    document.getElementById('cFrais').textContent = '0.00 €';
+    document.getElementById('cNet').textContent = brutA.toFixed(2)+' €';
+    document.getElementById('cNet').style.color = 'var(--red)';
+    return;
+  }
   if(type==='debit'){
     var modeV = document.getElementById('mMode') ? document.getElementById('mMode').value : 'Liquide';
     if(isNatureMode(modeV)){
@@ -1609,6 +1671,28 @@ async function saveTrans(){
   const entree_id=entreeSel&&entreeSel.value?parseInt(entreeSel.value):null;
   const type = document.getElementById('mType').value;
   var qty, unite, prix_unitaire, mode_paiement, motif;
+
+  if(type==='achat'){
+    // Achat = je dois de l argent au client = credit inversé
+    qty = parseFloat(document.getElementById('mQtyAchat').value)||1;
+    unite = 'piece';
+    prix_unitaire = parseFloat(document.getElementById('mPrixAchat').value)||0;
+    mode_paiement = document.getElementById('mModeAchat').value;
+    motif = document.getElementById('mMotifAchat').value||'Achat';
+    var notesAchat = '[ACHAT] ' + (document.getElementById('mNotes').value||'');
+    var bodyAchat = {client_id:parseInt(document.getElementById('mClient').value),
+      type:'credit', motif:motif, quantite:qty, unite:unite,
+      prix_unitaire:prix_unitaire, mode_paiement:mode_paiement,
+      notes:notesAchat.trim(), frais_deduits:0, compte:compte_val||'euro'};
+    var resAchat = await api('/api/transactions', {method:'POST', body:bodyAchat});
+    if(resAchat&&resAchat.ok){
+      closeModal('trans');
+      notify('Achat enregistre — tu dois '+fmt(qty*prix_unitaire)+' au client');
+      loadTransactions();loadDashboard();
+    } else notify((resAchat&&resAchat.error?resAchat.error:'Erreur'),'error');
+    return;
+  }
+
   if(type==='debit'){
     unite = document.getElementById('mUnite').value;
     qty = parseFloat(document.getElementById('mQty').value)||1;
@@ -1728,6 +1812,7 @@ function openEditTrans(id){
   document.getElementById('etType').value=t.type;document.getElementById('etMotif').value=t.motif;
   document.getElementById('etMode').value=t.mode_paiement;document.getElementById('etQty').value=t.quantite;
   document.getElementById('etPrix').value=t.prix_unitaire;document.getElementById('etNotes').value=t.notes||'';
+  if(document.getElementById('etCompte')) document.getElementById('etCompte').value=t.compte||'euro';
   document.getElementById('etDate').value=t.date?t.date.slice(0,10):new Date().toISOString().slice(0,10);
   toggleEditTypeFields();document.getElementById('modalEditTrans').classList.add('open');
 }
@@ -1764,10 +1849,38 @@ function exportAll(){window.location.href='/api/export/csv/all?token='+TOKEN;not
 
 // ── SEARCH ──
 function doSearch(v){
-  v=v.toLowerCase();const active=(document.querySelector('.page.active') ? document.querySelector('.page.active').id : '');
-  if(active==='pg-clients')renderClients(clientsCache.filter(c=>c.nom.toLowerCase().includes(v)||(c.email||'').toLowerCase().includes(v)));
-  else if(active==='pg-dashboard')document.querySelectorAll('#dashTbody tr').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(v)?'':'none';});
-  else if(active==='pg-transactions')document.querySelectorAll('#transTbody tr').forEach(r=>{r.style.display=r.textContent.toLowerCase().includes(v)?'':'none';});
+  v=v.toLowerCase();
+  var active=(document.querySelector('.page.active') ? document.querySelector('.page.active').id : '');
+  if(active==='pg-clients') renderClients(clientsCache.filter(function(c){return c.nom.toLowerCase().includes(v)||(c.email||'').toLowerCase().includes(v);}));
+  else if(active==='pg-dashboard') document.querySelectorAll('#dashTbody tr').forEach(function(r){r.style.display=r.textContent.toLowerCase().includes(v)?'':'none';});
+  else if(active==='pg-transactions') document.querySelectorAll('#transTbody tr').forEach(function(r){r.style.display=r.textContent.toLowerCase().includes(v)?'':'none';});
+  else if(active==='pg-entrees') document.querySelectorAll('#entreesTbody tr').forEach(function(r){r.style.display=r.textContent.toLowerCase().includes(v)?'':'none';});
+  else if(active==='pg-stock') document.querySelectorAll('#stockTbody tr').forEach(function(r){r.style.display=r.textContent.toLowerCase().includes(v)?'':'none';});
+  else if(active==='pg-rappels') document.querySelectorAll('#rappelTbody tr, #relanceTbody tr').forEach(function(r){r.style.display=r.textContent.toLowerCase().includes(v)?'':'none';});
+  // Recherche globale multi-pages
+  if(v.length >= 2){
+    var results = allTransactions.filter(function(t){
+      return (t.motif||'').toLowerCase().includes(v)
+        || (t.client_nom||'').toLowerCase().includes(v)
+        || (t.notes||'').toLowerCase().includes(v);
+    });
+    var globalResult = document.getElementById('searchGlobalResult');
+    if(globalResult){
+      if(v && results.length > 0 && active !== 'pg-transactions'){
+        globalResult.style.display='block';
+        globalResult.innerHTML = '<div style="font-size:11px;color:var(--text3);margin-bottom:6px">'+results.length+' transaction(s) trouvée(s)</div>'
+          + results.slice(0,5).map(function(t){
+            return '<div style="padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px" onclick="openTransDetail('+t.id+')">'
+              + '<span style="color:var(--text)">'+(t.client_nom||'?')+'</span>'
+              + ' · <span style="color:var(--text3)">'+t.motif+'</span>'
+              + ' · <span style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+fmt(t.montant_net)+'</span>'
+              + ' <span style="font-size:11px;color:var(--text3)">'+fmtDate(t.date)+'</span></div>';
+          }).join('');
+      } else {
+        globalResult.style.display='none';
+      }
+    }
+  }
 }
 
 // ── SETTINGS ──
@@ -1948,6 +2061,14 @@ async function checkRappelsBadge(){
     const nav=document.querySelector('.nav-item[data-page="rappels"]');
     if(nav&&!nav.querySelector('.badge-notif')){const b=document.createElement('span');b.className='badge-notif';b.textContent=nb;b.style.cssText='margin-left:auto;background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:600';nav.appendChild(b);}
     notify(nb+' client(s) en retard — voir Rappels','error');
+    // Notification navigateur si supporté
+    if(Notification && Notification.permission === 'granted'){
+      new Notification('Gestion Perso', {body: nb+' client(s) en retard de paiement', icon: '/favicon.ico'});
+    } else if(Notification && Notification.permission !== 'denied'){
+      Notification.requestPermission().then(function(p){ 
+        if(p==='granted') new Notification('Gestion Perso', {body: nb+' client(s) en retard', icon: '/favicon.ico'});
+      });
+    }
   }
 }
 
@@ -2706,7 +2827,7 @@ async function loadMotifs() {
 }
 
 function populateMotifSelects() {
-  ['mMotif','etMotif'].forEach(function(id) {
+  ['mMotif','etMotif','mMotifAchat'].forEach(function(id) {
     var sel = document.getElementById(id);
     if (!sel) return;
     var prev = sel.value;
@@ -2982,6 +3103,168 @@ function openNatureDettes(type){
     body.innerHTML = html;
   }
   document.getElementById('modalNatureDettes').classList.add('open');
+}
+
+
+// ══════════════════════════════════════════════════════
+// FRAIS → DETTE
+// ══════════════════════════════════════════════════════
+async function creerDetteFrais(clientId, montantFrais){
+  var choix = confirm('Creer une dette de '+parseFloat(montantFrais).toFixed(2)+' EUR pour TOUS les frais ?\nOK = Tous | Annuler = Choisir une entree');
+  if(choix){
+    var body = {client_id:parseInt(clientId), type:'debit', motif:'Frais',
+      quantite:1, prix_unitaire:parseFloat(montantFrais),
+      mode_paiement:'Liquide', notes:'[FRAIS REPORTES TOTAL]', frais_deduits:0};
+    var res = await api('/api/transactions', {method:'POST', body:body});
+    if(res&&res.ok){ notify('Dette frais creee'); await loadSolde(); }
+    else notify('Erreur','error');
+  } else {
+    ouvrirChoixFraisEntree(clientId);
+  }
+}
+
+async function creerDetteFraisEntree(clientId, entreeId, montantFrais){
+  if(!confirm('Creer une dette frais de '+parseFloat(montantFrais).toFixed(2)+' EUR pour cette entree ?')) return;
+  var entree = entreesCache.find(function(e){ return e.id===parseInt(entreeId); });
+  var desc = entree ? entree.description : 'Entree #'+entreeId;
+  var body = {client_id:parseInt(clientId), type:'debit', motif:'Frais '+desc,
+    quantite:1, prix_unitaire:parseFloat(montantFrais),
+    mode_paiement:'Liquide', notes:'[FRAIS ENTREE '+entreeId+']', frais_deduits:0};
+  var res = await api('/api/transactions', {method:'POST', body:body});
+  if(res&&res.ok){ notify('Dette frais creee pour '+desc); await loadSolde(); }
+  else notify('Erreur','error');
+}
+
+function fermerChoixFrais(){ var m=document.getElementById("modalChoixFrais"); if(m) m.style.display="none"; }
+function ouvrirChoixFraisEntree(clientId){
+  var modal = document.getElementById('modalChoixFrais');
+  if(!modal){
+    var m = document.createElement('div');
+    m.id = 'modalChoixFrais';
+    m.className = 'modal-bg';
+    m.onclick = function(e){ if(e.target===m) m.style.display='none'; };
+    m.innerHTML = '<div class="modal" style="max-width:480px"><div class="modal-title">Choisir une entree</div>'
+      + '<div class="modal-sub">Selectionnez l entree pour reporter les frais</div>'
+      + '<div id="fraisEntreeList" style="max-height:300px;overflow-y:auto;margin:12px 0"></div>'
+      + '<div class="modal-actions"><button class="btn-cancel" onclick="fermerChoixFrais()">Fermer</button></div>'
+      + '</div>';
+    document.body.appendChild(m);
+    modal = m;
+  }
+  var list = document.getElementById('fraisEntreeList');
+  list.innerHTML = '';
+  entreesCache.forEach(function(e){
+    var txLiees = allTransactions.filter(function(t){
+      return parseInt(t.entree_id)===parseInt(e.id) && t.type==='credit' && parseFloat(t.frais||0)>0;
+    });
+    var totalF = txLiees.reduce(function(s,t){ return s+parseFloat(t.frais||0); }, 0);
+    if(totalF <= 0) return;
+    var div = document.createElement('div');
+    div.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--border)';
+    div.innerHTML = '<div><div style="font-size:14px;color:var(--text)">📦 '+e.description+'</div>'
+      + '<div style="font-size:11px;color:var(--text3)">Frais : -'+totalF.toFixed(2)+' EUR</div></div>'
+      + '<button class="btn" style="font-size:12px" onclick="creerDetteFraisEntree('+clientId+','+e.id+','+totalF.toFixed(2)+');fermerChoixFrais()">+ Creer</button>';
+    list.appendChild(div);
+  });
+  if(!list.children.length){
+    list.innerHTML = '<p style="color:var(--text3);padding:12px;text-align:center">Aucune entree avec des frais</p>';
+  }
+  modal.style.display = 'flex';
+}
+
+async function loadDettesSection(cid){
+  var container = document.getElementById('dettesSection_'+cid);
+  if(!container) return;
+  var res = await api('/api/clients/'+cid+'/dettes-ouvertes');
+  if(!res || !res.ok || !res.data.length){
+    container.innerHTML = '<p style="color:var(--green);padding:12px;font-size:13px">✓ Aucune dette ouverte</p>';
+    return;
+  }
+  var html = '<table style="width:100%;border-collapse:collapse">';
+  html += '<thead><tr><th style="text-align:left;padding:6px 8px;font-size:11px;color:var(--text3)">Date</th><th style="text-align:left;padding:6px 8px;font-size:11px;color:var(--text3)">Motif</th><th style="text-align:right;padding:6px 8px;font-size:11px;color:var(--text3)">Reste</th><th style="padding:6px 8px"></th></tr></thead><tbody>';
+  res.data.forEach(function(d){
+    html += '<tr style="border-bottom:1px solid var(--border)">';
+    html += '<td style="padding:6px 8px;font-size:12px">'+fmtDate(d.date)+'</td>';
+    html += '<td style="padding:6px 8px;font-size:12px;color:var(--text)">'+d.motif+'</td>';
+    html += '<td style="padding:6px 8px;font-size:12px;text-align:right;color:var(--gold2);font-weight:600" class="mono">'+fmt(d.restant)+'</td>';
+    html += '<td style="padding:6px 8px">';
+    html += '<button class="btn" style="font-size:11px;padding:3px 8px;margin-right:4px" onclick="annulerDette('+cid+','+d.id+','+d.restant+')">✗ Annuler</button>';
+    html += '<button class="btn" style="font-size:11px;padding:3px 8px;color:var(--gold2)" onclick="deduireDeMaDette('+cid+','+d.id+','+d.restant+')">⇄ Ma dette</button>';
+    html += '</td></tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+async function annulerDette(cid, transId, montant){
+  if(!confirm('Annuler cette dette de '+fmt(montant)+' ?')) return;
+  var body = {client_id:parseInt(cid), type:'credit', motif:'Annulation dette',
+    quantite:1, prix_unitaire:montant, mode_paiement:'Liquide',
+    notes:'[ANNULATION #'+transId+']', frais_deduits:0, linked_debit_id:transId};
+  var res = await api('/api/transactions', {method:'POST', body:body});
+  if(res&&res.ok){ notify('Dette annulee'); await loadSolde(); }
+  else notify('Erreur','error');
+}
+
+async function deduireDeMaDette(cid, transId, montant){
+  if(!confirm('Marquer comme ta dette ? (deduit de ce que tu dois au client)')) return;
+  var res = await api('/api/transactions/'+transId, {method:'PUT',
+    body:{notes:'[MA DETTE]', type:'credit', motif:'Ma dette deduite',
+      quantite:1, prix_unitaire:montant, mode_paiement:'Liquide'}});
+  if(res&&res.ok){ notify('Transaction mise a jour'); await loadSolde(); }
+  else notify('Erreur','error');
+}
+
+
+async function exportClientPDF(){
+  var cid = document.getElementById('soldeClientSel').value;
+  if(!cid) return;
+  var client = clientsCache.find(function(c){ return c.id===parseInt(cid); });
+  var trRes = await api('/api/clients/'+cid+'/transactions');
+  var trans = trRes && trRes.ok ? trRes.data : [];
+  var statsRes = await api('/api/clients/'+cid+'/stats');
+  var s = statsRes && statsRes.ok ? statsRes.data : {};
+  var date_str = new Date().toLocaleDateString('fr-FR');
+  var nom = client ? client.nom : 'Client';
+  var dette = (s.total_debit||0)-(s.total_credit||0);
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fiche '+nom+'</title>';
+  html += '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:24px}';
+  html += 'h1{font-size:22px;margin-bottom:4px}h2{font-size:15px;margin:16px 0 8px;border-bottom:2px solid #c9a84c;padding-bottom:4px}';
+  html += '.solde{font-size:28px;font-weight:bold;color:'+(dette>0?'#16a34a':'#dc2626')+'}';
+  html += 'table{width:100%;border-collapse:collapse;margin-bottom:16px}';
+  html += 'th{background:#333;color:#fff;padding:6px 8px;text-align:left;font-size:11px}';
+  html += 'td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px}';
+  html += '.vente{color:#16a34a;font-weight:bold}.remb{color:#dc2626;font-weight:bold}';
+  html += '.footer{margin-top:20px;font-size:10px;color:#999;text-align:center;border-top:1px solid #eee;padding-top:8px}';
+  html += '</style></head><body>';
+  html += '<h1>Fiche client : '+nom+'</h1>';
+  html += '<div style="font-size:12px;color:#666;margin-bottom:12px">Genere le '+date_str+'</div>';
+  html += '<div style="margin-bottom:16px"><span style="font-size:11px;color:#666">SOLDE NET : </span>';
+  html += '<span class="solde">'+(dette>0?'+':'')+dette.toFixed(2)+' EUR</span></div>';
+  html += '<h2>Resume</h2>';
+  html += '<table><tr><th>Total vendu</th><th>Total rembourse</th><th>Frais</th><th>Nb transactions</th></tr>';
+  html += '<tr><td>+'+(s.total_debit||0).toFixed(2)+' EUR</td><td>-'+(s.total_credit||0).toFixed(2)+' EUR</td>';
+  html += '<td>'+(s.total_frais||0).toFixed(2)+' EUR</td><td>'+(s.nb_transactions||0)+'</td></tr></table>';
+  html += '<h2>Historique</h2>';
+  html += '<table><thead><tr><th>Date</th><th>Type</th><th>Motif</th><th>Qte</th><th>P.U.</th><th>Net</th><th>Notes</th></tr></thead><tbody>';
+  trans.forEach(function(t){
+    var isV = t.type==='debit';
+    html += '<tr><td>'+fmtDate(t.date)+'</td>';
+    html += '<td class="'+(isV?'vente':'remb')+'">'+(isV?'Vente':'Remb.')+'</td>';
+    html += '<td>'+t.motif+'</td>';
+    html += '<td>'+(t.quantite||1)+' '+(t.unite==='gramme'?'g':'pcs')+'</td>';
+    html += '<td>'+parseFloat(t.prix_unitaire||0).toFixed(2)+' EUR</td>';
+    html += '<td class="'+(isV?'vente':'remb')+'">'+(isV?'+':'-')+parseFloat(t.montant_net||0).toFixed(2)+' EUR</td>';
+    html += '<td style="color:#666">'+(t.notes||'')+'</td></tr>';
+  });
+  html += '</tbody></table>';
+  html += '<div class="footer">Gestion Perso - Fiche client '+nom+' - '+date_str+'</div>';
+  html += '</body></html>';
+  var blob = new Blob([html], {type:'text/html'});
+  var url = URL.createObjectURL(blob);
+  var pf = document.getElementById('printFrame');
+  if(pf){ pf.src=url; document.getElementById('modalPrintPreview').classList.add('open'); }
+  else { window.open(url,'_blank'); }
 }
 
 </script>
