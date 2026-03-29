@@ -622,6 +622,15 @@ select option{background:var(--bg3)}
               <span id="mDetteRestant" class="mono" style="color:var(--gold2);font-weight:700;font-size:20px">—</span>
             </div>
           </div>
+          <div class="form-group full">
+            <label>Ce remboursement sert a...</label>
+            <select id="mAffectSelect" onchange="setAffectation(this.value)" style="padding:10px 12px;border-radius:var(--radius2);border:2px solid var(--green);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif;width:100%">
+              <option value="benef">💰 Benefice direct — je garde en profit</option>
+              <option value="entree">📦 Rembourser une entree materiel — deduit de ma dette achat</option>
+            </select>
+            <input type="hidden" id="mAffectation" value="benef">
+          </div>
+          <button id="mBtnSolderDette" class="btn" style="display:none;width:100%;margin-bottom:8px;color:var(--green);border-color:var(--green)" onclick="solderDetteAuto()">Solder</button>
           <div class="form-group" id="mMontantEURGroup">
             <label>Montant encaisse (EUR)</label>
             <input type="number" id="mMontantEncaisse" value="0" step="0.01" min="0" oninput="calcModal()" style="font-size:18px;font-weight:600;color:var(--green)">
@@ -651,6 +660,7 @@ select option{background:var(--bg3)}
               <button id="mFraisNon" onclick="setFraisOpt(false)" class="btn primary" style="flex:1;padding:8px;font-size:13px">Non - j absorbe</button>
             </div>
           </div>
+
         </div>
       </div>
 
@@ -914,6 +924,7 @@ const FEES = {Liquide:0,Virement:0,PCS:0.07,Paysafecard:0.05,WesternUnion:0,Cant
 let TOKEN = '';
 let barChart = null, doughnutChart = null;
 let allTransactions = [];
+var clientTransactions = {}; // cache par client_id
 let mensualData = [];
 let clientsCache = [];
 let rappelSettings = {delai:7,montant_min:0,actif:true};
@@ -1187,11 +1198,86 @@ async function loadSolde(){
   var _r277=await Promise.all([api('/api/clients/'+cid+'/stats'),api('/api/clients/'+cid+'/transactions')]);var sr=_r277[0];var tr2=_r277[1];
   if(!sr||!sr.ok)return;
   const s=sr.data;const trans=(tr2 && tr2.data ? tr2.data : []);
+  // Stocker pour openTransDetail
+  if(cid) trans.forEach(function(t){ clientTransactions[t.id]=t; });
   const dette=s.total_debit-s.total_credit;
   const isPos=dette>0;const col=isPos?'var(--green)':dette<0?'var(--red)':'var(--text3)';
   const msg=isPos?'🟢 Ce client vous doit de l\'argent':dette<0?'🔴 Vous devez de l\'argent à ce client':'⚖️ Compte soldé';
   content.style.display='flex';document.getElementById('exportCsvBtn').style.display='inline-flex';
-  content.innerHTML='<div class="solde-grid fade"><div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase">Dette nette du client</div><div class="solde-amount" style="color:'+col+'">'+(dette>0?'+':'')+fmt(dette)+'</div><div style="font-size:13px;color:'+col+';margin-top:6px">'+msg+'</div></div><div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px">Résumé</div><div style="display:grid;gap:10px">'+rowS('Total vendu (débits)','+'+fmt(s.total_debit),'var(--green)')+rowS('Total remboursé (crédits)','-'+fmt(s.total_credit),'var(--red)')+rowS('Frais reçus',fmt(s.total_frais),'var(--text2)')+rowS('Nb transactions',s.nb_transactions,'var(--text)')+'</div></div><div class="card" style="grid-column:1/-1"><div class="card-title">Historique</div>'+trans.slice(0,20).map(t=>'<div class="timeline-item"><div class="tl-dot" style="background:'+(t.type==='debit'?'var(--green)':'var(--red)')+'"></div><div class="tl-info"><div class="tl-title">'+t.motif+' · '+t.mode_paiement+'</div><div class="tl-date">'+fmtDate(t.date)+' · Qté '+t.quantite+' × '+fmt(t.prix_unitaire)+'</div></div><div class="tl-amount" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</div></div>').join('')+(!trans.length?'<p style="color:var(--text3);text-align:center;padding:20px">Aucune transaction</p>':'')+'</div></div>';
+  content.innerHTML='<div class="solde-grid fade"><div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase">Dette nette du client</div><div class="solde-amount" style="color:'+col+'">'+(dette>0?'+':'')+fmt(dette)+'</div><div style="font-size:13px;color:'+col+';margin-top:6px">'+msg+'</div></div><div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px">Résumé</div><div style="display:grid;gap:10px">'+rowS('Total vendu (débits)','+'+fmt(s.total_debit),'var(--green)')+rowS('Total remboursé (crédits)','-'+fmt(s.total_credit),'var(--red)')+rowS('Frais reçus',fmt(s.total_frais),'var(--text2)')+rowS('Nb transactions',s.nb_transactions,'var(--text)')+'</div></div><div class="card" style="grid-column:1/-1"><div class="card-title">Historique</div>'+trans.slice(0,20).map(t=>'<div class="timeline-item"><div class="tl-dot" style="background:'+(t.type==='debit'?'var(--green)':'var(--red)')+'"></div><div class="tl-info"><div class="tl-title">'+t.motif+' · '+t.mode_paiement+'</div><div class="tl-date">'+fmtDate(t.date)+' · Qté '+t.quantite+' × '+fmt(t.prix_unitaire)+'</div></div><div class="tl-amount" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</div></div>').join('')+(!trans.length?'<p style="color:var(--text3);text-align:center;padding:20px">Aucune transaction</p>':'')+'</div></div>'
+  // Section frais par remboursement
+  +buildFraisSection(trans, cid)
+  +'</div>';
+  document.getElementById('soldeContent').innerHTML += ''; // flush
+}
+
+function buildFraisSection(trans, cid){
+  // Grouper les frais par entree_id
+  var fraisParEntree = {};
+  var fraisSansEntree = [];
+
+  trans.filter(function(t){ return t.type==='credit' && parseFloat(t.frais||0)>0; })
+    .forEach(function(t){
+      if(t.entree_id){
+        if(!fraisParEntree[t.entree_id]) fraisParEntree[t.entree_id] = {desc: t.entree_description||('Entree #'+t.entree_id), frais:[], total:0};
+        fraisParEntree[t.entree_id].frais.push(t);
+        fraisParEntree[t.entree_id].total += parseFloat(t.frais||0);
+      } else {
+        fraisSansEntree.push(t);
+      }
+    });
+
+  // Reste de la fonction originale - tous les frais
+  // redéfinir rembAvecFrais
+  var rembAvecFrais = trans.filter(function(t){ return t.type==='credit' && parseFloat(t.frais||0) > 0; });
+  if(!rembAvecFrais.length) return '';
+
+  var totalFrais = rembAvecFrais.reduce(function(s,t){ return s+parseFloat(t.frais||0); }, 0);
+  var rows = rembAvecFrais.map(function(t){
+    return '<tr>'
+      + '<td style="padding:6px 8px;font-size:12px">'+fmtDate(t.date)+'</td>'
+      + '<td style="padding:6px 8px;font-size:12px;color:var(--text)">'+t.motif+'</td>'
+      + '<td style="padding:6px 8px;font-size:12px">'+t.mode_paiement+'</td>'
+      + '<td style="padding:6px 8px;font-size:12px;text-align:right" class="mono">'+fmt(t.montant_brut)+'</td>'
+      + '<td style="padding:6px 8px;font-size:12px;text-align:right;color:var(--red)" class="mono">-'+fmt(t.frais)+'</td>'
+      + '<td style="padding:6px 8px;font-size:12px;text-align:right;color:var(--green)" class="mono">'+fmt(t.montant_net)+'</td>'
+      + '</tr>';
+  }).join('');
+
+  // Section frais par entrée
+  var fraisEntreeHtml = '';
+  Object.keys(fraisParEntree).forEach(function(eid){
+    var entry = fraisParEntree[eid];
+    fraisEntreeHtml += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'
+      + '<div><span style="font-size:13px;color:var(--text)">📦 '+entry.desc+'</span>'
+      + '<span style="font-size:11px;color:var(--text3);margin-left:8px">'+entry.frais.length+' remb.</span></div>'
+      + '<div style="display:flex;align-items:center;gap:12px">'
+      + '<span class="mono" style="color:var(--red);font-size:13px">-'+fmt(entry.total)+'</span>'
+      + '<button class="btn" style="font-size:11px;padding:4px 10px;color:var(--gold2)" onclick="creerDetteFraisEntree('+cid+','+eid+','+entry.total+')">+ Dette frais</button>'
+      + '</div></div>';
+  });
+
+  return '<div class="card" style="grid-column:1/-1;margin-top:0">'
+    + '<div class="card-title">💸 Frais de remboursement</div>'
+    + (fraisEntreeHtml ? '<div style="margin-bottom:12px"><div style="font-size:11px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Par entree materiel</div>'+fraisEntreeHtml+'</div>' : '')
+    + '<table style="width:100%;border-collapse:collapse">'
+    + '<thead><tr>'
+    + '<th style="text-align:left;padding:6px 8px;font-size:11px;color:var(--text3)">Date</th>'
+    + '<th style="text-align:left;padding:6px 8px;font-size:11px;color:var(--text3)">Motif</th>'
+    + '<th style="text-align:left;padding:6px 8px;font-size:11px;color:var(--text3)">Mode</th>'
+    + '<th style="text-align:right;padding:6px 8px;font-size:11px;color:var(--text3)">Brut</th>'
+    + '<th style="text-align:right;padding:6px 8px;font-size:11px;color:var(--text3)">Frais</th>'
+    + '<th style="text-align:right;padding:6px 8px;font-size:11px;color:var(--text3)">Net</th>'
+    + '</tr></thead>'
+    + '<tbody>'+rows+'</tbody>'
+    + '<tfoot><tr>'
+    + '<td colspan="3" style="padding:8px;font-size:12px;color:var(--text3);font-weight:500">Total frais</td>'
+    + '<td style="padding:8px;text-align:right;color:var(--red);font-weight:600" class="mono">-'+fmt(totalFrais)+'</td>'
+    + '<td></td>'
+    + '<td style="padding:8px;text-align:right"><button class="btn" style="font-size:11px;padding:4px 8px" onclick="creerDetteFrais('+cid+','+totalFrais+')">+ Dette tous frais</button></td>'
+    + '</tr></tfoot>'
+    + '</table></div>';
+
 }
 function rowS(label,val,color){return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;color:var(--text3)">'+label+'</span><span class="mono" style="color:'+color+'">'+val+'</span></div>';}
 
@@ -1206,6 +1292,7 @@ function openModal(type){
     document.getElementById('mPrix').value='0';
     document.getElementById('mNotes').value='';
     setStatutPaiement('recu');
+    setAffectation('benef');
     document.getElementById('modalTrans').classList.add('open');
   }else{openAddClientFresh();}
 }
@@ -1293,6 +1380,25 @@ async function loadDettesOuvertes(cid){
 function fillDetteAmount(v){document.getElementById('mPrix').value=v;calcModal();}
 
 
+
+
+function solderDetteAuto(){
+  var restEl = document.getElementById('mDetteRestant');
+  if(!restEl) return;
+  var montantEl = document.getElementById('mMontantEncaisse');
+  var restant = parseFloat(document.getElementById('mBtnSolderDette').textContent.match(/[\d.]+/)[0])||0;
+  if(montantEl){ montantEl.value = restant.toFixed(2); calcModal(); }
+  document.getElementById('mBtnSolderDette').style.display='none';
+  notify('Montant pre-rempli pour solde');
+}
+var _affectation = 'benef';
+function setAffectation(val){
+  _affectation = val;
+  var sel = document.getElementById('mAffectSelect');
+  if(sel) sel.value = val;
+  var hidden = document.getElementById('mAffectation');
+  if(hidden) hidden.value = val;
+}
 var _statutPaiement = 'recu';
 function setStatutPaiement(statut){
   _statutPaiement = statut;
@@ -1356,14 +1462,25 @@ function onModeChange(ctx){
 function onStockSelect() {
   var sel = document.getElementById('mEntreeSelect');
   var info = document.getElementById('mStockInfo');
-  if(!sel.value){ if(info) info.style.display='none'; return; }
+  if(!sel || !sel.value){ if(info) info.style.display='none'; return; }
   var opt = sel.options[sel.selectedIndex];
+  var entreeId = parseInt(sel.value);
+
+  // Recalculer le stock depuis allTransactions (temps réel)
+  var entree = entreesCache.find(function(e){ return e.id===entreeId; });
+  var unite = opt.dataset.unite || (entree ? entree.unite : 'piece');
+  var uniteL = unite==='gramme' ? 'g' : 'pcs';
+  var stockInitial = entree ? parseFloat(entree.quantite||0) : 0;
+  var totalVendu = allTransactions.filter(function(t){ return parseInt(t.entree_id)===parseInt(entreeId) && t.type==='debit'; })
+    .reduce(function(s,t){ return s+parseFloat(t.quantite||0); }, 0);
+  var restant = Math.max(0, stockInitial - totalVendu);
+  var pct = stockInitial > 0 ? Math.round(restant/stockInitial*100) : 0;
+  var couleur = restant<=0 ? 'var(--red)' : pct<20 ? 'var(--gold2)' : 'var(--green)';
+
   if(info){
     info.style.display='block';
-    var restant = parseFloat(opt.dataset.restant||0);
-    var uniteL = opt.dataset.unite==='gramme' ? 'g' : 'pcs';
-    var couleur = restant<=0 ? 'var(--red)' : restant<5 ? 'var(--gold2)' : 'var(--green)';
-    info.innerHTML = 'Stock restant : <strong style="color:'+couleur+'">'+restant.toFixed(1)+' '+uniteL+'</strong>';
+    info.innerHTML = 'Stock restant : <strong style="color:'+couleur+'">'+restant.toFixed(1)+' '+uniteL+'</strong>'
+      + ' <span style="color:var(--text3);font-size:11px">('+pct+'%)</span>';
   }
 }
 
@@ -1451,6 +1568,9 @@ async function saveTrans(){
     }
   }
   var notesVal = document.getElementById('mNotes').value;
+  if(type==='credit' && _affectation==='entree'){
+    notesVal = ('[REMB_ENTREE] '+notesVal).trim();
+  }
   if(type==='debit' && _statutPaiement==='non_paye'){
     notesVal = ('[NON PAYE] ' + notesVal).trim();
   }
@@ -1545,12 +1665,15 @@ async function saveEditTrans(){
 
 // ── DETAIL TRANSACTION ──
 function openTransDetail(id){
-  id=parseInt(id);const t=allTransactions.find(x=>x.id===id);if(!t)return;
+  id=parseInt(id);
+  var t=allTransactions.find(function(x){return x.id===id;});
+  if(!t) t=clientTransactions[id]; // fallback fiche client
+  if(!t)return;
   currentDetailId=id;
   document.getElementById('detailTitle').textContent=t.motif+' — '+fmtDate(t.date);
   document.getElementById('detailSub').innerHTML='<span class="badge '+t.type+'">'+(t.type==='credit'?'Remboursement':'Vente')+'</span>';
   const col=t.type==='debit'?'var(--green)':'var(--red)';
-  document.getElementById('detailBody').innerHTML='<div style="background:var(--bg3);border-radius:var(--radius2);padding:20px;text-align:center;margin-bottom:16px"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">'+(t.type==='debit'?'Montant vendu':'Remboursement reçu')+'</div><div style="font-size:36px;font-weight:600;font-family:DM Mono,monospace;color:'+col+'">'+(t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</div></div>'+drRow('Client',t.client_nom||'—',null)+drRow('Date',fmtDate(t.date),null)+drRow('Motif',t.motif,null)+(t.type==='debit'?'':drRow('Mode',t.mode_paiement,null))+drRow('Quantite',(t.quantite||1)+' '+(t.unite==='gramme'?'g':'pcs'),null)+drRow('Prix unitaire',fmt(t.prix_unitaire),null)+drRow('Montant brut',fmt(t.montant_brut),null)+drRow('Frais',fmt(t.frais),t.frais>0?'var(--red)':null)+drRow('Montant net',fmt(t.montant_net),col)+(t.entree_description?drRow('Entree materiel','📦 '+t.entree_description,'var(--gold2)'):'')+(t.notes&&t.notes.trim()?drRow('Notes',t.notes,'var(--text3)'):'')+(t.reference?drRow('Reference',t.reference,null):'');
+  document.getElementById('detailBody').innerHTML='<div style="background:var(--bg3);border-radius:var(--radius2);padding:20px;text-align:center;margin-bottom:16px"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">'+(t.type==='debit'?'Montant vendu':'Remboursement reçu')+'</div><div style="font-size:36px;font-weight:600;font-family:DM Mono,monospace;color:'+col+'">'+(t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</div></div>'+drRow('Client',t.client_nom||'—',null)+drRow('Date',fmtDate(t.date),null)+drRow('Motif',t.motif,null)+(t.type==='debit'?'':drRow('Mode',t.mode_paiement,null))+drRow('Quantite',(t.quantite||1)+' '+(t.unite==='gramme'?'g':'pcs'),null)+drRow('Prix unitaire',fmt(t.prix_unitaire),null)+drRow('Montant brut',fmt(t.montant_brut),null)+drRow('Frais',fmt(t.frais),t.frais>0?'var(--red)':null)+drRow('Montant net',fmt(t.montant_net),col)+(t.entree_description?drRow('Entree materiel','📦 '+t.entree_description+(t.entree_date?' — '+fmtDate(t.entree_date):''),'var(--gold2)'):'')+(t.notes&&t.notes.trim()?drRow('Notes',t.notes,'var(--text3)'):'')+(t.reference?drRow('Reference',t.reference,null):'');
   document.getElementById('modalDetail').classList.add('open');
 }
 function drRow(label,val,color){return '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;color:var(--text3)">'+label+'</span><span style="font-size:13px;font-weight:500;'+(color?'color:'+color+';':'')+'font-family:DM Mono,monospace">'+val+'</span></div>';}
@@ -1835,10 +1958,12 @@ function setFraisOpt(val) {
 let entreesCache = [];
 
 async function loadEntrees() {
-  const res = await api('/api/entrees');
-  if (!res || !res.ok) return;
-  entreesCache = res.data;
-  await renderEntrees();
+  var r1 = await api('/api/entrees');
+  if (!r1 || !r1.ok) return;
+  entreesCache = r1.data;
+  var r2 = await api('/api/transactions?limit=5000');
+  allTransactions = (r2 && r2.ok) ? r2.data : [];
+  renderEntrees();
   // Mettre à jour le select dans le modal transaction
   const sel = document.getElementById('mEntreeSelect');
   if (sel) {
@@ -1852,24 +1977,51 @@ async function loadEntrees() {
   }
 }
 
-function renderEntrees() {
+async function renderEntrees() {
   const tbody = document.getElementById('entreesTbody');
   if (!tbody) return;
   tbody.innerHTML = '';
+
+  var totalInvesti = 0, totalRembourse = 0;
+
   if (!entreesCache.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">Aucune entrée enregistrée</td></tr>';
-    return;
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">Aucune entree enregistree</td></tr>';
+  } else {
+    entreesCache.forEach(function(e) {
+      var uniteLabel = e.unite === 'gramme' ? 'g' : 'pcs';
+      var stockR = parseFloat(e.stock_restant||0);
+      if(isNaN(stockR)) stockR = Math.max(0, parseFloat(e.quantite||0) - parseFloat(e.total_vendu||0));
+      var totalVendu = parseFloat(e.total_vendu||0);
+      // Montant rembourse via ventes liees
+      var txLiees = allTransactions.filter(function(t){ return parseInt(t.entree_id)===parseInt(e.id) && t.type==='debit'; });
+      var montantRemb = txLiees.reduce(function(s,t){ return s+parseFloat(t.montant_net||0); }, 0);
+      var restant = Math.max(0, parseFloat(e.prix_achat||0) - montantRemb);
+      var estSolde = restant <= 0;
+
+      totalInvesti += parseFloat(e.prix_achat||0);
+      totalRembourse += Math.min(montantRemb, parseFloat(e.prix_achat||0));
+
+      var colRestant = estSolde ? 'var(--green)' : restant < parseFloat(e.prix_achat||0)*0.5 ? 'var(--gold2)' : 'var(--red)';
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>'+fmtDate(e.date)+'</td>'
+        + '<td style="color:var(--text);font-weight:500">'+e.description+(estSolde?' <span style="color:var(--green);font-size:10px">✓ SOLDE</span>':'')+'</td>'
+        + '<td class="mono">'+parseFloat(e.quantite||0).toFixed(1)+' '+uniteLabel+'</td>'
+        + '<td class="mono" style="color:var(--red)">'+fmt(parseFloat(e.prix_achat||0))+'</td>'
+        + '<td class="mono" style="color:var(--green)">'+fmt(montantRemb)+'</td>'
+        + '<td class="mono" style="color:'+colRestant+';font-weight:600">'+(estSolde?'✓ Solde':fmt(restant))+'</td>'
+        + '<td style="color:var(--text3)">'+( e.notes||'—')+'</td>'
+        + '<td><button class="btn" style="padding:4px 8px;font-size:11px" onclick="openEditEntree('+e.id+')">&#9998;</button></td>';
+      tbody.appendChild(tr);
+    });
   }
-  entreesCache.forEach(e => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td>' + fmtDate(e.date) + '</td>'
-      + '<td style="color:var(--text);font-weight:500">' + e.description + '</td>'
-      + '<td class="mono">' + e.quantite + '</td>'
-      + '<td class="mono" style="color:var(--red)">' + fmt(e.prix_achat) + '</td>'
-      + '<td style="color:var(--text3)">' + (e.notes || '—') + '</td>'
-      + '<td><button class="btn" style="padding:4px 8px;font-size:11px" onclick="openEditEntree(' + e.id + ')">✏</button></td>';
-    tbody.appendChild(tr);
-  });
+
+  // Mettre à jour les stats
+  var ti = document.getElementById('entreesTotalInvesti');
+  var tr2 = document.getElementById('entreesTotalRembourse');
+  var rest = document.getElementById('entreesRestant');
+  if(ti) ti.textContent = fmt(totalInvesti);
+  if(tr2) tr2.textContent = fmt(totalRembourse);
+  if(rest) rest.textContent = fmt(Math.max(0, totalInvesti - totalRembourse));
 }
 
 function openModalEntree() {
@@ -2461,60 +2613,6 @@ function clearChat() {
 // ══════════════════════════════════════════════════════
 // STOCK
 // ══════════════════════════════════════════════════════
-async function loadStock() {
-  const res = await api('/api/stock');
-  if (!res || !res.ok) return;
-  const items = res.data;
-
-  var totalInvesti = 0;
-  var totalRestant = 0;
-  var nbRupture = 0;
-
-  const tbody = document.getElementById('stockTbody');
-  tbody.innerHTML = '';
-
-  if (!items.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:24px">Aucune entree enregistree</td></tr>';
-    return;
-  }
-
-  items.forEach(function(e) {
-    const unite = e.unite === 'gramme' ? 'g' : 'pcs';
-    const restant = e.stock_restant !== null ? e.stock_restant : (e.quantite - (e.total_vendu || 0));
-    const pct = e.quantite > 0 ? Math.round((restant / e.quantite) * 100) : 0;
-    const color = restant <= 0 ? 'var(--red)' : pct < 20 ? 'var(--gold2)' : 'var(--green)';
-    const statut = restant <= 0 ? '🔴 Rupture' : pct < 20 ? '🟡 Faible' : '🟢 OK';
-
-    totalInvesti += e.prix_achat;
-    totalRestant += restant;
-    if (restant <= 0) nbRupture++;
-
-    const barWidth = Math.max(0, Math.min(100, pct));
-    // Valeur monetaire du stock restant (proportionnelle)
-    var valeurRestante = e.quantite > 0 ? (restant / e.quantite) * e.prix_achat : 0;
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td style="color:var(--text);font-weight:500">📦 ' + e.description + '</td>'
-      + '<td style="color:var(--text3)">' + unite + '</td>'
-      + '<td class="mono">' + e.quantite + ' ' + unite + '</td>'
-      + '<td class="mono" style="color:var(--red)">' + (e.total_vendu || 0).toFixed(1) + ' ' + unite + '</td>'
-      + '<td><div style="display:flex;align-items:center;gap:8px"><span class="mono" style="color:' + color + ';font-weight:600;min-width:60px">' + restant.toFixed(1) + ' ' + unite + '</span><div style="flex:1;height:6px;background:var(--bg4);border-radius:3px;min-width:60px"><div style="width:' + barWidth + '%;height:100%;background:' + color + ';border-radius:3px;transition:width .3s"></div></div><span style="font-size:11px;color:var(--text3)">' + pct + '%</span></div></td>'
-      + '<td class="mono" style="color:var(--red)">-' + fmt(e.prix_achat) + '</td>'
-      + '<td class="mono" style="color:' + color + ';font-weight:600">' + fmt(valeurRestante) + '</td>'
-      + '<td>' + statut + '</td>';
-    tbody.appendChild(tr);
-  });
-
-  var totalValeurRestante = 0;
-  items.forEach(function(e) {
-    var restant2 = e.stock_restant !== null ? e.stock_restant : (e.quantite - (e.total_vendu || 0));
-    if (e.quantite > 0) totalValeurRestante += (restant2 / e.quantite) * e.prix_achat;
-  });
-  document.getElementById('stockTotalInvesti').textContent = fmt(totalInvesti);
-  document.getElementById('stockTotalRestant').textContent = totalRestant.toFixed(1);
-  document.getElementById('stockValeurRestante').textContent = fmt(totalValeurRestante);
-  document.getElementById('stockRupture').textContent = nbRupture;
-}
-
 
 // ══════════════════════════════════════════════════════
 // MOTIFS

@@ -268,7 +268,8 @@ def get_transactions(client_id: int):
                       t.montant_brut,t.mode_paiement,t.frais,t.montant_net,
                       t.reference,t.notes,t.entree_id,t.linked_debit_id,
                       COALESCE(t.unite,'piece') as unite,
-                      e.description as entree_description
+                      e.description as entree_description,
+                      e.date as entree_date
                FROM transactions t
                LEFT JOIN entrees_materiel e ON t.entree_id = e.id
                WHERE t.client_id=? ORDER BY t.date DESC""",
@@ -282,7 +283,8 @@ def get_all_transactions(limit=200):
         rows = conn.execute(
             """SELECT t.*, c.nom as client_nom,
                       COALESCE(t.unite,'piece') as unite,
-                      e.description as entree_description
+                      e.description as entree_description,
+                      e.date as entree_date
                FROM transactions t
                LEFT JOIN clients c ON t.client_id = c.id
                LEFT JOIN entrees_materiel e ON t.entree_id = e.id

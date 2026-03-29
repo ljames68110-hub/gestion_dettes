@@ -357,7 +357,8 @@ def dettes_ouvertes(cid):
     with db.get_conn() as conn:
         # Récupérer tous les débits du client
         debits = conn.execute("""
-            SELECT id, date, motif, montant_net, mode_paiement, notes
+            SELECT id, date, motif, montant_net, mode_paiement, notes,
+                   quantite, COALESCE(unite,'piece') as unite
             FROM transactions
             WHERE client_id=? AND type='debit'
             ORDER BY date DESC
@@ -368,7 +369,7 @@ def dettes_ouvertes(cid):
             did = d[0]
             # Total crédité lié à ce débit
             row = conn.execute("""
-                SELECT COALESCE(SUM(montant_net), 0)
+                SELECT COALESCE(SUM(montant_brut), 0)
                 FROM transactions
                 WHERE linked_debit_id=? AND type='credit'
             """, (did,)).fetchone()
@@ -382,6 +383,8 @@ def dettes_ouvertes(cid):
                     "montant_net": d[3],
                     "mode_paiement": d[4],
                     "notes": d[5] or "",
+                    "quantite": d[6],
+                    "unite": d[7],
                     "total_credite": round(total_credite, 2),
                     "restant": round(restant, 2)
                 })
