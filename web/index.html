@@ -90,8 +90,8 @@ td{padding:11px 16px;font-size:13px;border-bottom:1px solid rgba(42,42,58,.5);co
 tr:last-child td{border-bottom:none}
 tr:hover td{background:rgba(255,255,255,.02)}
 .badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500}
-.badge.credit{background:rgba(46,204,113,.1);color:var(--green);border:1px solid rgba(46,204,113,.2)}
-.badge.debit{background:rgba(231,76,60,.1);color:var(--red);border:1px solid rgba(231,76,60,.2)}
+.badge.credit{background:rgba(231,76,60,.1);color:var(--red);border:1px solid rgba(231,76,60,.2)}
+.badge.debit{background:rgba(46,204,113,.1);color:var(--green);border:1px solid rgba(46,204,113,.2)}
 .mono{font-family:'DM Mono',monospace;font-weight:600;font-size:13px}
 .clients-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 .client-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;transition:all .2s}
@@ -536,6 +536,7 @@ select option{background:var(--bg3)}
 
       <!-- Ligne 1 : Client + Type -->
       <div class="form-group"><label>Client</label><select id="mClient" onchange="onClientChange()"></select></div>
+      <div id="mDetteNegativeAlert" style="display:none;grid-column:1/-1;background:rgba(231,76,60,.1);border:1px solid rgba(231,76,60,.3);border-radius:var(--radius2);padding:12px;font-size:13px;color:var(--text);display:none;gap:8px;align-items:center"></div>
       <div class="form-group"><label>Type</label>
         <select id="mType" onchange="toggleTypeFields()">
           <option value="debit">Vente</option>
@@ -546,6 +547,13 @@ select option{background:var(--bg3)}
       <!-- VENTE -->
       <div id="mVenteSection" style="display:contents">
         <div class="form-group"><label>Motif</label><select id="mMotif" onchange="autoFillPrice()"></select></div>
+        <div class="form-group"><label>Compte de paiement</label>
+          <select id="mCompte" onchange="onCompteChange()" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif">
+            <option value="euro">💶 Euros (compte principal)</option>
+            <option value="cantine">🍽 Cantine (compte cantine)</option>
+            <option value="tabac">🚬 Tabac/Blonde (compte tabac)</option>
+          </select>
+        </div>
         <div class="form-group"><label>Mode paiement</label>
           <select id="mMode" onchange="onModeChange('vente')">
             <option value="Liquide">💵 Liquide</option>
@@ -639,6 +647,14 @@ select option{background:var(--bg3)}
             <label>Quantite recue (pieces)</label>
             <input type="number" id="mPiecesNature" value="1" min="1" step="1" oninput="calcModal()" style="font-size:18px;font-weight:600;color:var(--gold2)">
             <div style="font-size:12px;color:var(--text3);margin-top:4px" id="mRembNatureLabel">Ex: 2 paquets</div>
+          </div>
+          <div class="form-group">
+            <label>Compte source</label>
+            <select id="mCompteRemb" onchange="onCompteRembChange()" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif">
+              <option value="euro">💶 Euros (compte principal)</option>
+              <option value="cantine">🍽 Cantine (compte cantine)</option>
+              <option value="tabac">🚬 Tabac/Blonde (compte tabac)</option>
+            </select>
           </div>
           <div class="form-group">
             <label>Mode paiement</label>
@@ -1195,16 +1211,20 @@ async function loadSolde(){
   const cid=document.getElementById('soldeClientSel').value;
   const content=document.getElementById('soldeContent');
   if(!cid){content.style.display='none';document.getElementById('exportCsvBtn').style.display='none';return;}
-  var _r277=await Promise.all([api('/api/clients/'+cid+'/stats'),api('/api/clients/'+cid+'/transactions')]);var sr=_r277[0];var tr2=_r277[1];
+  var _r277=await Promise.all([api('/api/clients/'+cid+'/stats'),api('/api/clients/'+cid+'/transactions'),api('/api/clients/'+cid+'/stats-comptes')]);var sr=_r277[0];var tr2=_r277[1];var sc=_r277[2];
   if(!sr||!sr.ok)return;
   const s=sr.data;const trans=(tr2 && tr2.data ? tr2.data : []);
   // Stocker pour openTransDetail
   if(cid) trans.forEach(function(t){ clientTransactions[t.id]=t; });
-  const dette=s.total_debit-s.total_credit;
+  var comptes = sc && sc.ok ? sc.data : {euro:{solde:0},cantine:{solde:0},tabac:{solde:0}};
+  const dette=comptes.euro.solde;
   const isPos=dette>0;const col=isPos?'var(--green)':dette<0?'var(--red)':'var(--text3)';
-  const msg=isPos?'🟢 Ce client vous doit de l\'argent':dette<0?'🔴 Vous devez de l\'argent à ce client':'⚖️ Compte soldé';
+  const msg=isPos?'Ce client vous doit '+fmt(dette):'<span style="color:var(--red)">⚠️ Vous devez '+fmt(Math.abs(dette))+' a ce client</span>';
   content.style.display='flex';document.getElementById('exportCsvBtn').style.display='inline-flex';
-  content.innerHTML='<div class="solde-grid fade"><div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase">Dette nette du client</div><div class="solde-amount" style="color:'+col+'">'+(dette>0?'+':'')+fmt(dette)+'</div><div style="font-size:13px;color:'+col+';margin-top:6px">'+msg+'</div></div><div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px">Résumé</div><div style="display:grid;gap:10px">'+rowS('Total vendu (débits)','+'+fmt(s.total_debit),'var(--green)')+rowS('Total remboursé (crédits)','-'+fmt(s.total_credit),'var(--red)')+rowS('Frais reçus',fmt(s.total_frais),'var(--text2)')+rowS('Nb transactions',s.nb_transactions,'var(--text)')+'</div></div><div class="card" style="grid-column:1/-1"><div class="card-title">Historique</div>'+trans.slice(0,20).map(t=>'<div class="timeline-item"><div class="tl-dot" style="background:'+(t.type==='debit'?'var(--green)':'var(--red)')+'"></div><div class="tl-info"><div class="tl-title">'+t.motif+' · '+t.mode_paiement+'</div><div class="tl-date">'+fmtDate(t.date)+' · Qté '+t.quantite+' × '+fmt(t.prix_unitaire)+'</div></div><div class="tl-amount" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</div></div>').join('')+(!trans.length?'<p style="color:var(--text3);text-align:center;padding:20px">Aucune transaction</p>':'')+'</div></div>'
+  content.innerHTML='<div class="solde-grid fade">'
+  + '<div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase">💶 Compte euros</div><div class="solde-amount" style="color:'+col+'">'+(dette>0?'+':'')+fmt(dette)+'</div><div style="font-size:13px;color:'+col+';margin-top:6px">'+msg+'</div></div>'
+  + '<div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">🍽 Compte cantine</div><div style="font-size:28px;font-weight:700;color:'+(comptes.cantine.solde>0?'var(--green)':'var(--text3)')+'">'+(comptes.cantine.solde>0?'+':'')+fmt(comptes.cantine.solde)+'</div></div>'
+  + '<div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">🚬 Compte tabac</div><div style="font-size:28px;font-weight:700;color:'+(comptes.tabac.solde>0?'var(--green)':'var(--text3)')+'">'+(comptes.tabac.solde>0?'+':'')+fmt(comptes.tabac.solde)+'</div></div><div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px">Résumé</div><div style="display:grid;gap:10px">'+rowS('Total vendu (débits)','+'+fmt(s.total_debit),'var(--green)')+rowS('Total remboursé (crédits)','-'+fmt(s.total_credit),'var(--red)')+rowS('Frais reçus',fmt(s.total_frais),'var(--text2)')+rowS('Nb transactions',s.nb_transactions,'var(--text)')+'</div></div><div class="card" style="grid-column:1/-1"><div class="card-title">Historique</div>'+trans.slice(0,20).map(t=>'<div class="timeline-item"><div class="tl-dot" style="background:'+(t.type==='debit'?'var(--green)':'var(--red)')+'"></div><div class="tl-info"><div class="tl-title">'+t.motif+' · '+t.mode_paiement+'</div><div class="tl-date">'+fmtDate(t.date)+' · Qté '+t.quantite+' × '+fmt(t.prix_unitaire)+'</div></div><div class="tl-amount" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</div></div>').join('')+(!trans.length?'<p style="color:var(--text3);text-align:center;padding:20px">Aucune transaction</p>':'')+'</div></div>'
   // Section frais par remboursement
   +buildFraisSection(trans, cid)
   +'</div>';
@@ -1293,6 +1313,8 @@ function openModal(type){
     document.getElementById('mNotes').value='';
     setStatutPaiement('recu');
     setAffectation('benef');
+    var alertBox3 = document.getElementById('mDetteNegativeAlert');
+    if(alertBox3) alertBox3.style.display='none';
     document.getElementById('modalTrans').classList.add('open');
   }else{openAddClientFresh();}
 }
@@ -1343,9 +1365,29 @@ async function toggleTypeFields(){
 
 async function onClientChange(){
   const type = document.getElementById('mType').value;
+  const cid = parseInt(document.getElementById('mClient').value);
+  if(!cid) return;
+
   if(type === 'credit'){
-    const cid = parseInt(document.getElementById('mClient').value);
-    if(cid) await loadDettesOuvertes(cid);
+    await loadDettesOuvertes(cid);
+  }
+
+  if(type === 'debit'){
+    // Vérifier si je dois de l'argent à ce client
+    var alertBox = document.getElementById('mDetteNegativeAlert');
+    if(!alertBox) return;
+    var statsRes = await api('/api/clients/'+cid+'/stats-comptes');
+    if(!statsRes || !statsRes.ok) return;
+    var soldeEuro = statsRes.data.euro ? statsRes.data.euro.solde : 0;
+    if(soldeEuro < -0.01){
+      // Je dois de l'argent au client
+      alertBox.style.display = 'block';
+      alertBox.innerHTML = '<span style="font-size:16px">⚠️</span> <strong>Attention :</strong> Tu dois <strong style="color:var(--red)">'+fmt(Math.abs(soldeEuro))+'</strong> à ce client. Cette vente déduira de ta dette.';
+      // Changer le statut automatiquement
+      setStatutPaiement('recu');
+    } else {
+      alertBox.style.display = 'none';
+    }
   }
 }
 
@@ -1457,6 +1499,30 @@ function onModeChange(ctx){
       if(eurGroup) eurGroup.style.display='block';
       if(natGroup) natGroup.style.display='none';
     }
+  }
+  calcModal();
+}
+
+
+function onCompteChange(){
+  var compte = document.getElementById('mCompte').value;
+  var modeGroup = document.getElementById('mMode');
+  if(compte === 'euro'){
+    if(modeGroup) modeGroup.style.display='';
+  } else {
+    // Cantine/Tabac - forcer mode Liquide et cacher modes avec frais
+    if(modeGroup) modeGroup.value = 'Liquide';
+  }
+  calcModal();
+}
+
+function onCompteRembChange(){
+  var compte = document.getElementById('mCompteRemb').value;
+  var modeRemb = document.getElementById('mModeRemb');
+  if(compte === 'cantine'){
+    if(modeRemb) modeRemb.value = 'Liquide';
+  } else if(compte === 'tabac'){
+    if(modeRemb) modeRemb.value = 'Tabac';
   }
   calcModal();
 }
@@ -1576,7 +1642,17 @@ async function saveTrans(){
   if(type==='debit' && _statutPaiement==='non_paye'){
     notesVal = ('[NON PAYE] ' + notesVal).trim();
   }
-  const body={client_id:parseInt(document.getElementById('mClient').value),type:type,motif:motif,quantite:qty,unite:unite,prix_unitaire:prix_unitaire,mode_paiement:mode_paiement,notes:notesVal,linked_debit_id,entree_id,frais_deduits:_fraisDeduits?1:0};
+  // Si je dois de l'argent au client, noter que c'est une déduction
+  if(type==='debit'){
+    var alertBox2 = document.getElementById('mDetteNegativeAlert');
+    if(alertBox2 && alertBox2.style.display !== 'none'){
+      notesVal = ('[DEDUCTION DETTE] ' + notesVal).trim();
+    }
+  }
+  var compte_val = type==='debit'
+    ? (document.getElementById('mCompte') ? document.getElementById('mCompte').value : 'euro')
+    : (document.getElementById('mCompteRemb') ? document.getElementById('mCompteRemb').value : 'euro');
+  const body={client_id:parseInt(document.getElementById('mClient').value),type:type,motif:motif,quantite:qty,unite:unite,prix_unitaire:prix_unitaire,mode_paiement:mode_paiement,notes:notesVal,linked_debit_id,entree_id,frais_deduits:_fraisDeduits?1:0,compte:compte_val};
   const res=await api('/api/transactions',{method:'POST',body});
   btn.textContent='Enregistrer';btn.disabled=false;
   if(res&&res.ok){closeModal('trans');notify('Transaction enregistrée');document.getElementById('mQty').value='1';document.getElementById('mPrix').value='0';document.getElementById('mNotes').value='';loadDashboard();if(document.getElementById('pg-transactions').classList.contains('active'))loadTransactions();}

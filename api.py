@@ -167,6 +167,44 @@ def clients_delete(cid):
     db.delete_client(cid)
     return ok({"deleted": cid})
 
+@app.route("/api/clients/<int:cid>/stats-comptes")
+@require_auth
+def client_stats_comptes(cid):
+    """Retourne les stats par compte (euro/cantine/tabac) pour un client."""
+    with db.get_conn() as conn:
+        rows = conn.execute("""
+            SELECT 
+                COALESCE(compte,'euro') as compte,
+                type,
+                COALESCE(SUM(montant_brut),0) as total_brut,
+                COALESCE(SUM(montant_net),0) as total_net,
+                COALESCE(SUM(frais),0) as total_frais,
+                COUNT(*) as nb
+            FROM transactions
+            WHERE client_id=?
+            GROUP BY COALESCE(compte,'euro'), type
+        """, (cid,)).fetchall()
+    
+    result = {"euro":{"debit":0,"credit":0,"frais":0}, 
+              "cantine":{"debit":0,"credit":0,"frais":0},
+              "tabac":{"debit":0,"credit":0,"frais":0}}
+    
+    for r in rows:
+        compte = r["compte"] if r["compte"] in result else "euro"
+        if r["type"] == "debit":
+            result[compte]["debit"] += r["total_brut"]
+        else:
+            result[compte]["credit"] += r["total_brut"]
+            result[compte]["frais"] += r["total_frais"]
+    
+    # Calculer les soldes
+    for c in result:
+        result[c]["solde"] = round(result[c]["debit"] - result[c]["credit"], 2)
+        result[c]["debit"] = round(result[c]["debit"], 2)
+        result[c]["credit"] = round(result[c]["credit"], 2)
+    
+    return ok(result)
+
 @app.route("/api/clients/<int:cid>/stats")
 @require_auth
 def clients_stats(cid):
@@ -209,7 +247,7 @@ def transactions_create():
     if not db.get_client(data["client_id"]):
         return err("Client introuvable", 404)
 
-    qty   = float(data["quantite"]) if data.get("unite","piece") == "gramme" else max(int(data["quantite"]), 1)
+    qty   = float(data["quantite"]) if data.get("unite","piece") == "gramme" else float(data.get("quantite", 1))
     pu    = float(data["prix_unitaire"])
     mode  = data["mode_paiement"]
     unite = data.get("unite", "piece")
@@ -218,10 +256,14 @@ def transactions_create():
     frais_deduits = int(data.get("frais_deduits", 1))
 
     brut  = round(qty * pu, 2)
-    # Frais seulement si remboursement ET frais_deduits=1
-    frais_rate = FEES.get(mode, 0) if (type_ == "credit" and frais_deduits) else 0
-    frais = round(brut * frais_rate, 2)
-    net   = round(brut - frais, 2)
+    if type_ == "credit":
+        frais_rate = FEES.get(mode, 0) if frais_deduits else 0
+        frais = round(brut * frais_rate, 2)
+        # Si j absorbe les frais : net = brut (client credite du total)
+        net = round(brut - frais, 2)
+    else:
+        frais = 0
+        net = brut
 
     tid = db.add_transaction(
         client_id     = data["client_id"],
@@ -237,11 +279,12 @@ def transactions_create():
         notes         = data.get("notes", ""),
     )
 
-    # Sauvegarder entree_id, linked_debit_id, unite dans la transaction
-    if entree_id or linked_debit_id or unite != "piece":
+    # Sauvegarder entree_id, linked_debit_id, unite, compte dans la transaction
+    compte = data.get("compte", "euro")
+    if entree_id or linked_debit_id or unite != "piece" or compte != "euro":
         with db.get_conn() as conn:
-            conn.execute("""UPDATE transactions SET entree_id=?, linked_debit_id=?, unite=?
-                           WHERE id=?""", (entree_id, linked_debit_id, unite, tid))
+            conn.execute("""UPDATE transactions SET entree_id=?, linked_debit_id=?, unite=?, compte=?
+                           WHERE id=?""", (entree_id, linked_debit_id, unite, compte, tid))
             conn.commit()
 
     # Mettre à jour le stock si vente liée à une entrée

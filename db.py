@@ -92,6 +92,11 @@ def init_db():
             c.execute("ALTER TABLE transactions ADD COLUMN frais_deduits INTEGER DEFAULT 1")
         if "unite" not in trans_cols:
             c.execute("ALTER TABLE transactions ADD COLUMN unite TEXT DEFAULT 'piece'")
+        if "compte" not in trans_cols:
+            c.execute("ALTER TABLE transactions ADD COLUMN compte TEXT DEFAULT 'euro'")
+            # Migrer les transactions existantes selon mode_paiement
+            c.execute("UPDATE transactions SET compte='cantine' WHERE mode_paiement='Cantine'")
+            c.execute("UPDATE transactions SET compte='tabac' WHERE mode_paiement IN ('Tabac','Blonde','PotTabac')")
 
         # ── Migration colonnes entrees_materiel ───────────────────────────────
         ent_cols = {row[1] for row in c.execute("PRAGMA table_info(entrees_materiel)").fetchall()}
@@ -268,6 +273,7 @@ def get_transactions(client_id: int):
                       t.montant_brut,t.mode_paiement,t.frais,t.montant_net,
                       t.reference,t.notes,t.entree_id,t.linked_debit_id,
                       COALESCE(t.unite,'piece') as unite,
+                      COALESCE(t.compte,'euro') as compte,
                       e.description as entree_description,
                       e.date as entree_date
                FROM transactions t
@@ -283,6 +289,7 @@ def get_all_transactions(limit=200):
         rows = conn.execute(
             """SELECT t.*, c.nom as client_nom,
                       COALESCE(t.unite,'piece') as unite,
+                      COALESCE(t.compte,'euro') as compte,
                       e.description as entree_description,
                       e.date as entree_date
                FROM transactions t
