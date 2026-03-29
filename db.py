@@ -445,9 +445,16 @@ def delete_rappel_by_client(client_id):
 
 def get_entrees(limit=100):
     with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM entrees_materiel ORDER BY date DESC LIMIT ?", (limit,)
-        ).fetchall()
+        rows = conn.execute("""
+            SELECT e.*,
+                   COALESCE(e.unite, 'piece') as unite,
+                   (SELECT COALESCE(SUM(t.quantite),0) FROM transactions t
+                    WHERE t.entree_id=e.id AND t.type='debit') as total_vendu,
+                   MAX(0, e.quantite - (SELECT COALESCE(SUM(t.quantite),0) FROM transactions t
+                    WHERE t.entree_id=e.id AND t.type='debit')) as stock_restant
+            FROM entrees_materiel e
+            ORDER BY e.date DESC LIMIT ?
+        """, (limit,)).fetchall()
     return [dict(r) for r in rows]
 
 def add_entree(description, quantite, prix_achat, date=None, notes="", unite="piece"):
@@ -483,6 +490,44 @@ def delete_entree(eid):
         conn.commit()
 
 # ── MOTIFS ───────────────────────────────────────────────────────────────────
+
+def ensure_tarifs_table():
+    """Crée la table tarifs si elle n existe pas."""
+    conn = sqlite3.connect(DB_FILE)
+    conn.execute("""CREATE TABLE IF NOT EXISTS tarifs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        article TEXT NOT NULL,
+        unite TEXT DEFAULT 'piece',
+        prix_unitaire REAL NOT NULL,
+        actif INTEGER DEFAULT 1
+    )""")
+    count = conn.execute("SELECT COUNT(*) FROM tarifs").fetchone()[0]
+    if count == 0:
+        defaults = [
+            ("Blonde", "piece", 20.0),
+            ("Tabac", "piece", 25.0),
+            ("PotTabac", "piece", 30.0),
+            ("Cantine", "piece", 1.0),
+        ]
+        for a, u, p in defaults:
+            conn.execute("INSERT INTO tarifs (article,unite,prix_unitaire) VALUES (?,?,?)", (a,u,p))
+    conn.commit()
+    conn.close()
+
+def get_tarifs():
+    ensure_tarifs_table()
+    conn = sqlite3.connect(DB_FILE)
+    rows = conn.execute("SELECT * FROM tarifs WHERE actif=1").fetchall()
+    result = [{"id":r[0],"article":r[1],"unite":r[2],"prix_unitaire":r[3]} for r in rows]
+    conn.close()
+    return result
+
+def save_tarif(article, prix):
+    ensure_tarifs_table()
+    conn = sqlite3.connect(DB_FILE)
+    conn.execute("UPDATE tarifs SET prix_unitaire=? WHERE article=?", (prix, article))
+    conn.commit()
+    conn.close()
 
 def _ensure_motifs_table():
     """Crée la table motifs si elle n existe pas."""

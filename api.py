@@ -389,6 +389,23 @@ def dettes_ouvertes(cid):
 
 
 
+
+# ── TARIFS ────────────────────────────────────────────────────────────────────
+
+@app.route("/api/tarifs")
+@require_auth
+def tarifs_list():
+    return ok(db.get_tarifs())
+
+@app.route("/api/tarifs", methods=["POST"])
+@require_auth
+def tarifs_save():
+    data = request.json or {}
+    article = data.get("article","")
+    prix = float(data.get("prix_unitaire", 0))
+    db.save_tarif(article, prix)
+    return ok({"saved": article})
+
 # ── MOTIFS ────────────────────────────────────────────────────────────────────
 
 @app.route("/api/motifs")

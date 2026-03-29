@@ -357,6 +357,12 @@ select option{background:var(--bg3)}
             <button class="btn primary" style="margin-top:12px" onclick="saveRappelSettings()">💾 Enregistrer</button>
           </div>
           <div class="card" style="grid-column:1/-1">
+            <div class="card-title">💰 Tarifs par article</div>
+            <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Prix unitaire en pieces (paquets, pots...) — auto-rempli lors d une vente</div>
+            <div id="tarifsList" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+
+          <div class="card" style="grid-column:1/-1">
             <div class="card-title">📋 Articles / Motifs de vente</div>
             <div style="display:flex;gap:8px;margin-bottom:12px">
               <input type="text" id="newMotifInput" placeholder="Nouveau motif..." style="flex:1;padding:9px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif" onkeydown="if(event.key==='Enter')addMotif()">
@@ -454,12 +460,13 @@ select option{background:var(--bg3)}
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
           <div class="stat-card red"><div class="stat-label">Total investi</div><div class="stat-value" id="stockTotalInvesti">—</div></div>
           <div class="stat-card green"><div class="stat-label">Stock total restant</div><div class="stat-value" id="stockTotalRestant">—</div></div>
+          <div class="stat-card blue"><div class="stat-label">Valeur stock restant</div><div class="stat-value" id="stockValeurRestante">—</div></div>
           <div class="stat-card gold"><div class="stat-label">Articles en rupture</div><div class="stat-value" id="stockRupture">—</div></div>
         </div>
         <div class="table-wrap">
           <div class="table-header"><span>Stock actuel</span><button class="btn primary" onclick="goPage('entrees',document.querySelector('.nav-item[onclick*=entrees]'))">+ Nouvelle entree</button></div>
           <table>
-            <thead><tr><th>Description</th><th>Unite</th><th>Stock initial</th><th>Vendu</th><th>Restant</th><th>Prix achat</th><th>Statut</th></tr></thead>
+            <thead><tr><th>Description</th><th>Unite</th><th>Stock initial</th><th>Vendu</th><th>Restant</th><th>Prix achat</th><th>Valeur restante</th><th>Statut</th></tr></thead>
             <tbody id="stockTbody"></tbody>
           </table>
         </div>
@@ -486,7 +493,7 @@ select option{background:var(--bg3)}
         </div>
         <div class="table-wrap">
           <div class="table-header"><span>Ventes & Remboursements</span></div>
-          <table><thead><tr><th>Date</th><th>Client</th><th>Type</th><th>Motif</th><th>Entrée matériel</th><th>Dette liée</th><th style="text-align:right">Net</th></tr></thead>
+          <table><thead><tr><th>Date</th><th>Client</th><th>Type</th><th>Motif</th><th>Entree materiel</th><th>Dette liee</th><th style="text-align:right">Frais</th><th style="text-align:right">Net</th></tr></thead>
           <tbody id="recapTbody"></tbody></table>
         </div>
         <div class="table-wrap">
@@ -523,49 +530,144 @@ select option{background:var(--bg3)}
 <!-- MODALS -->
 <div class="modal-bg" id="modalTrans" onclick="if(event.target===this)closeModal('trans')">
   <div class="modal">
-    <div class="modal-title">Nouvelle transaction</div>
-    <div class="modal-sub">Enregistrer un crédit ou un débit</div>
+    <div class="modal-title" id="mModalTitle">Nouvelle transaction</div>
+    <div class="modal-sub">Enregistrer une vente ou un remboursement</div>
     <div class="form-grid">
-      <div class="form-group"><label>Client</label><select id="mClient"></select></div>
-      <div class="form-group"><label>Type</label><select id="mType" onchange="toggleTypeFields()"><option value="debit">Vente</option><option value="credit">Remboursement</option></select></div>
-      <div class="form-group"><label>Motif</label><select id="mMotif"></select></div>
-      <div class="form-group" id="mModeGroup"><label>Mode paiement</label><select id="mMode" onchange="calcModal()"><option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS (7%)</option><option value="Paysafecard">Paysafecard (5%)</option><option value="WesternUnion">Western Union</option></select></div>
-      <div class="form-group" id="mFraisOptGroup" style="display:none">
-        <label>Déduire les frais au client ?</label>
-        <div style="display:flex;gap:8px;margin-top:4px">
-          <button id="mFraisOui" onclick="setFraisOpt(true)" class="btn" style="flex:1;padding:8px;font-size:13px;border-color:rgba(231,76,60,.4);color:var(--red)">✓ Oui — client paie les frais</button>
-          <button id="mFraisNon" onclick="setFraisOpt(false)" class="btn primary" style="flex:1;padding:8px;font-size:13px">✗ Non — j'absorbe les frais</button>
+
+      <!-- Ligne 1 : Client + Type -->
+      <div class="form-group"><label>Client</label><select id="mClient" onchange="onClientChange()"></select></div>
+      <div class="form-group"><label>Type</label>
+        <select id="mType" onchange="toggleTypeFields()">
+          <option value="debit">Vente</option>
+          <option value="credit">Remboursement</option>
+        </select>
+      </div>
+
+      <!-- VENTE -->
+      <div id="mVenteSection" style="display:contents">
+        <div class="form-group"><label>Motif</label><select id="mMotif" onchange="autoFillPrice()"></select></div>
+        <div class="form-group"><label>Mode paiement</label>
+          <select id="mMode" onchange="onModeChange('vente')">
+            <option value="Liquide">💵 Liquide</option>
+            <option value="Virement">🏦 Virement</option>
+            <option value="Cantine">🍽 Cantine</option>
+            <option value="PCS">PCS (7%)</option>
+            <option value="Paysafecard">Paysafecard (5%)</option>
+            <option value="WesternUnion">Western Union</option>
+            <option value="Tabac">🚬 Tabac (paquet)</option>
+            <option value="Blonde">🚬 Blonde (paquet)</option>
+            <option value="PotTabac">🪴 Pot de tabac</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Quantite</label><input type="number" id="mQty" value="1" min="0.01" step="0.01" oninput="calcModal()"></div>
+        <div class="form-group"><label>Unite</label>
+          <select id="mUnite" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif">
+            <option value="piece">Piece(s)</option>
+            <option value="gramme">Gramme(s)</option>
+          </select>
+        </div>
+        <!-- Prix en EUR (cache si paiement en nature) -->
+        <div class="form-group full" id="mPrixGroup"><label>Prix unitaire (EUR)</label><input type="number" id="mPrix" value="0" step="0.01" min="0" oninput="calcModal()"></div>
+        <!-- Paiement en nature : nb pieces recues -->
+        <div class="form-group full" id="mNatureGroup" style="display:none">
+          <label>Quantite recue (pieces)</label>
+          <input type="number" id="mNaturePieces" value="1" min="1" step="1" oninput="calcModal()" style="font-size:18px;font-weight:600;color:var(--gold2)">
+          <div style="font-size:12px;color:var(--text3);margin-top:4px" id="mNatureLabel">Ex: 2 paquets de Tabac</div>
+        </div>
+        <!-- Statut paiement -->
+        <div class="form-group full">
+          <label>Statut paiement</label>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <div id="mStatutRecu" onclick="setStatutPaiement('recu')" style="flex:1;padding:12px;border-radius:var(--radius2);border:2px solid var(--green);background:rgba(39,174,96,.1);cursor:pointer;text-align:center;transition:all .2s">
+              <div style="font-size:18px">✅</div>
+              <div style="font-size:13px;font-weight:600;color:var(--green)">Recu</div>
+              <div style="font-size:11px;color:var(--text3)">Paye maintenant</div>
+            </div>
+            <div id="mStatutNonPaye" onclick="setStatutPaiement('non_paye')" style="flex:1;padding:12px;border-radius:var(--radius2);border:2px solid var(--border);cursor:pointer;text-align:center;transition:all .2s">
+              <div style="font-size:18px">⏳</div>
+              <div style="font-size:13px;font-weight:600;color:var(--text2)">Non paye</div>
+              <div style="font-size:11px;color:var(--text3)">Dette a recouvrer</div>
+            </div>
+          </div>
+          <input type="hidden" id="mStatutPaiement" value="recu">
+        </div>
+        <div class="form-group full">
+          <label>Deduire du stock (optionnel)</label>
+          <select id="mEntreeSelect" onchange="onStockSelect()" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;font-family:Outfit,sans-serif;width:100%">
+            <option value="">-- Aucun stock lie --</option>
+          </select>
+          <div id="mStockInfo" style="display:none;margin-top:6px;font-size:12px;color:var(--text3);padding:8px;background:var(--bg4);border-radius:var(--radius2)"></div>
         </div>
       </div>
-      <div class="form-group full" id="mDettesGroup" style="display:none">
-        <label>Dette à rembourser</label>
-        <select id="mDetteSelect" onchange="onDetteSelect()" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;font-family:'Outfit',sans-serif">
-          <option value="">-- Sélectionner une dette --</option>
-        </select>
-        <div id="mDetteInfo" style="margin-top:8px;padding:10px;background:var(--bg3);border-radius:var(--radius2);border:1px solid var(--border);font-size:12px;color:var(--text2);display:none"></div>
+
+      <!-- REMBOURSEMENT -->
+      <div id="mRembSection" style="display:none;grid-column:1/-1">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Dette a rembourser</label>
+            <select id="mDetteSelect" onchange="onDetteSelect()" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;font-family:Outfit,sans-serif;width:100%">
+              <option value="">-- Selectionnez une dette --</option>
+            </select>
+          </div>
+          <div class="form-group full" id="mDetteInfoBox" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);padding:14px;grid-column:1/-1">
+            <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Detail de la dette</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+              <div><span style="color:var(--text3)">Motif : </span><strong id="mDetteMotif" style="color:var(--text)">—</strong></div>
+              <div><span style="color:var(--text3)">Quantite : </span><strong id="mDetteQty" style="color:var(--gold2)">—</strong></div>
+              <div><span style="color:var(--text3)">Total : </span><strong id="mDetteTotalInitial" style="color:var(--red)">—</strong></div>
+              <div><span style="color:var(--text3)">Deja remb. : </span><strong id="mDetteDejaRemb" style="color:var(--green)">—</strong></div>
+            </div>
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+              <span style="color:var(--text3)">Reste a payer :</span>
+              <span id="mDetteRestant" class="mono" style="color:var(--gold2);font-weight:700;font-size:20px">—</span>
+            </div>
+          </div>
+          <div class="form-group" id="mMontantEURGroup">
+            <label>Montant encaisse (EUR)</label>
+            <input type="number" id="mMontantEncaisse" value="0" step="0.01" min="0" oninput="calcModal()" style="font-size:18px;font-weight:600;color:var(--green)">
+          </div>
+          <div class="form-group" id="mMontantNatureGroup" style="display:none">
+            <label>Quantite recue (pieces)</label>
+            <input type="number" id="mPiecesNature" value="1" min="1" step="1" oninput="calcModal()" style="font-size:18px;font-weight:600;color:var(--gold2)">
+            <div style="font-size:12px;color:var(--text3);margin-top:4px" id="mRembNatureLabel">Ex: 2 paquets</div>
+          </div>
+          <div class="form-group">
+            <label>Mode paiement</label>
+            <select id="mModeRemb" onchange="onModeChange('remb')">
+              <option value="Liquide">💵 Liquide</option>
+              <option value="Virement">🏦 Virement</option>
+              <option value="PCS">PCS (7%)</option>
+              <option value="Paysafecard">Paysafecard (5%)</option>
+              <option value="WesternUnion">Western Union</option>
+              <option value="Tabac">🚬 Tabac (paquet)</option>
+              <option value="Blonde">🚬 Blonde (paquet)</option>
+              <option value="PotTabac">🪴 Pot de tabac</option>
+            </select>
+          </div>
+          <div class="form-group full" id="mFraisOptGroup" style="display:none">
+            <label>Frais a deduire ?</label>
+            <div style="display:flex;gap:8px;margin-top:4px">
+              <button id="mFraisOui" onclick="setFraisOpt(true)" class="btn" style="flex:1;padding:8px;font-size:13px;border-color:rgba(231,76,60,.4);color:var(--red)">Oui - client paie</button>
+              <button id="mFraisNon" onclick="setFraisOpt(false)" class="btn primary" style="flex:1;padding:8px;font-size:13px">Non - j absorbe</button>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="form-group"><label>Quantite</label><input type="number" id="mQty" value="1" min="0.01" step="0.01" oninput="calcModal()"></div>
-      <div class="form-group"><label>Unite</label>
-        <select id="mUnite" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif">
-          <option value="piece">Piece(s)</option>
-          <option value="gramme">Gramme(s)</option>
-        </select>
-      </div>
-      <div class="form-group"><label>Prix unitaire (EUR)</label><input type="number" id="mPrix" value="0" step="0.01" min="0" oninput="calcModal()"></div>
+
+      <div id="cFraisRow" style="display:none"></div>
+      <div class="form-group full"><label>Notes</label><input type="text" id="mNotes" placeholder="Facultatif..."></div>
     </div>
-    <div class="calc-display">
-      <div class="calc-item"><div class="c-label">Brut</div><div class="c-val" id="cBrut">0.00 €</div></div>
-      <div class="calc-item" id="cFraisRow"><div class="c-label">Frais</div><div class="c-val" style="color:var(--red)" id="cFrais">0.00 €</div></div>
-      <div class="calc-item"><div class="c-label">Net</div><div class="c-val" id="cNet">0.00 €</div></div>
+
+    <!-- Récap montants -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0;background:var(--bg3);border-radius:var(--radius2);padding:12px;border:1px solid var(--border)">
+      <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Brut</div><div class="mono" id="cBrut" style="font-size:15px">0.00 €</div></div>
+      <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Frais</div><div class="mono" id="cFrais" style="font-size:15px;color:var(--red)">0.00 €</div></div>
+      <div style="text-align:center"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Net</div><div class="mono" id="cNet" style="font-size:15px;color:var(--green)">0.00 €</div></div>
     </div>
-    <div class="form-group full" id="mEntreeGroup" style="display:none">
-        <label>Entrée matériel associée</label>
-        <select id="mEntreeSelect" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;font-family:'Outfit',sans-serif">
-          <option value="">-- Aucune entrée --</option>
-        </select>
-      </div>
-    <div class="form-group full"><label>Notes</label><input type="text" id="mNotes" placeholder="Facultatif..."></div>
-    <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('trans')">Annuler</button><button class="btn-save" id="btnSaveTrans" onclick="saveTrans()">Enregistrer</button></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('trans')">Annuler</button>
+      <button class="btn-save" id="btnSaveTrans" onclick="saveTrans()">Enregistrer</button>
+    </div>
   </div>
 </div>
 
@@ -780,6 +882,16 @@ select option{background:var(--bg3)}
   </div>
 </div>
 
+<div class="modal-bg" id="modalNatureDettes" onclick="if(event.target===this)closeModal('natureDettes')" style="align-items:stretch;padding:20px">
+  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:700px;display:flex;flex-direction:column;overflow:hidden;max-height:80vh">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <div id="natureDettesTitle" style="font-size:16px;font-weight:500;color:var(--gold2)">Dettes en nature</div>
+      <button class="btn" onclick="closeModal('natureDettes')">Fermer</button>
+    </div>
+    <div id="natureDettesBody" style="flex:1;overflow-y:auto;padding:16px"></div>
+  </div>
+</div>
+
 <div class="modal-bg" id="modalImportDB" onclick="if(event.target===this)closeModal('importDB')">
   <div class="modal" style="max-width:420px">
     <div class="modal-title">📂 Importer une base</div>
@@ -798,7 +910,7 @@ select option{background:var(--bg3)}
 
 <script>
 // ── CONFIG ──
-const FEES = {Liquide:0,Virement:0,PCS:0.07,Paysafecard:0.05,WesternUnion:0};
+const FEES = {Liquide:0,Virement:0,PCS:0.07,Paysafecard:0.05,WesternUnion:0,Cantine:0,Tabac:0,Blonde:0,PotTabac:0};
 let TOKEN = '';
 let barChart = null, doughnutChart = null;
 let allTransactions = [];
@@ -920,7 +1032,7 @@ function goPage(name,el){
   if(name==='clients')loadClients();
   if(name==='transactions')loadTransactions();
   if(name==='soldes')initSoldes();
-  if(name==='settings'){initSettings();loadMotifs();}
+  if(name==='settings'){initSettings();loadMotifs();loadTarifs();}
   if(name==='rappels')loadRappels();
   if(name==='assistant')initAssistant();
   if(name==='entrees')loadEntrees();
@@ -970,7 +1082,7 @@ function buildMoisSelect(){
   const list=Array.from(s).sort().reverse();
   const sel=document.getElementById('mensualMois');
   const prev=sel.value;sel.innerHTML='<option value="">Tous les mois</option>';
-  list.forEach(m=>{const[y,mo]=m.split('-');const noms=['','Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];const o=document.createElement('option');o.value=m;o.textContent=noms[parseInt(mo)]+' '+y;sel.appendChild(o);});
+  list.forEach(m=>{var _ym=m.split('-');var y=_ym[0];var mo=_ym[1];const noms=['','Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];const o=document.createElement('option');o.value=m;o.textContent=noms[parseInt(mo)]+' '+y;sel.appendChild(o);});
   if(prev)sel.value=prev;
 }
 function renderMensual(){
@@ -1072,7 +1184,7 @@ async function loadSolde(){
   const cid=document.getElementById('soldeClientSel').value;
   const content=document.getElementById('soldeContent');
   if(!cid){content.style.display='none';document.getElementById('exportCsvBtn').style.display='none';return;}
-  const[sr,tr2]=await Promise.all([api('/api/clients/'+cid+'/stats'),api('/api/clients/'+cid+'/transactions')]);
+  var _r277=await Promise.all([api('/api/clients/'+cid+'/stats'),api('/api/clients/'+cid+'/transactions')]);var sr=_r277[0];var tr2=_r277[1];
   if(!sr||!sr.ok)return;
   const s=sr.data;const trans=(tr2 && tr2.data ? tr2.data : []);
   const dette=s.total_debit-s.total_credit;
@@ -1086,43 +1198,73 @@ function rowS(label,val,color){return '<div style="display:flex;justify-content:
 // ── MODALS ──
 function openModal(type){
   if(type==='transaction'){
-    if(!clientsCache.length){notify('Créez d\'abord un client','error');return;}
+    if(!clientsCache.length){notify('Creez d abord un client','error');return;}
     populateClientSelects();
+    populateStockSelect();
     document.getElementById('mType').value='debit';toggleTypeFields();
+    document.getElementById('mQty').value='1';
+    document.getElementById('mPrix').value='0';
+    document.getElementById('mNotes').value='';
+    setStatutPaiement('recu');
     document.getElementById('modalTrans').classList.add('open');
   }else{openAddClientFresh();}
+}
+
+function populateStockSelect(){
+  var esel = document.getElementById('mEntreeSelect');
+  if(!esel) return;
+  esel.innerHTML = '<option value="">-- Aucun stock lie --</option>';
+  entreesCache.forEach(function(e){
+    var stockRestant = (e.stock_restant!==null&&e.stock_restant!==undefined&&e.stock_restant!==undefined)
+      ? parseFloat(e.stock_restant)
+      : Math.max(0, parseFloat(e.quantite) - parseFloat(e.total_vendu||0));
+    if(stockRestant<=0) return;
+    var unite = e.unite||'piece';
+    var uniteLabel = unite==='gramme' ? 'g' : ' pcs';
+    var o = document.createElement('option');
+    o.value = e.id;
+    o.dataset.restant = stockRestant;
+    o.dataset.unite = unite;
+    o.textContent = '📦 '+e.description+' ('+stockRestant.toFixed(1)+uniteLabel+' restant)';
+    esel.appendChild(o);
+  });
+  var info = document.getElementById('mStockInfo');
+  if(info) info.style.display='none';
 }
 function fermerEntree(){
   var m = document.getElementById('modalEntree');
   if(m) m.classList.remove('open');
 }
 function closeModal(type){
-  const ids={trans:'modalTrans',client:'modalClient',editTrans:'modalEditTrans',update:'modalUpdate',detail:'modalDetail',rappel:'modalRappel',entree:'modalEntree',importDB:'modalImportDB',modalPrint:'modalPrint',printPreview:'modalPrintPreview'};
+  const ids={trans:'modalTrans',client:'modalClient',editTrans:'modalEditTrans',update:'modalUpdate',detail:'modalDetail',rappel:'modalRappel',entree:'modalEntree',importDB:'modalImportDB',modalPrint:'modalPrint',printPreview:'modalPrintPreview',natureDettes:'modalNatureDettes'};
   const el=document.getElementById(ids[type]||type);if(el)el.classList.remove('open');
 }
 async function toggleTypeFields(){
-  const isDebit=document.getElementById('mType').value==='debit';
-  const mg=document.getElementById('mModeGroup');
-  mg.style.opacity=isDebit?'0.35':'1';mg.style.pointerEvents=isDebit?'none':'auto';
-  document.getElementById('cFraisRow').style.display=isDebit?'none':'flex';
-  if(isDebit)document.getElementById('mMode').value='Liquide';
-
-  // Afficher/masquer section dettes ouvertes
-  const dg=document.getElementById('mDettesGroup');
+  const isDebit = document.getElementById('mType').value === 'debit';
+  const venteSection = document.getElementById('mVenteSection');
+  const rembSection = document.getElementById('mRembSection');
+  if(venteSection) venteSection.style.display = isDebit ? 'contents' : 'none';
+  if(rembSection) rembSection.style.display = isDebit ? 'none' : 'block';
   if(!isDebit){
-    dg.style.display='block';
-    const cid=parseInt(document.getElementById('mClient').value);
+    const cid = parseInt(document.getElementById('mClient').value);
     if(cid) await loadDettesOuvertes(cid);
-  } else {
-    dg.style.display='none';
   }
   calcModal();
+}
+
+async function onClientChange(){
+  const type = document.getElementById('mType').value;
+  if(type === 'credit'){
+    const cid = parseInt(document.getElementById('mClient').value);
+    if(cid) await loadDettesOuvertes(cid);
+  }
 }
 
 async function loadDettesOuvertes(cid){
   const sel=document.getElementById('mDetteSelect');
   sel.innerHTML='<option value="">-- Sélectionner une dette (optionnel) --</option>';
-  document.getElementById('mDetteInfo').style.display='none';
+  var _di=document.getElementById('mDetteInfo');if(_di)_di.style.display='none';
+  var _dib=document.getElementById('mDetteInfoBox');if(_dib)_dib.style.display='none';
   if(!cid)return;
   const res=await api('/api/clients/'+cid+'/dettes-ouvertes');
   if(!res||!res.ok||!res.data.length){
@@ -1133,14 +1275,98 @@ async function loadDettesOuvertes(cid){
     const o=document.createElement('option');
     o.value=d.id;
     o.dataset.restant=d.restant;
+    o.dataset.total=d.montant_net;
     o.dataset.motif=d.motif;
     o.dataset.date=d.date;
+    o.dataset.qty=d.quantite;
+    o.dataset.unite=d.unite||'piece';
     o.textContent=fmtDate(d.date)+' — '+d.motif+' — Reste : '+fmt(d.restant);
     sel.appendChild(o);
   });
+  // Auto-selectionner si une seule dette
+  if(res.data.length===1){
+    sel.selectedIndex=1;
+    onDetteSelect();
+  }
 }
 
 function fillDetteAmount(v){document.getElementById('mPrix').value=v;calcModal();}
+
+
+var _statutPaiement = 'recu';
+function setStatutPaiement(statut){
+  _statutPaiement = statut;
+  var btnRecu = document.getElementById('mStatutRecu');
+  var btnNon = document.getElementById('mStatutNonPaye');
+  if(!btnRecu||!btnNon) return;
+  if(statut==='recu'){
+    btnRecu.style.borderColor='var(--green)';
+    btnRecu.style.background='rgba(39,174,96,.1)';
+    btnRecu.querySelector('div:nth-child(2)').style.color='var(--green)';
+    btnNon.style.borderColor='var(--border)';
+    btnNon.style.background='transparent';
+    btnNon.querySelector('div:nth-child(2)').style.color='var(--text2)';
+  } else {
+    btnNon.style.borderColor='var(--gold)';
+    btnNon.style.background='rgba(201,168,76,.1)';
+    btnNon.querySelector('div:nth-child(2)').style.color='var(--gold2)';
+    btnRecu.style.borderColor='var(--border)';
+    btnRecu.style.background='transparent';
+    btnRecu.querySelector('div:nth-child(2)').style.color='var(--text2)';
+  }
+}
+
+var NATURE_MODES = {Tabac:'Tabac',Blonde:'Blonde',PotTabac:'Pot de tabac'};
+function isNatureMode(mode){ return mode==='Tabac'||mode==='Blonde'||mode==='PotTabac'; }
+function isCantine(mode){ return mode==='Cantine'; }
+
+function onModeChange(ctx){
+  var mode = ctx==='vente'
+    ? document.getElementById('mMode').value
+    : document.getElementById('mModeRemb').value;
+
+  if(ctx==='vente'){
+    var prixGroup = document.getElementById('mPrixGroup');
+    var natureGroup = document.getElementById('mNatureGroup');
+    var lbl = document.getElementById('mNatureLabel');
+    if(isNatureMode(mode)){
+      if(prixGroup) prixGroup.style.display='none';
+      if(natureGroup) natureGroup.style.display='block';
+      if(lbl) lbl.textContent = 'Nb paquets/pots de '+NATURE_MODES[mode]+' recus';
+    } else {
+      if(prixGroup) prixGroup.style.display='block';
+      if(natureGroup) natureGroup.style.display='none';
+    }
+  } else {
+    var eurGroup = document.getElementById('mMontantEURGroup');
+    var natGroup = document.getElementById('mMontantNatureGroup');
+    var lbl2 = document.getElementById('mRembNatureLabel');
+    if(isNatureMode(mode)){
+      if(eurGroup) eurGroup.style.display='none';
+      if(natGroup) natGroup.style.display='block';
+      if(lbl2) lbl2.textContent = 'Nb paquets/pots de '+NATURE_MODES[mode]+' recus';
+    } else {
+      if(eurGroup) eurGroup.style.display='block';
+      if(natGroup) natGroup.style.display='none';
+    }
+  }
+  calcModal();
+}
+
+function onStockSelect() {
+  var sel = document.getElementById('mEntreeSelect');
+  var info = document.getElementById('mStockInfo');
+  if(!sel.value){ if(info) info.style.display='none'; return; }
+  var opt = sel.options[sel.selectedIndex];
+  if(info){
+    info.style.display='block';
+    var restant = parseFloat(opt.dataset.restant||0);
+    var uniteL = opt.dataset.unite==='gramme' ? 'g' : 'pcs';
+    var couleur = restant<=0 ? 'var(--red)' : restant<5 ? 'var(--gold2)' : 'var(--green)';
+    info.innerHTML = 'Stock restant : <strong style="color:'+couleur+'">'+restant.toFixed(1)+' '+uniteL+'</strong>';
+  }
+}
+
 function onDetteSelect(){
   const sel=document.getElementById('mDetteSelect');
   const opt=sel.options[sel.selectedIndex];
@@ -1150,24 +1376,45 @@ function onDetteSelect(){
   info.style.display='block';
 }
 function calcModal(){
-  const qty=parseFloat(document.getElementById('mQty').value)||0;
-  const prix=parseFloat(document.getElementById('mPrix').value)||0;
-  const type=document.getElementById('mType').value;
-  const mode=document.getElementById('mMode').value;
-  const brut=qty*prix;
-  const fraisRate=FEES[mode]||0;
-  // Afficher/masquer option frais
-  const fg=document.getElementById('mFraisOptGroup');
-  if(fg)fg.style.display=(type==='credit'&&fraisRate>0)?'block':'none';
-  const frais=(type==='credit'&&_fraisDeduits)?brut*fraisRate:0;
-  const net=brut-frais;
-  document.getElementById('cBrut').textContent=brut.toFixed(2)+' €';
-  document.getElementById('cFrais').textContent=frais.toFixed(2)+' €';
-  document.getElementById('cNet').textContent=net.toFixed(2)+' €';
-  document.getElementById('cNet').style.color=type==='debit'?'var(--green)':'var(--red)';
-  // Afficher entree materiel uniquement pour les ventes
-  const eg=document.getElementById('mEntreeGroup');
-  if(eg)eg.style.display=type==='debit'?'block':'none';
+  var type = document.getElementById('mType').value;
+  var brut=0, frais=0, net=0;
+
+  if(type==='debit'){
+    var modeV = document.getElementById('mMode') ? document.getElementById('mMode').value : 'Liquide';
+    if(isNatureMode(modeV)){
+      var pieces = parseFloat(document.getElementById('mNaturePieces') ? document.getElementById('mNaturePieces').value : 1)||1;
+      document.getElementById('cBrut').textContent = pieces+' pcs';
+      document.getElementById('cFrais').textContent = '0.00 €';
+      document.getElementById('cNet').textContent = pieces+' pcs';
+      document.getElementById('cNet').style.color='var(--gold2)';
+      return;
+    }
+    var qty = parseFloat(document.getElementById('mQty').value)||0;
+    var prix = parseFloat(document.getElementById('mPrix').value)||0;
+    brut = qty*prix; frais=0; net=brut;
+  } else {
+    var modeR = document.getElementById('mModeRemb') ? document.getElementById('mModeRemb').value : 'Liquide';
+    if(isNatureMode(modeR)){
+      var pieces2 = parseFloat(document.getElementById('mPiecesNature') ? document.getElementById('mPiecesNature').value : 1)||1;
+      document.getElementById('cBrut').textContent = pieces2+' pcs';
+      document.getElementById('cFrais').textContent = '0.00 €';
+      document.getElementById('cNet').textContent = pieces2+' pcs';
+      document.getElementById('cNet').style.color='var(--gold2)';
+      return;
+    }
+    var montantEl = document.getElementById('mMontantEncaisse');
+    brut = montantEl ? parseFloat(montantEl.value)||0 : 0;
+    var fraisRate = FEES[modeR]||0;
+    var fg = document.getElementById('mFraisOptGroup');
+    if(fg) fg.style.display = fraisRate>0 ? 'block' : 'none';
+    frais = _fraisDeduits ? brut*fraisRate : 0;
+    net = brut - frais;
+  }
+
+  document.getElementById('cBrut').textContent = brut.toFixed(2)+' €';
+  document.getElementById('cFrais').textContent = frais.toFixed(2)+' €';
+  document.getElementById('cNet').textContent = net.toFixed(2)+' €';
+  document.getElementById('cNet').style.color = type==='debit' ? 'var(--green)' : 'var(--red)';
 }
 async function saveTrans(){
   const btn=document.getElementById('btnSaveTrans');btn.textContent='...';btn.disabled=true;
@@ -1175,9 +1422,39 @@ async function saveTrans(){
   const linked_debit_id=debtSel&&debtSel.value?parseInt(debtSel.value):null;
   const entreeSel=document.getElementById('mEntreeSelect');
   const entree_id=entreeSel&&entreeSel.value?parseInt(entreeSel.value):null;
-  const unite=document.getElementById('mUnite').value;
-  const qty=parseFloat(document.getElementById('mQty').value)||1;
-  const body={client_id:parseInt(document.getElementById('mClient').value),type:document.getElementById('mType').value,motif:document.getElementById('mMotif').value,quantite:qty,unite:unite,prix_unitaire:parseFloat(document.getElementById('mPrix').value)||0,mode_paiement:document.getElementById('mMode').value,notes:document.getElementById('mNotes').value,linked_debit_id,entree_id,frais_deduits:_fraisDeduits?1:0};
+  const type = document.getElementById('mType').value;
+  var qty, unite, prix_unitaire, mode_paiement, motif;
+  if(type==='debit'){
+    unite = document.getElementById('mUnite').value;
+    qty = parseFloat(document.getElementById('mQty').value)||1;
+    mode_paiement = document.getElementById('mMode').value;
+    motif = document.getElementById('mMotif').value;
+    if(isNatureMode(mode_paiement)){
+      // Paiement en nature : stocker le nb pieces en notes
+      var nbPieces = parseFloat(document.getElementById('mNaturePieces').value)||1;
+      prix_unitaire = 0;
+      document.getElementById('mNotes').value = (document.getElementById('mNotes').value||'') + ' ['+nbPieces+' pcs '+NATURE_MODES[mode_paiement]+']';
+    } else {
+      prix_unitaire = parseFloat(document.getElementById('mPrix').value)||0;
+    }
+  } else {
+    unite = 'piece'; qty = 1;
+    mode_paiement = document.getElementById('mModeRemb').value;
+    const detteOpt = document.getElementById('mDetteSelect');
+    motif = detteOpt&&detteOpt.options[detteOpt.selectedIndex]?detteOpt.options[detteOpt.selectedIndex].dataset.motif||'Remboursement':'Remboursement';
+    if(isNatureMode(mode_paiement)){
+      var nbPieces2 = parseFloat(document.getElementById('mPiecesNature').value)||1;
+      prix_unitaire = 0;
+      document.getElementById('mNotes').value = (document.getElementById('mNotes').value||'') + ' ['+nbPieces2+' pcs '+NATURE_MODES[mode_paiement]+']';
+    } else {
+      prix_unitaire = parseFloat(document.getElementById('mMontantEncaisse').value)||0;
+    }
+  }
+  var notesVal = document.getElementById('mNotes').value;
+  if(type==='debit' && _statutPaiement==='non_paye'){
+    notesVal = ('[NON PAYE] ' + notesVal).trim();
+  }
+  const body={client_id:parseInt(document.getElementById('mClient').value),type:type,motif:motif,quantite:qty,unite:unite,prix_unitaire:prix_unitaire,mode_paiement:mode_paiement,notes:notesVal,linked_debit_id,entree_id,frais_deduits:_fraisDeduits?1:0};
   const res=await api('/api/transactions',{method:'POST',body});
   btn.textContent='Enregistrer';btn.disabled=false;
   if(res&&res.ok){closeModal('trans');notify('Transaction enregistrée');document.getElementById('mQty').value='1';document.getElementById('mPrix').value='0';document.getElementById('mNotes').value='';loadDashboard();if(document.getElementById('pg-transactions').classList.contains('active'))loadTransactions();}
@@ -1273,7 +1550,7 @@ function openTransDetail(id){
   document.getElementById('detailTitle').textContent=t.motif+' — '+fmtDate(t.date);
   document.getElementById('detailSub').innerHTML='<span class="badge '+t.type+'">'+(t.type==='credit'?'Remboursement':'Vente')+'</span>';
   const col=t.type==='debit'?'var(--green)':'var(--red)';
-  document.getElementById('detailBody').innerHTML='<div style="background:var(--bg3);border-radius:var(--radius2);padding:20px;text-align:center;margin-bottom:16px"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">'+(t.type==='debit'?'Montant vendu':'Remboursement reçu')+'</div><div style="font-size:36px;font-weight:600;font-family:DM Mono,monospace;color:'+col+'">'+(t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</div></div>'+drRow('Client',t.client_nom||'—',null)+drRow('Date',fmtDate(t.date),null)+drRow('Motif',t.motif,null)+drRow('Mode',t.mode_paiement,null)+drRow('Quantité',t.quantite,null)+drRow('Prix unitaire',fmt(t.prix_unitaire),null)+drRow('Montant brut',fmt(t.montant_brut),null)+drRow('Frais',fmt(t.frais),t.frais>0?'var(--red)':null)+drRow('Montant net',fmt(t.montant_net),col)+(t.notes?drRow('Notes',t.notes,'var(--gold2)'):'')+(t.reference?drRow('Référence',t.reference,null):'');
+  document.getElementById('detailBody').innerHTML='<div style="background:var(--bg3);border-radius:var(--radius2);padding:20px;text-align:center;margin-bottom:16px"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">'+(t.type==='debit'?'Montant vendu':'Remboursement reçu')+'</div><div style="font-size:36px;font-weight:600;font-family:DM Mono,monospace;color:'+col+'">'+(t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</div></div>'+drRow('Client',t.client_nom||'—',null)+drRow('Date',fmtDate(t.date),null)+drRow('Motif',t.motif,null)+(t.type==='debit'?'':drRow('Mode',t.mode_paiement,null))+drRow('Quantite',(t.quantite||1)+' '+(t.unite==='gramme'?'g':'pcs'),null)+drRow('Prix unitaire',fmt(t.prix_unitaire),null)+drRow('Montant brut',fmt(t.montant_brut),null)+drRow('Frais',fmt(t.frais),t.frais>0?'var(--red)':null)+drRow('Montant net',fmt(t.montant_net),col)+(t.entree_description?drRow('Entree materiel','📦 '+t.entree_description,'var(--gold2)'):'')+(t.notes&&t.notes.trim()?drRow('Notes',t.notes,'var(--text3)'):'')+(t.reference?drRow('Reference',t.reference,null):'');
   document.getElementById('modalDetail').classList.add('open');
 }
 function drRow(label,val,color){return '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;color:var(--text3)">'+label+'</span><span style="font-size:13px;font-weight:500;'+(color?'color:'+color+';':'')+'font-family:DM Mono,monospace">'+val+'</span></div>';}
@@ -1367,7 +1644,7 @@ function loadRappelSettingsFromStorage(){
 async function loadRappels(){
   loadRappelSettingsFromStorage();
   const delEl=document.getElementById('rDelaiLabel');if(delEl)delEl.textContent='Délai: '+rappelSettings.delai+' jours';
-  const[cr,tr2,rr]=await Promise.all([api('/api/clients'),api('/api/transactions?limit=2000'),api('/api/rappels')]);
+  var _r715=await Promise.all([api('/api/clients'),api('/api/transactions?limit=2000'),api('/api/rappels')]);var cr=_r715[0];var tr2=_r715[1];var rr=_r715[2];
   if(!cr||!cr.ok)return;
   clientsCache=cr.data;const clients=cr.data;const allTrans=(tr2 && tr2.data ? tr2.data : []);const rappelsDB=(rr && rr.data ? rr.data : []);
   const today=new Date();const retards=[];
@@ -1455,7 +1732,7 @@ async function applyUpdate(){
 // ── BADGE RAPPELS ──
 async function checkRappelsBadge(){
   loadRappelSettingsFromStorage();if(!rappelSettings.actif)return;
-  const[cr,tr2]=await Promise.all([api('/api/clients'),api('/api/transactions?limit=2000')]);
+  var _r803=await Promise.all([api('/api/clients'),api('/api/transactions?limit=2000')]);var cr=_r803[0];var tr2=_r803[1];
   if(!cr||!cr.ok)return;
   const clients=cr.data;const allTrans=(tr2 && tr2.data ? tr2.data : []);const today=new Date();let nb=0;
   clients.forEach(c=>{
@@ -1475,17 +1752,14 @@ async function checkRappelsBadge(){
 
 // ── INIT ──
 function initApp(){
-  loadDashboard();loadSavedPalette();loadEntrees();loadMotifs();
+  loadDashboard();loadSavedPalette();loadEntrees();loadMotifs();loadTarifs();
   setTimeout(checkRappelsBadge,2000);
 }
 (async()=>{
   await detectPinLength();
   document.querySelector('.lock-hint').innerHTML='Code par défaut : <strong style="color:var(--gold2)">1234</strong>';
 })();
-</script>
-<!-- Chart.js chargé de façon non-bloquante -->
-<script>
-(function(){var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';s.onerror=function(){console.warn('Chart.js bloqué');};document.head.appendChild(s);})();
+
 
 // ══════════════════════════════════════════════════════
 // EXPORT / IMPORT BASE DE DONNÉES
@@ -1715,7 +1989,8 @@ async function loadRecap() {
         + '<td><span class="badge ' + t.type + '">' + (isVente ? 'Vente' : 'Remboursement') + '</span></td>'
         + '<td>' + t.motif + '</td>'
         + '<td style="color:var(--gold2);font-size:12px">' + (t.entree_desc ? '📦 ' + t.entree_desc : '—') + '</td>'
-        + '<td style="color:var(--blue);font-size:12px">' + (t.linked_debit_id ? '🔗 Lié #' + t.linked_debit_id : '—') + '</td>'
+        + '<td style="color:var(--blue);font-size:12px">' + (t.linked_debit_id ? '🔗 #' + t.linked_debit_id : '—') + '</td>'
+        + '<td style="text-align:right" class="mono">' + (t.frais > 0 ? '<span style="color:var(--red)">-' + fmt(t.frais) + '</span>' : '—') + '</td>'
         + '<td style="text-align:right"><span class="mono" style="color:' + col + '">' + (isVente?'+':'-') + fmt(t.montant_net) + '</span></td>';
       tbody.appendChild(tr);
     });
@@ -2215,6 +2490,8 @@ async function loadStock() {
     if (restant <= 0) nbRupture++;
 
     const barWidth = Math.max(0, Math.min(100, pct));
+    // Valeur monetaire du stock restant (proportionnelle)
+    var valeurRestante = e.quantite > 0 ? (restant / e.quantite) * e.prix_achat : 0;
     const tr = document.createElement('tr');
     tr.innerHTML = '<td style="color:var(--text);font-weight:500">📦 ' + e.description + '</td>'
       + '<td style="color:var(--text3)">' + unite + '</td>'
@@ -2222,12 +2499,19 @@ async function loadStock() {
       + '<td class="mono" style="color:var(--red)">' + (e.total_vendu || 0).toFixed(1) + ' ' + unite + '</td>'
       + '<td><div style="display:flex;align-items:center;gap:8px"><span class="mono" style="color:' + color + ';font-weight:600;min-width:60px">' + restant.toFixed(1) + ' ' + unite + '</span><div style="flex:1;height:6px;background:var(--bg4);border-radius:3px;min-width:60px"><div style="width:' + barWidth + '%;height:100%;background:' + color + ';border-radius:3px;transition:width .3s"></div></div><span style="font-size:11px;color:var(--text3)">' + pct + '%</span></div></td>'
       + '<td class="mono" style="color:var(--red)">-' + fmt(e.prix_achat) + '</td>'
+      + '<td class="mono" style="color:' + color + ';font-weight:600">' + fmt(valeurRestante) + '</td>'
       + '<td>' + statut + '</td>';
     tbody.appendChild(tr);
   });
 
+  var totalValeurRestante = 0;
+  items.forEach(function(e) {
+    var restant2 = e.stock_restant !== null ? e.stock_restant : (e.quantite - (e.total_vendu || 0));
+    if (e.quantite > 0) totalValeurRestante += (restant2 / e.quantite) * e.prix_achat;
+  });
   document.getElementById('stockTotalInvesti').textContent = fmt(totalInvesti);
   document.getElementById('stockTotalRestant').textContent = totalRestant.toFixed(1);
+  document.getElementById('stockValeurRestante').textContent = fmt(totalValeurRestante);
   document.getElementById('stockRupture').textContent = nbRupture;
 }
 
@@ -2317,6 +2601,216 @@ async function deleteMotif(mid) {
   await loadMotifs();
 }
 
+
+// ══════════════════════════════════════════════════════
+// STOCK
+// ══════════════════════════════════════════════════════
+async function loadStock() {
+  var res = await api('/api/entrees');
+  if (!res || !res.ok) { return; }
+  var items = res.data;
+
+  var totalInvesti = 0;
+  var totalValeurRestante = 0;
+  var nbRupture = 0;
+
+  var tbody = document.getElementById('stockTbody');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">Aucune entree enregistree</td></tr>';
+    return;
+  }
+
+  items.forEach(function(e) {
+    var unite = e.unite||'piece';
+    var uniteLabel = unite==='gramme' ? 'g' : 'pcs';
+    var restant = parseFloat(e.stock_restant||0);
+    if(isNaN(restant)) restant = Math.max(0, parseFloat(e.quantite||0) - parseFloat(e.total_vendu||0));
+    var pct = e.quantite > 0 ? Math.round((restant / e.quantite) * 100) : 0;
+    var color = restant <= 0 ? 'var(--red)' : pct < 20 ? 'var(--gold2)' : 'var(--green)';
+    var statut = restant <= 0 ? '🔴 Rupture' : pct < 20 ? '🟡 Faible' : '🟢 OK';
+    var valeurRestante = e.quantite > 0 ? (restant / e.quantite) * parseFloat(e.prix_achat||0) : 0;
+    var barWidth = Math.max(0, Math.min(100, pct));
+
+    totalInvesti += parseFloat(e.prix_achat||0);
+    totalValeurRestante += valeurRestante;
+    if(restant <= 0) nbRupture++;
+
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td style="color:var(--text);font-weight:500">📦 '+e.description+'</td>'
+      + '<td style="color:var(--text3)">'+uniteLabel+'</td>'
+      + '<td class="mono">'+parseFloat(e.quantite).toFixed(1)+' '+uniteLabel+'</td>'
+      + '<td class="mono" style="color:var(--red)">'+parseFloat(e.total_vendu||0).toFixed(1)+' '+uniteLabel+'</td>'
+      + '<td><div style="display:flex;align-items:center;gap:8px">'
+      +   '<span class="mono" style="color:'+color+';font-weight:600;min-width:55px">'+restant.toFixed(1)+' '+uniteLabel+'</span>'
+      +   '<div style="flex:1;height:6px;background:var(--bg4);border-radius:3px;min-width:50px">'
+      +     '<div style="width:'+barWidth+'%;height:100%;background:'+color+';border-radius:3px"></div>'
+      +   '</div>'
+      +   '<span style="font-size:11px;color:var(--text3)">'+pct+'%</span>'
+      + '</div></td>'
+      + '<td class="mono" style="color:var(--red)">'+fmt(parseFloat(e.prix_achat||0))+'</td>'
+      + '<td class="mono" style="color:'+color+';font-weight:600">'+fmt(valeurRestante)+'</td>'
+      + '<td>'+statut+'</td>';
+    tbody.appendChild(tr);
+  });
+
+  var ti = document.getElementById('stockTotalInvesti');
+  var tr2 = document.getElementById('stockTotalRestant');
+  var tvr = document.getElementById('stockValeurRestante');
+  var rup = document.getElementById('stockRupture');
+  if(ti) ti.textContent = fmt(totalInvesti);
+  if(tr2) tr2.textContent = '—';
+  if(tvr) tvr.textContent = fmt(totalValeurRestante);
+  if(rup) rup.textContent = nbRupture;
+}
+
+
+// ══════════════════════════════════════════════════════
+// TARIFS
+// ══════════════════════════════════════════════════════
+var tarifsCache = {};
+
+async function loadTarifs() {
+  var res = await api('/api/tarifs');
+  if(!res||!res.ok) return;
+  tarifsCache = {};
+  res.data.forEach(function(t){ tarifsCache[t.article] = t.prix_unitaire; });
+  renderTarifsSettings();
+}
+
+function renderTarifsSettings(){
+  var container = document.getElementById('tarifsList');
+  if(!container) return;
+  container.innerHTML = '';
+  var articles = [
+    {key:'Blonde', label:'🚬 Blonde (paquet)', unite:'pcs'},
+    {key:'Tabac', label:'🚬 Tabac (paquet)', unite:'pcs'},
+    {key:'PotTabac', label:'🪴 Pot de tabac', unite:'pot'},
+    {key:'Cantine', label:'🍽 Cantine', unite:'unite'},
+  ];
+  articles.forEach(function(a){
+    var prix = tarifsCache[a.key]||0;
+    var div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)';
+
+    var spanLabel = document.createElement('span');
+    spanLabel.textContent = a.label;
+    spanLabel.style.cssText = 'flex:1;font-size:14px;color:var(--text)';
+
+    var spanUnite = document.createElement('span');
+    spanUnite.textContent = '1 '+a.unite+' =';
+    spanUnite.style.cssText = 'font-size:12px;color:var(--text3)';
+
+    var input = document.createElement('input');
+    input.type = 'number';
+    input.value = prix;
+    input.min = '0';
+    input.step = '0.5';
+    input.id = 'tarif_'+a.key;
+    input.dataset.article = a.key;
+    input.style.cssText = 'width:80px;padding:6px 10px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:DM Mono,monospace;text-align:right';
+    input.oninput = function(){ saveTarif(this.dataset.article); };
+
+    var spanEur = document.createElement('span');
+    spanEur.textContent = 'EUR';
+    spanEur.style.cssText = 'font-size:12px;color:var(--text3)';
+
+    div.appendChild(spanLabel);
+    div.appendChild(spanUnite);
+    div.appendChild(input);
+    div.appendChild(spanEur);
+    container.appendChild(div);
+  });
+}
+
+async function saveTarif(article){
+  var input = document.getElementById('tarif_'+article);
+  if(!input) return;
+  var prix = parseFloat(input.value)||0;
+  tarifsCache[article] = prix;
+  await api('/api/tarifs', {method:'POST', body:{article:article, prix_unitaire:prix}});
+}
+
+function autoFillPrice(){
+  // Auto-remplir le prix selon motif + mode
+  var mode = document.getElementById('mMode')&&document.getElementById('mMode').value;
+  var motif = document.getElementById('mMotif')&&document.getElementById('mMotif').value;
+  if(!mode) return;
+
+  if(isNatureMode(mode)){
+    // Pas de prix EUR
+    return;
+  }
+
+  // Chercher dans tarifs si le motif correspond
+  var tarif = tarifsCache[motif];
+  if(tarif && document.getElementById('mPrix')){
+    document.getElementById('mPrix').value = tarif;
+    calcModal();
+  }
+}
+
+// Calcul dettes en nature pour le dashboard
+function computeNatureDettes(transactions){
+  var counts = {Tabac:0, Blonde:0, PotTabac:0};
+  var cantineClients = {};
+  transactions.forEach(function(t){
+    if(t.type !== 'debit') return;
+    if(!t.notes || t.notes.indexOf('[NON PAYE]') < 0) return;
+    // Pieces nature
+    if(t.mode_paiement==='Tabac'||t.mode_paiement==='Blonde'||t.mode_paiement==='PotTabac'){
+      // Extraire nb pieces des notes [X pcs Tabac]
+      var noteMatch = t.notes ? t.notes.match(/\[(\d+(?:\.\d+)?) pcs [^\]]+\]/) : null;
+      var nb = noteMatch ? parseFloat(noteMatch[1]) : 1;
+      counts[t.mode_paiement] = (counts[t.mode_paiement]||0) + nb;
+    }
+    // Cantine : compter les clients distincts
+    if(t.mode_paiement==='Cantine'){
+      cantineClients[t.client_id] = true;
+    }
+  });
+  return {counts: counts, cantineNbClients: Object.keys(cantineClients).length, cantineClients: cantineClients};
+}
+
+function openNatureDettes(type){
+  var transactions = allTransactions||[];
+  var body = document.getElementById('natureDettesBody');
+  var title = document.getElementById('natureDettesTitle');
+  if(!body) return;
+
+  var nonPayes = transactions.filter(function(t){
+    return t.type==='debit' && t.notes && t.notes.indexOf('[NON PAYE]')>=0 && t.mode_paiement===type;
+  });
+
+  var labels = {Tabac:'🚬 Dettes Tabac', Blonde:'🚬 Dettes Blonde', PotTabac:'🪴 Dettes Pot', Cantine:'🍽 Dettes Cantine'};
+  if(title) title.textContent = labels[type]||'Dettes';
+
+  if(!nonPayes.length){
+    body.innerHTML='<div style="text-align:center;color:var(--text3);padding:32px">Aucune dette en cours</div>';
+  } else {
+    var html = '<table style="width:100%;border-collapse:collapse">'
+      + '<thead><tr><th style="text-align:left;padding:8px;color:var(--text3);font-size:12px">Date</th><th style="text-align:left;padding:8px;color:var(--text3);font-size:12px">Client</th><th style="padding:8px;color:var(--text3);font-size:12px">Motif</th><th style="text-align:right;padding:8px;color:var(--text3);font-size:12px">Quantite/Montant</th></tr></thead><tbody>';
+    nonPayes.forEach(function(t){
+      var noteMatch = t.notes ? t.notes.match(/\[(\d+(?:\.\d+)?) pcs [^\]]+\]/) : null;
+      var qtyStr = noteMatch ? noteMatch[1]+' pcs' : (fmt(t.montant_net));
+      html += '<tr style="border-bottom:1px solid var(--border)">'
+        + '<td style="padding:8px;font-size:13px">'+fmtDate(t.date)+'</td>'
+        + '<td style="padding:8px;font-size:13px;color:var(--text);font-weight:500">'+(t.client_nom||'—')+'</td>'
+        + '<td style="padding:8px;font-size:13px;text-align:center">'+t.motif+'</td>'
+        + '<td style="padding:8px;font-size:13px;text-align:right;color:var(--gold2);font-weight:600">'+qtyStr+'</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    body.innerHTML = html;
+  }
+  document.getElementById('modalNatureDettes').classList.add('open');
+}
+
 </script>
+<!-- Chart.js chargé de façon non-bloquante -->
+<script>
+(function(){var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';s.onerror=function(){console.warn('Chart.js bloqué');};document.head.appendChild(s);})();</script>
 </body>
 </html>
