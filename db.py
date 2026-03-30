@@ -538,6 +538,44 @@ def save_tarif(article, prix):
     conn.commit()
     conn.close()
 
+def get_setting(key, default=""):
+    """Récupère un paramètre de configuration."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+        row = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+        conn.close()
+        return row[0] if row else default
+    except: return default
+
+def set_setting(key, value):
+    """Enregistre un paramètre de configuration."""
+    conn = sqlite3.connect(DB_FILE)
+    conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+    conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)", (key, str(value)))
+    conn.commit()
+    conn.close()
+
+def get_all_settings():
+    """Retourne tous les paramètres."""
+    conn = sqlite3.connect(DB_FILE)
+    conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+    rows = conn.execute("SELECT key, value FROM settings").fetchall()
+    conn.close()
+    defaults = {
+        "devise": "EUR",
+        "devise_symbole": "€",
+        "frais_pcs": "0.07",
+        "frais_paysafecard": "0.05",
+        "frais_westernunion": "0.05",
+        "alerte_retard_jours": "7",
+        "alerte_retard_montant": "0",
+        "backup_auto": "1",
+    }
+    result = dict(defaults)
+    result.update({r[0]: r[1] for r in rows})
+    return result
+
 def _ensure_motifs_table():
     """Crée la table motifs si elle n existe pas."""
     with get_conn() as conn:

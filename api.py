@@ -452,6 +452,68 @@ def tarifs_save():
     db.save_tarif(article, prix)
     return ok({"saved": article})
 
+
+# ── SETTINGS ──────────────────────────────────────────────────────────────────
+
+@app.route("/api/settings")
+@require_auth
+def settings_list():
+    return ok(db.get_all_settings())
+
+@app.route("/api/settings", methods=["POST"])
+@require_auth
+def settings_save():
+    data = request.json or {}
+    for key, value in data.items():
+        db.set_setting(key, value)
+    return ok({"saved": len(data)})
+
+# ── BACKUP ────────────────────────────────────────────────────────────────────
+
+@app.route("/api/backup/create", methods=["POST"])
+@require_auth
+def backup_create():
+    """Crée une sauvegarde de la base de données."""
+    import shutil
+    from datetime import datetime
+    backup_dir = os.path.join(os.path.dirname(db.DB_FILE), "backups")
+    os.makedirs(backup_dir, exist_ok=True)
+    date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = os.path.join(backup_dir, f"dettes_backup_{date_str}.db")
+    shutil.copy2(db.DB_FILE, backup_path)
+    # Garder seulement les 10 dernières sauvegardes
+    backups = sorted([f for f in os.listdir(backup_dir) if f.endswith('.db')])
+    for old in backups[:-10]:
+        os.remove(os.path.join(backup_dir, old))
+    return ok({"path": backup_path, "date": date_str})
+
+@app.route("/api/backup/list")
+@require_auth  
+def backup_list():
+    """Liste les sauvegardes disponibles."""
+    backup_dir = os.path.join(os.path.dirname(db.DB_FILE), "backups")
+    if not os.path.exists(backup_dir):
+        return ok([])
+    backups = sorted([f for f in os.listdir(backup_dir) if f.endswith('.db')], reverse=True)
+    result = []
+    for b in backups[:10]:
+        path = os.path.join(backup_dir, b)
+        size = os.path.getsize(path)
+        result.append({"name": b, "path": path, "size": size})
+    return ok(result)
+
+@app.route("/api/backup/restore", methods=["POST"])
+@require_auth
+def backup_restore():
+    """Restaure une sauvegarde."""
+    import shutil
+    data = request.json or {}
+    backup_path = data.get("path", "")
+    if not backup_path or not os.path.exists(backup_path):
+        return err("Sauvegarde introuvable")
+    shutil.copy2(backup_path, db.DB_FILE)
+    return ok({"restored": backup_path})
+
 # ── MOTIFS ────────────────────────────────────────────────────────────────────
 
 @app.route("/api/motifs")
