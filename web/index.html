@@ -161,6 +161,10 @@ select option{background:var(--bg3)}
 .ai-dot:nth-child(2){animation-delay:.2s}
 .ai-dot:nth-child(3){animation-delay:.4s}
 @keyframes aiDot{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-8px)}}
+.catalogue-search{padding:8px 14px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;font-family:'Outfit',sans-serif;width:240px;transition:all .2s}
+.catalogue-search:focus{outline:none;border-color:var(--gold);width:300px}
+.cat-select-bar{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius2);padding:8px 12px;width:100%;font-size:14px;font-family:'Outfit',sans-serif;color:var(--gold2);cursor:pointer;transition:all .2s;margin-bottom:6px}
+.cat-select-bar:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px rgba(201,168,76,.12)}
 .palette-card.active{border-color:var(--gold2);background:rgba(201,168,76,.08)}
 #pinMode .pin-dots{margin-bottom:8px}
 #pwdMode{flex-direction:column;align-items:center;gap:12px;width:280px}
@@ -219,7 +223,9 @@ select option{background:var(--bg3)}
     <div class="nav-item" onclick="goPage('assistant',this)"><span class="nav-icon">🤖</span> Assistant IA</div>
     <div class="nav-item" onclick="goPage('entrees',this)"><span class="nav-icon">📦</span> Entrees materiel</div>
     <div class="nav-item" onclick="goPage('stock',this)"><span class="nav-icon">📊</span> Stock</div>
-    <div class="nav-item" onclick="goPage('recap',this)"><span class="nav-icon">📊</span> Récap mensuel</div>
+        <div class="nav-item" onclick="goPage('catalogue',this)"><span class="nav-icon">📦</span> Catalogue</div>
+    <div class="nav-item" onclick="goPage('factures',this)"><span class="nav-icon">🧾</span> Factures &amp; Bons</div>
+<div class="nav-item" onclick="goPage('recap',this)"><span class="nav-icon">📊</span> Récap mensuel</div>
     <div class="nav-item" onclick="openModalImprimer()"><span class="nav-icon">🖨</span> Imprimer</div>
     <div class="nav-item" onclick="exportAll()"><span class="nav-icon">↓</span> Export CSV complet</div>
     <div class="nav-item" onclick="exportDB()"><span class="nav-icon">💾</span> Exporter la base</div>
@@ -559,6 +565,44 @@ select option{background:var(--bg3)}
         </div>
       </div>
 
+      <!-- CATALOGUE PRODUITS -->
+      <div class="page" id="pg-catalogue">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
+          <button class="btn primary" onclick="openAddCatalogue()">+ Nouvel article</button>
+          <input class="catalogue-search" placeholder="🔍 Rechercher..." oninput="searchCatalogue(this.value)">
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px" id="catalogueGrid">
+          <div class="loading"><div class="spinner"></div> Chargement...</div>
+        </div>
+      </div>
+
+      <!-- FACTURES & BONS -->
+      <div class="page" id="pg-factures">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <select id="facturesClientFilter" onchange="renderFactures(0)" style="padding:8px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;font-family:Outfit,sans-serif;min-width:180px">
+            <option value="">Tous les clients</option>
+          </select>
+          <select id="facturesTypeFilter" onchange="renderFactures(0)" style="padding:8px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;font-family:Outfit,sans-serif">
+            <option value="">Tous types</option>
+            <option value="vente">🧾 Factures vente</option>
+            <option value="remboursement">💳 Bons remboursement</option>
+          </select>
+          <div id="facturesStats" style="font-size:13px;color:var(--text3)"></div>
+        </div>
+        <div class="table-wrap">
+          <div class="table-header"><span>Documents générés automatiquement</span></div>
+          <table>
+            <thead><tr>
+              <th>N° Document</th><th>Date</th><th>Client</th><th>Type</th>
+              <th style="text-align:right">Montant</th><th>Actions</th>
+            </tr></thead>
+            <tbody id="facturesTbody">
+              <tr><td colspan="6"><div class="loading"><div class="spinner"></div></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- RAPPELS -->
       <div class="page" id="pg-rappels">
         <div style="display:flex;justify-content:flex-end"><button class="btn primary" onclick="openModalRappel()">+ Ajouter un rappel</button></div>
@@ -603,7 +647,14 @@ select option{background:var(--bg3)}
 
       <!-- VENTE -->
       <div id="mVenteSection" style="display:contents">
-        <div class="form-group"><label>Motif</label><select id="mMotif" onchange="autoFillPrice()"></select></div>
+              <div class="form-group full" style="background:linear-gradient(135deg,rgba(201,168,76,.08),rgba(201,168,76,.02));border:1px solid rgba(201,168,76,.2);border-radius:var(--radius2);padding:12px;margin-bottom:4px">
+        <label style="color:var(--gold2)">🏷 Choisir dans le catalogue (optionnel)</label>
+        <select id="mCatalogueSelect" onchange="onCatalogueSelect()" class="cat-select-bar">
+          <option value="">-- Sélectionner un article (auto-remplit motif/prix/unité) --</option>
+        </select>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">💡 La sélection remplit automatiquement les champs</div>
+      </div>
+      <div class="form-group"><label>Motif</label><select id="mMotif" onchange="autoFillPrice()"></select></div>
         <div class="form-group"><label>Compte de paiement</label>
           <select id="mCompte" onchange="onCompteChange()" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif">
             <option value="euro">💶 Euros (compte principal)</option>
@@ -1162,6 +1213,8 @@ function goPage(name,el){
   if(name==='entrees')loadEntrees();
   if(name==='stock')loadStock();
   if(name==='recap')initRecap();
+  if(name==='catalogue'){loadCatalogue();}
+  if(name==='factures'){initFactures();}
 }
 
 // ── DASHBOARD ──
@@ -2156,7 +2209,7 @@ async function checkRappelsBadge(){
 
 // ── INIT ──
 function initApp(){
-  loadDashboard();loadSavedPalette();loadEntrees();loadMotifs();loadTarifs();
+  loadDashboard();loadCatalogue();loadSavedPalette();loadEntrees();loadMotifs();loadTarifs();
   setTimeout(checkRappelsBadge,2000);
   initRaccourcis(); // FIX : raccourcis clavier N/C/Échap
   autoBackup();     // FIX : backup auto quotidien
@@ -2582,7 +2635,40 @@ async function doPrint() {
   var grandTotal = transactions.filter(function(t){return t.type==="debit";}).reduce(function(s,t){return s+t.montant_net;},0)
                  - transactions.filter(function(t){return t.type==="credit";}).reduce(function(s,t){return s+t.montant_net;},0);
   html += "<div class=\"footer\">Total general : " + (grandTotal>=0?"+":"") + grandTotal.toFixed(2) + " EUR | " + transactions.length + " transaction(s) | Gestion Perso</div>";
-  html += "</body></html>";
+  html += "
+<div class="modal-bg" id="modalCatalogue" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal" style="max-width:520px">
+    <input type="hidden" id="catId">
+    <div class="modal-title" id="catModalTitle">Nouvel article</div>
+    <div class="modal-sub">Ajouter au catalogue produits</div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Nom de l'article *</label><input type="text" id="catNom" placeholder="Ex: Tabac x1, Bedo, Recharge..."></div>
+      <div class="form-group"><label>Catégorie</label>
+        <input type="text" id="catCategorie" placeholder="Tabac, Cannabis, Service..." list="catCategorieList" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif;width:100%">
+        <datalist id="catCategorieList"><option value="Tabac"><option value="Cannabis"><option value="Boisson"><option value="Service"><option value="Alimentation"><option value="Général"></datalist>
+      </div>
+      <div class="form-group"><label>Unité</label>
+        <select id="catUnite" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif">
+          <option value="piece">Pièce(s)</option>
+          <option value="gramme">Gramme(s)</option>
+          <option value="litre">Litre(s)</option>
+          <option value="paquet">Paquet(s)</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Prix de vente (€)</label><input type="number" id="catPrixVente" value="0" step="0.5" min="0" style="font-size:18px;font-weight:600;color:var(--green)"></div>
+      <div class="form-group"><label>Prix d'achat (€)</label><input type="number" id="catPrixAchat" value="0" step="0.5" min="0" style="font-size:18px;font-weight:600;color:var(--red)"></div>
+      <div class="form-group"><label>Stock minimum</label><input type="number" id="catStockMin" value="0" step="0.5" min="0"></div>
+      <div class="form-group full"><label>Description (optionnel)</label><input type="text" id="catDescription" placeholder="Description courte..."></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="btnDeleteCat" style="margin-right:auto;display:none" onclick="deleteCatalogueItem(parseInt(document.getElementById('catId').value))">🗑 Supprimer</button>
+      <button class="btn-cancel" onclick="document.getElementById('modalCatalogue').classList.remove('open')">Annuler</button>
+      <button class="btn-save" onclick="saveCatalogueItem()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+</body></html>";
 
   // Ouvrir dans iframe modal
   var blob = new Blob([html], {type: "text/html"});
@@ -3344,7 +3430,40 @@ async function exportClientPDF(){
   });
   html += '</tbody></table>';
   html += '<div class="footer">Gestion Perso - Fiche client '+nom+' - '+date_str+'</div>';
-  html += '</body></html>';
+  html += '
+<div class="modal-bg" id="modalCatalogue" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal" style="max-width:520px">
+    <input type="hidden" id="catId">
+    <div class="modal-title" id="catModalTitle">Nouvel article</div>
+    <div class="modal-sub">Ajouter au catalogue produits</div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Nom de l'article *</label><input type="text" id="catNom" placeholder="Ex: Tabac x1, Bedo, Recharge..."></div>
+      <div class="form-group"><label>Catégorie</label>
+        <input type="text" id="catCategorie" placeholder="Tabac, Cannabis, Service..." list="catCategorieList" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif;width:100%">
+        <datalist id="catCategorieList"><option value="Tabac"><option value="Cannabis"><option value="Boisson"><option value="Service"><option value="Alimentation"><option value="Général"></datalist>
+      </div>
+      <div class="form-group"><label>Unité</label>
+        <select id="catUnite" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif">
+          <option value="piece">Pièce(s)</option>
+          <option value="gramme">Gramme(s)</option>
+          <option value="litre">Litre(s)</option>
+          <option value="paquet">Paquet(s)</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Prix de vente (€)</label><input type="number" id="catPrixVente" value="0" step="0.5" min="0" style="font-size:18px;font-weight:600;color:var(--green)"></div>
+      <div class="form-group"><label>Prix d'achat (€)</label><input type="number" id="catPrixAchat" value="0" step="0.5" min="0" style="font-size:18px;font-weight:600;color:var(--red)"></div>
+      <div class="form-group"><label>Stock minimum</label><input type="number" id="catStockMin" value="0" step="0.5" min="0"></div>
+      <div class="form-group full"><label>Description (optionnel)</label><input type="text" id="catDescription" placeholder="Description courte..."></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="btnDeleteCat" style="margin-right:auto;display:none" onclick="deleteCatalogueItem(parseInt(document.getElementById('catId').value))">🗑 Supprimer</button>
+      <button class="btn-cancel" onclick="document.getElementById('modalCatalogue').classList.remove('open')">Annuler</button>
+      <button class="btn-save" onclick="saveCatalogueItem()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+</body></html>';
   var blob = new Blob([html], {type:'text/html'});
   var url = URL.createObjectURL(blob);
   var pf = document.getElementById('printFrame');
@@ -3616,5 +3735,38 @@ function initRaccourcis(){
 
 </script>
 <!-- Chart.js déjà chargé en synchrone dans le head -->
+
+<div class="modal-bg" id="modalCatalogue" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal" style="max-width:520px">
+    <input type="hidden" id="catId">
+    <div class="modal-title" id="catModalTitle">Nouvel article</div>
+    <div class="modal-sub">Ajouter au catalogue produits</div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Nom de l'article *</label><input type="text" id="catNom" placeholder="Ex: Tabac x1, Bedo, Recharge..."></div>
+      <div class="form-group"><label>Catégorie</label>
+        <input type="text" id="catCategorie" placeholder="Tabac, Cannabis, Service..." list="catCategorieList" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif;width:100%">
+        <datalist id="catCategorieList"><option value="Tabac"><option value="Cannabis"><option value="Boisson"><option value="Service"><option value="Alimentation"><option value="Général"></datalist>
+      </div>
+      <div class="form-group"><label>Unité</label>
+        <select id="catUnite" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif">
+          <option value="piece">Pièce(s)</option>
+          <option value="gramme">Gramme(s)</option>
+          <option value="litre">Litre(s)</option>
+          <option value="paquet">Paquet(s)</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Prix de vente (€)</label><input type="number" id="catPrixVente" value="0" step="0.5" min="0" style="font-size:18px;font-weight:600;color:var(--green)"></div>
+      <div class="form-group"><label>Prix d'achat (€)</label><input type="number" id="catPrixAchat" value="0" step="0.5" min="0" style="font-size:18px;font-weight:600;color:var(--red)"></div>
+      <div class="form-group"><label>Stock minimum</label><input type="number" id="catStockMin" value="0" step="0.5" min="0"></div>
+      <div class="form-group full"><label>Description (optionnel)</label><input type="text" id="catDescription" placeholder="Description courte..."></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="btnDeleteCat" style="margin-right:auto;display:none" onclick="deleteCatalogueItem(parseInt(document.getElementById('catId').value))">🗑 Supprimer</button>
+      <button class="btn-cancel" onclick="document.getElementById('modalCatalogue').classList.remove('open')">Annuler</button>
+      <button class="btn-save" onclick="saveCatalogueItem()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
