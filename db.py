@@ -639,6 +639,12 @@ def _ensure_catalogue_table():
             created_at    TEXT DEFAULT (datetime('now'))
         )""")
         conn.commit()
+    # migration : colonne stock (quantite disponible)
+    with get_conn() as conn:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(catalogue)").fetchall()}
+        if "stock" not in cols:
+            conn.execute("ALTER TABLE catalogue ADD COLUMN stock REAL DEFAULT 0")
+            conn.commit()
 
 def get_catalogue():
     _ensure_catalogue_table()
@@ -654,24 +660,24 @@ def get_catalogue_item(item_id):
         row = conn.execute("SELECT * FROM catalogue WHERE id=?", (item_id,)).fetchone()
     return dict(row) if row else None
 
-def add_catalogue_item(nom, categorie, description, prix_vente, prix_achat, unite, stock_min):
+def add_catalogue_item(nom, categorie, description, prix_vente, prix_achat, unite, stock_min, stock=0):
     _ensure_catalogue_table()
     with get_conn() as conn:
         cur = conn.execute(
-            """INSERT INTO catalogue (nom,categorie,description,prix_vente,prix_achat,unite,stock_min)
-               VALUES (?,?,?,?,?,?,?)""",
-            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min)
+            """INSERT INTO catalogue (nom,categorie,description,prix_vente,prix_achat,unite,stock_min,stock)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, stock)
         )
         conn.commit()
         return cur.lastrowid
 
-def update_catalogue_item(item_id, nom, categorie, description, prix_vente, prix_achat, unite, stock_min):
+def update_catalogue_item(item_id, nom, categorie, description, prix_vente, prix_achat, unite, stock_min, stock=None):
     _ensure_catalogue_table()
     with get_conn() as conn:
         conn.execute(
             """UPDATE catalogue SET nom=?,categorie=?,description=?,prix_vente=?,
-               prix_achat=?,unite=?,stock_min=? WHERE id=?""",
-            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, item_id)
+               prix_achat=?,unite=?,stock_min=?, stock=COALESCE(?,stock) WHERE id=?""",
+            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, stock, item_id)
         )
         conn.commit()
 
@@ -932,4 +938,11 @@ def adjust_stock_tabac(tid, delta):
     _ensure_types_tabac_table()
     with get_conn() as conn:
         conn.execute("UPDATE types_tabac SET stock = stock + ? WHERE id=?", (float(delta), tid))
+        conn.commit()
+
+def adjust_stock_catalogue(item_id, delta):
+    """Ajoute (ou retire si negatif) une quantite au stock d'un article."""
+    _ensure_catalogue_table()
+    with get_conn() as conn:
+        conn.execute("UPDATE catalogue SET stock = COALESCE(stock,0) + ? WHERE id=?", (float(delta), item_id))
         conn.commit()

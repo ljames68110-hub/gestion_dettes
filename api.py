@@ -918,6 +918,7 @@ def catalogue_create():
         prix_achat   = float(data.get("prix_achat", 0)),
         unite        = data.get("unite", "piece"),
         stock_min    = float(data.get("stock_min", 0)),
+        stock        = float(data.get("stock", 0)),
     )
     return ok(db.get_catalogue_item(iid)), 201
 
@@ -937,6 +938,7 @@ def catalogue_update(iid):
         prix_achat   = float(data.get("prix_achat", 0)),
         unite        = data.get("unite", "piece"),
         stock_min    = float(data.get("stock_min", 0)),
+        stock        = (float(data["stock"]) if "stock" in data and data["stock"] is not None else None),
     )
     return ok(db.get_catalogue_item(iid))
 
@@ -1242,6 +1244,15 @@ def types_tabac_update(tid):
 def types_tabac_delete(tid):
     db.delete_type_tabac(tid)
     return ok({"deleted":tid})
+
+
+@app.route("/api/catalogue/<int:iid>/adjust-stock", methods=["POST"])
+@require_auth
+def catalogue_adjust_stock(iid):
+    data = request.json or {}
+    delta = float(data.get("delta", 0))
+    db.adjust_stock_catalogue(iid, delta)
+    return ok(db.get_catalogue_item(iid))
 
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
