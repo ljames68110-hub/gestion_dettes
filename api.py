@@ -1157,6 +1157,59 @@ def categories_delete(cid):
         return err(str(e), 409)
     return ok({"deleted": cid})
 
+
+# -- FRAIS DUS ----------------------------------------------------------------
+@app.route("/api/clients/<int:cid>/frais-dus")
+@require_auth
+def frais_dus_list(cid):
+    db.migrate_frais_dus()  # s'assure que les frais existants sont presents
+    return ok({"frais": db.get_frais_dus(cid, "en_attente"), "total": db.get_total_frais_dus(cid)})
+
+@app.route("/api/frais-dus/facturer", methods=["POST"])
+@require_auth
+def frais_dus_facturer():
+    data = request.json or {}
+    ids = data.get("ids", [])
+    cid = data.get("client_id")
+    if not ids or not cid:
+        return err("Selection vide")
+    # Total des frais selectionnes
+    frais_list = db.get_frais_dus(cid, "all")
+    total = sum(f["montant"] for f in frais_list if f["id"] in [int(i) for i in ids])
+    total = round(total, 2)
+    if total <= 0:
+        return err("Montant nul")
+    # 1) Creer une transaction debit (ajoute a la dette)
+    tid = db.add_transaction(
+        client_id=cid, type_="debit", motif="Frais factures",
+        quantite=1, prix_unitaire=total, mode_paiement="Liquide",
+        frais=0, montant_brut=total, montant_net=total,
+        reference="", notes="[FRAIS] Facturation de frais dus")
+    # 2) Generer une facture pour cette transaction
+    try:
+        with db.get_conn() as conn:
+            row = conn.execute("SELECT * FROM transactions WHERE id=?", (tid,)).fetchone()
+        trans = dict(row) if row else None
+        client = db.get_client(cid)
+        if trans:
+            html_content, numero = _build_facture_html(trans, client, "vente")
+            db.create_facture(tid, cid, "vente", html_content, total)
+    except Exception:
+        pass
+    # 3) Marquer les frais comme factures
+    db.set_frais_statut(ids, "facture")
+    return ok({"total": total, "transaction_id": tid})
+
+@app.route("/api/frais-dus/oublier", methods=["POST"])
+@require_auth
+def frais_dus_oublier():
+    data = request.json or {}
+    ids = data.get("ids", [])
+    if not ids:
+        return err("Selection vide")
+    db.set_frais_statut(ids, "oublie")
+    return ok({"oublies": len(ids)})
+
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_frontend(path):

@@ -815,3 +815,62 @@ def delete_category(cid):
     with get_conn() as conn:
         conn.execute("DELETE FROM categories WHERE id=?", (cid,))
         conn.commit()
+
+
+# -- FRAIS DUS ----------------------------------------------------------------
+def _ensure_frais_dus_table():
+    with get_conn() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS frais_dus (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id INTEGER NOT NULL,
+            transaction_id INTEGER,
+            montant REAL NOT NULL,
+            date TEXT,
+            statut TEXT DEFAULT 'en_attente',
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
+        )""")
+        conn.commit()
+
+def migrate_frais_dus():
+    """Cree une ligne frais_dus 'en_attente' pour chaque frais existant
+    sur les remboursements (credits) qui n'a pas encore ete migre."""
+    _ensure_frais_dus_table()
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT id, client_id, frais, date FROM transactions
+            WHERE type='credit' AND frais > 0
+        """).fetchall()
+        created = 0
+        for r in rows:
+            tid = r["id"]
+            exists = conn.execute("SELECT COUNT(*) FROM frais_dus WHERE transaction_id=?", (tid,)).fetchone()[0]
+            if exists == 0:
+                conn.execute("""INSERT INTO frais_dus (client_id, transaction_id, montant, date, statut)
+                                VALUES (?,?,?,?,'en_attente')""",
+                             (r["client_id"], tid, r["frais"], r["date"]))
+                created += 1
+        conn.commit()
+    return created
+
+def get_frais_dus(client_id, statut="en_attente"):
+    _ensure_frais_dus_table()
+    with get_conn() as conn:
+        if statut == "all":
+            rows = conn.execute("SELECT * FROM frais_dus WHERE client_id=? ORDER BY date DESC", (client_id,)).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM frais_dus WHERE client_id=? AND statut=? ORDER BY date DESC", (client_id, statut)).fetchall()
+    return [dict(r) for r in rows]
+
+def get_total_frais_dus(client_id):
+    _ensure_frais_dus_table()
+    with get_conn() as conn:
+        v = conn.execute("SELECT COALESCE(SUM(montant),0) FROM frais_dus WHERE client_id=? AND statut='en_attente'", (client_id,)).fetchone()[0]
+    return round(v or 0, 2)
+
+def set_frais_statut(frais_ids, statut):
+    _ensure_frais_dus_table()
+    with get_conn() as conn:
+        for fid in frais_ids:
+            conn.execute("UPDATE frais_dus SET statut=? WHERE id=?", (statut, int(fid)))
+        conn.commit()

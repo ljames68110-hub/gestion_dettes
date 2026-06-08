@@ -591,6 +591,7 @@ select option{background:var(--bg3)}
             <div class="pos-topbar">
               <select class="pos-client" id="posClient" onchange="onPosClientChange()"><option value="">-- Choisir un client (obligatoire) --</option></select>
               <input class="pos-search" id="posSearch" placeholder="Rechercher un article..." oninput="renderPosGrid(this.value)">
+              <input type="date" id="posDate" class="pos-search" style="width:160px" title="Date de la vente">
             </div>
             <div class="pos-grid" id="posGrid"></div>
           </div>
@@ -1441,6 +1442,7 @@ async function loadSolde(){
   const isPos=dette>0;const col=isPos?'var(--green)':dette<0?'var(--red)':'var(--text3)';
   const msg=isPos?'Ce client vous doit '+fmt(dette):'<span style="color:var(--red)">⚠️ Vous devez '+fmt(Math.abs(dette))+' a ce client</span>';
   content.style.display='flex';
+  loadFraisDus(cid);
   document.getElementById('exportCsvBtn').style.display='inline-flex';
   var pdfBtn=document.getElementById('exportPdfBtn');if(pdfBtn)pdfBtn.style.display='inline-flex';
   // Construire la card info client (photo + notes)
@@ -3781,7 +3783,7 @@ async function supprimerFacture(fid){if(!confirm('Supprimer ce document ?'))retu
 function initFactures(){var sel=document.getElementById('facturesClientFilter');if(sel){var prev=sel.value;sel.innerHTML='<option value="">Tous les clients</option>';clientsCache.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.nom;sel.appendChild(o);});if(prev)sel.value=prev;}loadFactures(0);}
 // ===== CAISSE =====
 var posCart=[];var posPayMode='cash';
-function initCaisse(){var sel=document.getElementById('posClient');if(sel){var prev=sel.value;sel.innerHTML='<option value="">-- Choisir un client (obligatoire) --</option>';(clientsCache||[]).forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.nom;sel.appendChild(o);});if(prev)sel.value=prev;}if(!catalogueCache||!catalogueCache.length){loadCatalogue().then(function(){renderPosGrid('');});}else renderPosGrid('');renderPosCart();setPosPay('cash');}
+function initCaisse(){var _pd=document.getElementById('posDate');if(_pd&&!_pd.value){_pd.value=new Date().toISOString().slice(0,10);}var sel=document.getElementById('posClient');if(sel){var prev=sel.value;sel.innerHTML='<option value="">-- Choisir un client (obligatoire) --</option>';(clientsCache||[]).forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.nom;sel.appendChild(o);});if(prev)sel.value=prev;}if(!catalogueCache||!catalogueCache.length){loadCatalogue().then(function(){renderPosGrid('');});}else renderPosGrid('');renderPosCart();setPosPay('cash');}
 function renderPosGrid(filter){filter=(filter||'').toLowerCase();var grid=document.getElementById('posGrid');if(!grid)return;grid.innerHTML='';var list=(catalogueCache||[]).filter(function(it){return !filter||(it.nom+' '+it.categorie).toLowerCase().includes(filter);});if(!list.length){grid.innerHTML='<div class="pos-empty" style="grid-column:1/-1">Aucun article. Ajoutez-en dans le Catalogue.</div>';return;}list.forEach(function(it){var u=it.unite==='gramme'?'g':it.unite==='litre'?'L':'pcs';var card=document.createElement('div');card.className='pos-prod';card.onclick=function(){addToCart(it);};card.innerHTML='<div class="pcat">'+it.categorie+'</div><div class="pname">'+it.nom+'</div><div class="pprice">'+parseFloat(it.prix_vente).toFixed(2)+' EUR<span style="font-size:10px;color:var(--text3)"> /'+u+'</span></div>';grid.appendChild(card);});}
 function addToCart(it){var line=posCart.find(function(l){return l.id===it.id;});if(line){line.qty+=1;}else{posCart.push({id:it.id,nom:it.nom,prix:parseFloat(it.prix_vente)||0,qty:1,unite:it.unite||'piece'});}renderPosCart();}
 function posChangeQty(id,delta){var line=posCart.find(function(l){return l.id===id;});if(!line)return;line.qty=Math.max(0,Math.round((line.qty+delta)*100)/100);if(line.qty<=0){posCart=posCart.filter(function(l){return l.id!==id;});}renderPosCart();}
@@ -3868,13 +3870,13 @@ async function posEncaisser(){
   for(var i=0;i<posCart.length;i++){
     var l=posCart[i];
     var modeVente=(posPayMode==='credit')?'Liquide':mode;
-    var body={client_id:cid,type:'debit',motif:l.nom,quantite:l.qty,unite:l.unite,prix_unitaire:l.prix,mode_paiement:modeVente,notes:(posPayMode==='cash'?'[CAISSE PAYE] ':'[CAISSE CREDIT] ')+'Vente caisse',frais_deduits:0,compte:'euro'};
+    var _posDate=(document.getElementById('posDate')&&document.getElementById('posDate').value)?document.getElementById('posDate').value:undefined;var body={client_id:cid,type:'debit',motif:l.nom,quantite:l.qty,unite:l.unite,prix_unitaire:l.prix,mode_paiement:modeVente,notes:(posPayMode==='cash'?'[CAISSE PAYE] ':'[CAISSE CREDIT] ')+'Vente caisse',frais_deduits:0,compte:'euro',date:_posDate};
     try{var r=await api('/api/transactions',{method:'POST',body:body});if(r&&r.ok)ok++;else fail++;}catch(e){fail++;}
   }
   // 2) Remboursement de dette (credit)
   if(remb>0){
-    var absorbe=document.getElementById('posRembFrais')?(document.getElementById('posRembFrais').checked?1:0):1;
-    var bodyR={client_id:cid,type:'credit',motif:'Remboursement',quantite:1,unite:'piece',prix_unitaire:remb,mode_paiement:mode,notes:'[CAISSE] Remboursement dette',frais_deduits:absorbe,compte:'euro'};
+    var jAbsorbe=document.getElementById('posRembFrais')?document.getElementById('posRembFrais').checked:true;var fraisDeduits=jAbsorbe?0:1;
+    var bodyR={client_id:cid,type:'credit',motif:'Remboursement',quantite:1,unite:'piece',prix_unitaire:remb,mode_paiement:mode,notes:'[CAISSE] Remboursement dette',frais_deduits:fraisDeduits,compte:'euro',date:_posDate};
     try{var r2=await api('/api/transactions',{method:'POST',body:bodyR});if(r2&&r2.ok)ok++;else fail++;}catch(e){fail++;}
   }
   btn.disabled=false;btn.textContent='Encaisser';
@@ -3893,6 +3895,94 @@ async function posEncaisser(){
   }
 }
 </script>
+
+<script>
+// ===== FRAIS DUS (fiche client) =====
+async function loadFraisDus(cid){
+  if(!cid)return;
+  var res=await api('/api/clients/'+cid+'/frais-dus');
+  if(!res||!res.ok)return;
+  var data=res.data;
+  // Trouver ou creer le conteneur dans la fiche
+  var content=document.getElementById('soldeContent');
+  if(!content)return;
+  var box=document.getElementById('fraisDusPanel');
+  if(!box){
+    box=document.createElement('div');
+    box.id='fraisDusPanel';
+    box.className='card';
+    box.style.cssText='background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px';
+    content.appendChild(box);
+  }
+  renderFraisDus(cid,data);
+}
+function renderFraisDus(cid,data){
+  var box=document.getElementById('fraisDusPanel');
+  if(!box)return;
+  var frais=data.frais||[];
+  var total=data.total||0;
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    +'<div class="card-title" style="margin:0">Frais dus</div>'
+    +'<div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:'+(total>0?'var(--gold2)':'var(--text3)')+'">'+total.toFixed(2)+' EUR</div></div>';
+  if(!frais.length){
+    h+='<div style="color:var(--text3);font-size:13px;text-align:center;padding:16px">Aucun frais en attente pour ce client</div>';
+    box.innerHTML=h;
+    return;
+  }
+  h+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">';
+  frais.forEach(function(f){
+    var d=(f.date||'').slice(0,10);
+    h+='<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);cursor:pointer">'
+      +'<input type="checkbox" class="fraisDusCheck" value="'+f.id+'" data-montant="'+f.montant+'" onchange="updateFraisDusSel()" style="width:auto;margin:0">'
+      +'<span style="flex:1;font-size:13px;color:var(--text)">Frais du '+d+'</span>'
+      +'<span style="font-family:DM Mono,monospace;font-weight:600;color:var(--gold2)">'+parseFloat(f.montant).toFixed(2)+' EUR</span>'
+      +'</label>';
+  });
+  h+='</div>';
+  h+='<div style="display:flex;gap:8px;align-items:center">'
+    +'<span id="fraisDusSelInfo" style="font-size:12px;color:var(--text3);margin-right:auto">0 selectionne(s) - 0.00 EUR</span>'
+    +'<button class="btn" style="font-size:12px" onclick="fraisDusSelectAll(true)">Tout cocher</button>'
+    +'<button class="btn danger" style="font-size:12px" onclick="oublierFraisDus('+cid+')">Oublier la selection</button>'
+    +'<button class="btn primary" style="font-size:12px" onclick="facturerFraisDus('+cid+')">Facturer la selection</button>'
+    +'</div>';
+  box.innerHTML=h;
+  updateFraisDusSel();
+}
+function getFraisDusChecked(){
+  return Array.prototype.slice.call(document.querySelectorAll('.fraisDusCheck:checked'));
+}
+function updateFraisDusSel(){
+  var checked=getFraisDusChecked();
+  var total=checked.reduce(function(s,c){return s+(parseFloat(c.dataset.montant)||0);},0);
+  var info=document.getElementById('fraisDusSelInfo');
+  if(info)info.textContent=checked.length+' selectionne(s) - '+total.toFixed(2)+' EUR';
+}
+function fraisDusSelectAll(v){
+  document.querySelectorAll('.fraisDusCheck').forEach(function(c){c.checked=v;});
+  updateFraisDusSel();
+}
+async function facturerFraisDus(cid){
+  var ids=getFraisDusChecked().map(function(c){return parseInt(c.value);});
+  if(!ids.length){notify('Coche au moins un frais','error');return;}
+  var total=getFraisDusChecked().reduce(function(s,c){return s+(parseFloat(c.dataset.montant)||0);},0);
+  if(!confirm('Facturer '+ids.length+' frais ('+total.toFixed(2)+' EUR) ? Ils seront ajoutes a la dette et une facture sera generee.'))return;
+  var res=await api('/api/frais-dus/facturer',{method:'POST',body:{ids:ids,client_id:cid}});
+  if(res&&res.ok){
+    notify('Frais factures : '+res.data.total.toFixed(2)+' EUR ajoutes a la dette');
+    loadSolde();
+    if(typeof loadDashboard==='function')loadDashboard();
+  }else notify(res&&res.error?res.error:'Erreur','error');
+}
+async function oublierFraisDus(cid){
+  var ids=getFraisDusChecked().map(function(c){return parseInt(c.value);});
+  if(!ids.length){notify('Coche au moins un frais','error');return;}
+  if(!confirm('Oublier '+ids.length+' frais ? Ils ne seront plus reclames.'))return;
+  var res=await api('/api/frais-dus/oublier',{method:'POST',body:{ids:ids}});
+  if(res&&res.ok){notify(ids.length+' frais oublie(s)');loadSolde();}
+  else notify(res&&res.error?res.error:'Erreur','error');
+}
+</script>
+
 
 
 <!-- Chart.js déjà chargé en synchrone dans le head -->
