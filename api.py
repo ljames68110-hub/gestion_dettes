@@ -293,6 +293,17 @@ def transactions_create():
 
     trans = db.get_transactions(data["client_id"])
     created = next((t for t in trans if t["id"] == tid), None)
+
+    # ── Génération automatique de la facture ──────────────────────────────────
+    try:
+        client = db.get_client(data["client_id"])
+        type_doc = "vente" if type_ == "debit" else "remboursement"
+        if created:
+            html_content, numero = _build_facture_html(created, client, type_doc)
+            db.create_facture(tid, data["client_id"], type_doc, html_content, net)
+    except Exception as _fe:
+        pass  # La facture est optionnelle, on ne bloque pas la transaction
+
     return ok(created), 201
 
 @app.route("/api/transactions/<int:tid>", methods=["PUT"])
@@ -883,7 +894,241 @@ def ai_claude():
     except Exception as e:
         return err(f"Erreur Claude API : {e}")
 
-# ── SERVE FRONTEND ────────────────────────────────────────────────────────────
+
+# ── CATALOGUE ─────────────────────────────────────────────────────────────────
+
+@app.route("/api/catalogue")
+@require_auth
+def catalogue_list():
+    return ok(db.get_catalogue())
+
+@app.route("/api/catalogue", methods=["POST"])
+@require_auth
+def catalogue_create():
+    data = request.json or {}
+    nom = (data.get("nom") or "").strip()
+    if not nom:
+        return err("Nom requis")
+    iid = db.add_catalogue_item(
+        nom          = nom,
+        categorie    = data.get("categorie", "Général"),
+        description  = data.get("description", ""),
+        prix_vente   = float(data.get("prix_vente", 0)),
+        prix_achat   = float(data.get("prix_achat", 0)),
+        unite        = data.get("unite", "piece"),
+        stock_min    = float(data.get("stock_min", 0)),
+    )
+    return ok(db.get_catalogue_item(iid)), 201
+
+@app.route("/api/catalogue/<int:iid>", methods=["PUT"])
+@require_auth
+def catalogue_update(iid):
+    data = request.json or {}
+    nom = (data.get("nom") or "").strip()
+    if not nom:
+        return err("Nom requis")
+    db.update_catalogue_item(
+        item_id      = iid,
+        nom          = nom,
+        categorie    = data.get("categorie", "Général"),
+        description  = data.get("description", ""),
+        prix_vente   = float(data.get("prix_vente", 0)),
+        prix_achat   = float(data.get("prix_achat", 0)),
+        unite        = data.get("unite", "piece"),
+        stock_min    = float(data.get("stock_min", 0)),
+    )
+    return ok(db.get_catalogue_item(iid))
+
+@app.route("/api/catalogue/<int:iid>", methods=["DELETE"])
+@require_auth
+def catalogue_delete(iid):
+    db.delete_catalogue_item(iid)
+    return ok({"deleted": iid})
+
+# ── FACTURES ──────────────────────────────────────────────────────────────────
+
+def _build_facture_html(trans, client, type_):
+    """Génère le HTML d'une facture ou d'un bon de remboursement."""
+    from datetime import datetime
+    date_str = datetime.now().strftime("%d/%m/%Y à %H:%M")
+    date_trans = trans.get("date","")[:10].split("-")
+    date_fmt = "/".join(reversed(date_trans)) if len(date_trans)==3 else trans.get("date","")
+    is_vente = type_ == "vente"
+    titre = "FACTURE DE VENTE" if is_vente else "BON DE REMBOURSEMENT"
+    couleur = "#16a34a" if is_vente else "#c9a84c"
+    montant_brut = trans.get("montant_brut", 0) or 0
+    frais = trans.get("frais", 0) or 0
+    montant_net = trans.get("montant_net", 0) or 0
+    mode = trans.get("mode_paiement","—")
+    motif = trans.get("motif","—")
+    qty = trans.get("quantite", 1) or 1
+    pu = trans.get("prix_unitaire", 0) or 0
+    unite = trans.get("unite","piece")
+    unite_label = "g" if unite=="gramme" else "pcs"
+    notes = trans.get("notes","") or ""
+    client_nom = client.get("nom","—") if client else "—"
+    client_tel = client.get("tel","") or ""
+    client_email = client.get("email","") or ""
+
+    # Numéro provisoire basé sur l'id transaction
+    tid = trans.get("id",0)
+    prefix = "FAC" if is_vente else "BON"
+    now_str = datetime.now().strftime("%Y%m%d")
+    numero = f"{prefix}-{now_str}-{tid:05d}"
+
+    html = f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>{titre} {numero}</title>
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:32px;max-width:600px;margin:auto}}
+.header{{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:16px;border-bottom:3px solid {couleur}}}
+.app-name{{font-size:22px;font-weight:bold;color:{couleur}}}
+.app-sub{{font-size:11px;color:#666;margin-top:2px}}
+.doc-type{{text-align:right}}
+.doc-type h1{{font-size:18px;font-weight:bold;color:{couleur}}}
+.doc-type .numero{{font-size:13px;font-weight:600;color:#333;margin-top:4px;font-family:monospace}}
+.doc-type .date{{font-size:11px;color:#666;margin-top:2px}}
+.section{{margin-bottom:20px}}
+.section-title{{font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #eee}}
+.info-grid{{display:grid;grid-template-columns:1fr 1fr;gap:16px}}
+.info-box{{background:#f9f9f9;border:1px solid #eee;border-radius:6px;padding:12px}}
+.info-box strong{{display:block;font-size:13px;margin-bottom:4px;color:#333}}
+.info-box span{{font-size:12px;color:#555}}
+table{{width:100%;border-collapse:collapse;margin-bottom:16px}}
+thead tr{{background:{couleur};color:white}}
+th{{padding:8px 10px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}}
+td{{padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px}}
+tr:nth-child(even) td{{background:#fafafa}}
+.total-section{{background:#f5f5f5;border:1px solid #ddd;border-radius:6px;padding:16px;margin-top:8px}}
+.total-row{{display:flex;justify-content:space-between;padding:4px 0;font-size:13px}}
+.total-row.main{{font-size:16px;font-weight:bold;color:{couleur};border-top:2px solid {couleur};margin-top:8px;padding-top:8px}}
+.badge{{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:{couleur}22;color:{couleur};border:1px solid {couleur}44}}
+.notes-box{{background:#fffbeb;border:1px solid #fbbf24;border-radius:6px;padding:10px;font-size:12px;color:#92400e}}
+.footer{{margin-top:32px;padding-top:16px;border-top:1px solid #eee;text-align:center;font-size:10px;color:#999}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="app-name">Gestion Perso</div>
+    <div class="app-sub">Gestion de dettes &amp; créances</div>
+  </div>
+  <div class="doc-type">
+    <h1>{titre}</h1>
+    <div class="numero">{numero}</div>
+    <div class="date">Émis le {date_str}</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="info-grid">
+    <div class="info-box">
+      <div class="section-title">Client</div>
+      <strong>{client_nom}</strong>
+      <span>{client_tel}</span>
+      {"<span>" + client_email + "</span>" if client_email else ""}
+    </div>
+    <div class="info-box">
+      <div class="section-title">Transaction</div>
+      <strong>#{tid} — {date_fmt}</strong>
+      <span>Type : <span class="badge">{"Vente" if is_vente else "Remboursement"}</span></span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Détail</div>
+  <table>
+    <thead><tr><th>Article</th><th>Qté</th><th>P.U.</th><th>Mode</th><th style="text-align:right">Montant</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>{motif}</strong></td>
+        <td>{float(qty):.1f} {unite_label}</td>
+        <td>{float(pu):.2f} €</td>
+        <td>{mode}</td>
+        <td style="text-align:right;font-weight:600">{float(montant_brut):.2f} €</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="total-section">
+  <div class="total-row"><span>Montant brut</span><span>{float(montant_brut):.2f} €</span></div>
+  {"<div class='total-row'><span>Frais (" + mode + ")</span><span style='color:#dc2626'>- " + f"{float(frais):.2f}" + " €</span></div>" if frais > 0 else ""}
+  <div class="total-row main">
+    <span>{"Total dû" if is_vente else "Montant remboursé"}</span>
+    <span>{float(montant_net):.2f} €</span>
+  </div>
+</div>
+
+{"<div class='notes-box' style='margin-top:16px'><strong>Notes :</strong> " + notes + "</div>" if notes.strip() and not notes.startswith("[") else ""}
+
+<div class="footer">
+  Document généré automatiquement par Gestion Perso · {date_str}<br>
+  Ce document est un justificatif interne — non valable comme facture fiscale officielle
+</div>
+
+</body>
+</html>"""
+    return html, numero
+
+@app.route("/api/factures")
+@require_auth
+def factures_list():
+    cid = request.args.get("client_id")
+    limit = int(request.args.get("limit", 100))
+    return ok(db.get_factures(int(cid) if cid else None, limit))
+
+@app.route("/api/factures/<int:fid>")
+@require_auth
+def factures_get(fid):
+    f = db.get_facture(fid)
+    if not f:
+        return err("Facture introuvable", 404)
+    return ok(f)
+
+@app.route("/api/factures/<int:fid>/html")
+@require_auth
+def factures_html(fid):
+    f = db.get_facture(fid)
+    if not f:
+        return err("Facture introuvable", 404)
+    response = make_response(f["contenu_html"])
+    response.headers["Content-Type"] = "text/html; charset=utf-8"
+    return response
+
+@app.route("/api/factures/<int:fid>", methods=["DELETE"])
+@require_auth
+def factures_delete(fid):
+    db.delete_facture(fid)
+    return ok({"deleted": fid})
+
+@app.route("/api/factures/generer/<int:tid>", methods=["POST"])
+@require_auth
+def factures_generer(tid):
+    """Génère (ou regénère) la facture pour une transaction existante."""
+    with db.get_conn() as conn:
+        row = conn.execute(
+            """SELECT t.*, c.nom as client_nom, e.description as entree_desc
+               FROM transactions t
+               LEFT JOIN clients c ON t.client_id=c.id
+               LEFT JOIN entrees_materiel e ON t.entree_id=e.id
+               WHERE t.id=?""", (tid,)
+        ).fetchone()
+    if not row:
+        return err("Transaction introuvable", 404)
+    trans = dict(row)
+    client = db.get_client(trans["client_id"])
+    type_ = "vente" if trans["type"] == "debit" else "remboursement"
+    html_content, numero = _build_facture_html(trans, client, type_)
+    fid, num = db.create_facture(tid, trans["client_id"], type_, html_content, trans["montant_net"])
+    return ok({"id": fid, "numero": num}), 201
+
+
 
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
