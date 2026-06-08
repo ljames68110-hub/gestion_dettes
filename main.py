@@ -9,6 +9,7 @@ import sys
 import os
 import time
 import threading
+import atexit
 
 def base_dir():
     if getattr(sys, "frozen", False):
@@ -62,7 +63,20 @@ def wait_for_flask():
 def start_flask():
     api.start(host=HOST, port=PORT, debug=False)
 
+
+def _save_backup_on_exit():
+    """Copie de secours unique de la base, ecrasee a chaque fermeture."""
+    try:
+        import shutil
+        if os.path.exists(DB_PATH):
+            backup_path = os.path.join(DATA_DIR, "dettes_backup.db")
+            shutil.copy2(DB_PATH, backup_path)
+            print(f"[Gestion Perso] Sauvegarde de secours : {backup_path}")
+    except Exception as e:
+        print(f"[Gestion Perso] Echec sauvegarde fermeture : {e}")
+
 def main():
+    atexit.register(_save_backup_on_exit)
     print(f"[Gestion Perso] Demarrage {URL}")
     print(f"[Gestion Perso] DB : {DB_PATH}")
 
@@ -103,7 +117,8 @@ def main():
             resizable        = True,
             background_color = "#0a0a0f",
         )
-        webview.start(debug=False, icon=icon)
+        webview.start(debug=False, icon=icon, gui="edgechromium")
+        _save_backup_on_exit()  # apres fermeture fenetre
     except ImportError:
         print("[Gestion Perso] PyWebView absent — navigateur")
         import webbrowser; webbrowser.open(URL)

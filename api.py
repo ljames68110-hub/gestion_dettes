@@ -277,6 +277,7 @@ def transactions_create():
         montant_net   = net,
         reference     = data.get("reference", ""),
         notes         = data.get("notes", ""),
+        date          = data.get("date") or None,
     )
 
     # Sauvegarder entree_id, linked_debit_id, unite, compte dans la transaction
@@ -1129,6 +1130,32 @@ def factures_generer(tid):
     return ok({"id": fid, "numero": num}), 201
 
 
+
+
+# -- CATEGORIES ---------------------------------------------------------------
+@app.route("/api/categories")
+@require_auth
+def categories_list():
+    return ok(db.get_categories())
+
+@app.route("/api/categories", methods=["POST"])
+@require_auth
+def categories_create():
+    data = request.json or {}
+    try:
+        cid = db.add_category(data.get("nom",""))
+    except ValueError as e:
+        return err(str(e))
+    return ok({"id": cid}), 201
+
+@app.route("/api/categories/<int:cid>", methods=["DELETE"])
+@require_auth
+def categories_delete(cid):
+    try:
+        db.delete_category(cid)
+    except ValueError as e:
+        return err(str(e), 409)
+    return ok({"deleted": cid})
 
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")

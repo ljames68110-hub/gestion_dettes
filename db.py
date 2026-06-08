@@ -98,14 +98,6 @@ def init_db():
             c.execute("UPDATE transactions SET compte='cantine' WHERE mode_paiement='Cantine'")
             c.execute("UPDATE transactions SET compte='tabac' WHERE mode_paiement IN ('Tabac','Blonde','PotTabac')")
 
-        # ── Migration colonnes entrees_materiel ───────────────────────────────
-        ent_cols = {row[1] for row in c.execute("PRAGMA table_info(entrees_materiel)").fetchall()}
-        if "unite" not in ent_cols:
-            c.execute("ALTER TABLE entrees_materiel ADD COLUMN unite TEXT DEFAULT 'piece'")
-        if "stock_restant" not in ent_cols:
-            c.execute("ALTER TABLE entrees_materiel ADD COLUMN stock_restant REAL DEFAULT NULL")
-
-        # ── Table entrées matériel ─────────────────────────────────────────────
         c.execute("""
         CREATE TABLE IF NOT EXISTS entrees_materiel (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -117,6 +109,14 @@ def init_db():
             created_at  TEXT DEFAULT (datetime('now'))
         )
         """)
+        # ── Migration colonnes entrees_materiel ───────────────────────────────
+        ent_cols = {row[1] for row in c.execute("PRAGMA table_info(entrees_materiel)").fetchall()}
+        if "unite" not in ent_cols:
+            c.execute("ALTER TABLE entrees_materiel ADD COLUMN unite TEXT DEFAULT 'piece'")
+        if "stock_restant" not in ent_cols:
+            c.execute("ALTER TABLE entrees_materiel ADD COLUMN stock_restant REAL DEFAULT NULL")
+
+        # ── Table entrées matériel ─────────────────────────────────────────────
 
         # ── Migration complète table auth ──────────────────────────────────────
         auth_cols = {row[1] for row in c.execute("PRAGMA table_info(auth)").fetchall()}
@@ -252,8 +252,9 @@ def delete_client(client_id: int):
 
 def add_transaction(client_id, type_, motif, quantite, prix_unitaire,
                     mode_paiement, frais, montant_brut, montant_net,
-                    reference=None, notes=None):
-    date = datetime.utcnow().isoformat(sep=' ', timespec='seconds')
+                    reference=None, notes=None, date=None):
+    if not date:
+        date = datetime.utcnow().isoformat(sep=' ', timespec='seconds')
     with get_conn() as conn:
         cur = conn.execute(
             """INSERT INTO transactions
@@ -400,14 +401,18 @@ def update_transaction(trans_id, data):
         notes      = data.get("notes",         row["notes"] or "")
         date       = data.get("date",          row["date"])
         brut       = round(quantite * prix_u, 2)
-        frais      = round(brut * FEES.get(mode, 0), 2) if type_ == "credit" else 0.0
+        frais_deduits = int(data.get("frais_deduits", row["frais_deduits"] if "frais_deduits" in row.keys() else 1))
+        if type_ == "credit" and frais_deduits:
+            frais = round(brut * FEES.get(mode, 0), 2)
+        else:
+            frais = 0.0
         net        = round(brut - frais, 2)
         conn.execute("""
             UPDATE transactions SET
               type=?, motif=?, quantite=?, prix_unitaire=?,
-              montant_brut=?, mode_paiement=?, frais=?, montant_net=?, notes=?, date=?
+              montant_brut=?, mode_paiement=?, frais=?, montant_net=?, notes=?, date=?, frais_deduits=?
             WHERE id=?""",
-            (type_, motif, quantite, prix_u, brut, mode, frais, net, notes, date, trans_id)
+            (type_, motif, quantite, prix_u, brut, mode, frais, net, notes, date, frais_deduits, trans_id)
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM transactions WHERE id=?", (trans_id,)).fetchone()
@@ -749,4 +754,64 @@ def create_facture(transaction_id, client_id, type_, contenu_html, montant_net):
 def delete_facture(facture_id):
     with get_conn() as conn:
         conn.execute("DELETE FROM factures WHERE id=?", (facture_id,))
+        conn.commit()
+
+
+# -- CATEGORIES DU CATALOGUE --------------------------------------------------
+def _ensure_categories_table():
+    with get_conn() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL UNIQUE,
+            created_at TEXT DEFAULT (datetime('now'))
+        )""")
+        n = conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0]
+        if n == 0:
+            for c in ["General","Tabac","Cannabis","Boisson","Service","Alimentation"]:
+                try: conn.execute("INSERT INTO categories (nom) VALUES (?)", (c,))
+                except: pass
+        conn.commit()
+
+def get_categories():
+    _ensure_categories_table()
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM categories ORDER BY nom").fetchall()
+    return [dict(r) for r in rows]
+
+def add_category(nom):
+    _ensure_categories_table()
+    nom = (nom or "").strip()
+    if not nom:
+        raise ValueError("Nom requis")
+    with get_conn() as conn:
+        exists = conn.execute("SELECT COUNT(*) FROM categories WHERE nom=?", (nom,)).fetchone()[0]
+        if exists:
+            raise ValueError("Categorie deja existante")
+        cur = conn.execute("INSERT INTO categories (nom) VALUES (?)", (nom,))
+        conn.commit()
+        return cur.lastrowid
+
+def count_articles_in_category(nom):
+    try:
+        _ensure_catalogue_table()
+    except Exception:
+        pass
+    with get_conn() as conn:
+        try:
+            return conn.execute("SELECT COUNT(*) FROM catalogue WHERE categorie=? AND actif=1", (nom,)).fetchone()[0]
+        except Exception:
+            return 0
+
+def delete_category(cid):
+    _ensure_categories_table()
+    with get_conn() as conn:
+        row = conn.execute("SELECT nom FROM categories WHERE id=?", (cid,)).fetchone()
+        if not row:
+            return
+        nom = row[0]
+    used = count_articles_in_category(nom)
+    if used > 0:
+        raise ValueError("%d article(s) utilisent cette categorie" % used)
+    with get_conn() as conn:
+        conn.execute("DELETE FROM categories WHERE id=?", (cid,))
         conn.commit()
