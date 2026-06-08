@@ -616,3 +616,137 @@ def update_motif(mid, nom):
     with get_conn() as conn:
         conn.execute("UPDATE motifs SET nom=? WHERE id=?", (nom.strip(), mid))
         conn.commit()
+
+# ── CATALOGUE ─────────────────────────────────────────────────────────────────
+
+def _ensure_catalogue_table():
+    with get_conn() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS catalogue (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom           TEXT NOT NULL,
+            categorie     TEXT DEFAULT 'Général',
+            description   TEXT DEFAULT '',
+            prix_vente    REAL DEFAULT 0.0,
+            prix_achat    REAL DEFAULT 0.0,
+            unite         TEXT DEFAULT 'piece',
+            stock_min     REAL DEFAULT 0,
+            actif         INTEGER DEFAULT 1,
+            created_at    TEXT DEFAULT (datetime('now'))
+        )""")
+        conn.commit()
+
+def get_catalogue():
+    _ensure_catalogue_table()
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM catalogue WHERE actif=1 ORDER BY categorie, nom"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+def get_catalogue_item(item_id):
+    _ensure_catalogue_table()
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM catalogue WHERE id=?", (item_id,)).fetchone()
+    return dict(row) if row else None
+
+def add_catalogue_item(nom, categorie, description, prix_vente, prix_achat, unite, stock_min):
+    _ensure_catalogue_table()
+    with get_conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO catalogue (nom,categorie,description,prix_vente,prix_achat,unite,stock_min)
+               VALUES (?,?,?,?,?,?,?)""",
+            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min)
+        )
+        conn.commit()
+        return cur.lastrowid
+
+def update_catalogue_item(item_id, nom, categorie, description, prix_vente, prix_achat, unite, stock_min):
+    _ensure_catalogue_table()
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE catalogue SET nom=?,categorie=?,description=?,prix_vente=?,
+               prix_achat=?,unite=?,stock_min=? WHERE id=?""",
+            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, item_id)
+        )
+        conn.commit()
+
+def delete_catalogue_item(item_id):
+    with get_conn() as conn:
+        conn.execute("UPDATE catalogue SET actif=0 WHERE id=?", (item_id,))
+        conn.commit()
+
+# ── FACTURES ──────────────────────────────────────────────────────────────────
+
+def _ensure_factures_table():
+    with get_conn() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS factures (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero          TEXT NOT NULL UNIQUE,
+            transaction_id  INTEGER,
+            client_id       INTEGER,
+            type            TEXT DEFAULT 'vente',
+            contenu_html    TEXT,
+            date_creation   TEXT DEFAULT (datetime('now')),
+            montant_net     REAL DEFAULT 0,
+            FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE SET NULL
+        )""")
+        conn.commit()
+
+def get_factures(client_id=None, limit=100):
+    _ensure_factures_table()
+    with get_conn() as conn:
+        if client_id:
+            rows = conn.execute(
+                """SELECT f.*, c.nom as client_nom FROM factures f
+                   LEFT JOIN clients c ON f.client_id=c.id
+                   WHERE f.client_id=? ORDER BY f.date_creation DESC LIMIT ?""",
+                (client_id, limit)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT f.*, c.nom as client_nom FROM factures f
+                   LEFT JOIN clients c ON f.client_id=c.id
+                   ORDER BY f.date_creation DESC LIMIT ?""",
+                (limit,)
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+def get_facture(facture_id):
+    _ensure_factures_table()
+    with get_conn() as conn:
+        row = conn.execute(
+            """SELECT f.*, c.nom as client_nom FROM factures f
+               LEFT JOIN clients c ON f.client_id=c.id
+               WHERE f.id=?""", (facture_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+def get_facture_by_numero(numero):
+    _ensure_factures_table()
+    with get_conn() as conn:
+        row = conn.execute(
+            """SELECT f.*, c.nom as client_nom FROM factures f
+               LEFT JOIN clients c ON f.client_id=c.id
+               WHERE f.numero=?""", (numero,)
+        ).fetchone()
+    return dict(row) if row else None
+
+def create_facture(transaction_id, client_id, type_, contenu_html, montant_net):
+    _ensure_factures_table()
+    from datetime import datetime
+    now = datetime.now()
+    prefix = "FAC" if type_ == "vente" else "BON"
+    numero = f"{prefix}-{now.strftime('%Y%m%d')}-{transaction_id:05d}"
+    with get_conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO factures (numero,transaction_id,client_id,type,contenu_html,montant_net)
+               VALUES (?,?,?,?,?,?)""",
+            (numero, transaction_id, client_id, type_, contenu_html, montant_net)
+        )
+        conn.commit()
+        return cur.lastrowid, numero
+
+def delete_facture(facture_id):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM factures WHERE id=?", (facture_id,))
+        conn.commit()
