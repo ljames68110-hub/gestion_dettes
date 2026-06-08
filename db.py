@@ -874,3 +874,62 @@ def set_frais_statut(frais_ids, statut):
         for fid in frais_ids:
             conn.execute("UPDATE frais_dus SET statut=? WHERE id=?", (statut, int(fid)))
         conn.commit()
+
+
+# -- TYPES DE TABAC -----------------------------------------------------------
+def _ensure_types_tabac_table():
+    with get_conn() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS types_tabac (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL UNIQUE,
+            prix REAL DEFAULT 0,
+            stock REAL DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now'))
+        )""")
+        n = conn.execute("SELECT COUNT(*) FROM types_tabac").fetchone()[0]
+        if n == 0:
+            for nom in ["Paquet de tabac","Paquet de blonde","Pot de tabac"]:
+                try: conn.execute("INSERT INTO types_tabac (nom,prix,stock) VALUES (?,0,0)", (nom,))
+                except: pass
+        conn.commit()
+
+def get_types_tabac():
+    _ensure_types_tabac_table()
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM types_tabac ORDER BY nom").fetchall()
+    return [dict(r) for r in rows]
+
+def add_type_tabac(nom, prix=0):
+    _ensure_types_tabac_table()
+    nom=(nom or "").strip()
+    if not nom: raise ValueError("Nom requis")
+    with get_conn() as conn:
+        ex=conn.execute("SELECT COUNT(*) FROM types_tabac WHERE nom=?", (nom,)).fetchone()[0]
+        if ex: raise ValueError("Type deja existant")
+        cur=conn.execute("INSERT INTO types_tabac (nom,prix,stock) VALUES (?,?,0)", (nom, float(prix or 0)))
+        conn.commit()
+        return cur.lastrowid
+
+def update_type_tabac(tid, nom=None, prix=None, stock=None):
+    _ensure_types_tabac_table()
+    with get_conn() as conn:
+        cur=conn.execute("SELECT * FROM types_tabac WHERE id=?", (tid,)).fetchone()
+        if not cur: return
+        nom2 = (nom if nom is not None else cur["nom"])
+        prix2 = (float(prix) if prix is not None else cur["prix"])
+        stock2 = (float(stock) if stock is not None else cur["stock"])
+        conn.execute("UPDATE types_tabac SET nom=?,prix=?,stock=? WHERE id=?", (nom2,prix2,stock2,tid))
+        conn.commit()
+
+def delete_type_tabac(tid):
+    _ensure_types_tabac_table()
+    with get_conn() as conn:
+        conn.execute("DELETE FROM types_tabac WHERE id=?", (tid,))
+        conn.commit()
+
+def adjust_stock_tabac(tid, delta):
+    """Ajoute (ou retire si negatif) une quantite au stock d'un type."""
+    _ensure_types_tabac_table()
+    with get_conn() as conn:
+        conn.execute("UPDATE types_tabac SET stock = stock + ? WHERE id=?", (float(delta), tid))
+        conn.commit()

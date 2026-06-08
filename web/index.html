@@ -435,6 +435,15 @@ select option{background:var(--bg3)}
           </div>
 
           <div class="card">
+            <div class="card-title">🚬 Tabac (types, prix, stock)</div>
+            <div id="typesTabacList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="newTabacNom" placeholder="Nouveau type..." style="flex:1;padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif">
+              <input type="number" id="newTabacPrix" placeholder="Prix" step="0.5" min="0" style="width:90px;padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px">
+              <button class="btn primary" onclick="addTypeTabac()">+ Ajouter</button>
+            </div>
+          </div>
+          <div class="card">
             <div class="card-title">Categories du catalogue</div>
             <div id="catCategoriesList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
             <div style="display:flex;gap:8px">
@@ -2090,7 +2099,7 @@ function doSearch(v){
 }
 
 // ── SETTINGS ──
-function initSettings(){
+function initSettings(){loadTypesTabac();
   loadAppSettings();
   loadBackupList();
   const current=store.get('palette')||'gold';
@@ -3990,6 +3999,56 @@ async function oublierFraisDus(cid){
   else notify(res&&res.error?res.error:'Erreur','error');
 }
 </script>
+
+<script>
+// ===== TYPES DE TABAC =====
+var typesTabacCache=[];
+async function loadTypesTabac(){
+  var res=await api('/api/types-tabac');
+  if(!res||!res.ok)return;
+  typesTabacCache=res.data;
+  renderTypesTabac();
+}
+function renderTypesTabac(){
+  var box=document.getElementById('typesTabacList');
+  if(!box)return;
+  box.innerHTML='';
+  if(!typesTabacCache.length){box.innerHTML='<div style="color:var(--text3);font-size:13px">Aucun type</div>';return;}
+  typesTabacCache.forEach(function(t){
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2)';
+    row.innerHTML='<span style="flex:1;font-size:14px;color:var(--text)">'+t.nom+'</span>'
+      +'<span style="font-size:11px;color:var(--text3)">Prix</span>'
+      +'<input type="number" value="'+parseFloat(t.prix).toFixed(2)+'" step="0.5" min="0" style="width:70px;text-align:right;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px" onchange="saveTypeTabac('+t.id+',this.value,null)">'
+      +'<span style="font-size:11px;color:var(--text3)">Stock</span>'
+      +'<input type="number" value="'+parseFloat(t.stock).toFixed(0)+'" step="1" style="width:60px;text-align:right;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px" onchange="saveTypeTabac('+t.id+',null,this.value)">'
+      +'<button class="btn danger" style="font-size:11px;padding:4px 8px" onclick="deleteTypeTabac('+t.id+')">X</button>';
+    box.appendChild(row);
+  });
+}
+async function addTypeTabac(){
+  var nom=(document.getElementById('newTabacNom').value||'').trim();
+  var prix=parseFloat(document.getElementById('newTabacPrix').value)||0;
+  if(!nom){notify('Nom requis','error');return;}
+  var res=await api('/api/types-tabac',{method:'POST',body:{nom:nom,prix:prix}});
+  if(res&&res.ok){document.getElementById('newTabacNom').value='';document.getElementById('newTabacPrix').value='';notify('Type ajoute');await loadTypesTabac();}
+  else notify(res&&res.error?res.error:'Erreur','error');
+}
+async function saveTypeTabac(id,prix,stock){
+  var body={};
+  if(prix!==null)body.prix=parseFloat(prix)||0;
+  if(stock!==null)body.stock=parseFloat(stock)||0;
+  var res=await api('/api/types-tabac/'+id,{method:'PUT',body:body});
+  if(res&&res.ok){notify('Tabac mis a jour');await loadTypesTabac();}
+  else notify('Erreur','error');
+}
+async function deleteTypeTabac(id){
+  if(!confirm('Supprimer ce type de tabac ?'))return;
+  await api('/api/types-tabac/'+id,{method:'DELETE'});
+  notify('Type supprime');await loadTypesTabac();
+}
+</script>
+
 
 
 

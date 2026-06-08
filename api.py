@@ -1210,6 +1210,39 @@ def frais_dus_oublier():
     db.set_frais_statut(ids, "oublie")
     return ok({"oublies": len(ids)})
 
+
+# -- TYPES DE TABAC -----------------------------------------------------------
+@app.route("/api/types-tabac")
+@require_auth
+def types_tabac_list():
+    return ok(db.get_types_tabac())
+
+@app.route("/api/types-tabac", methods=["POST"])
+@require_auth
+def types_tabac_create():
+    data=request.json or {}
+    try:
+        tid=db.add_type_tabac(data.get("nom",""), data.get("prix",0))
+    except ValueError as e:
+        return err(str(e))
+    return ok({"id":tid}), 201
+
+@app.route("/api/types-tabac/<int:tid>", methods=["PUT"])
+@require_auth
+def types_tabac_update(tid):
+    data=request.json or {}
+    db.update_type_tabac(tid,
+        nom=data.get("nom"),
+        prix=data.get("prix"),
+        stock=data.get("stock"))
+    return ok({"id":tid})
+
+@app.route("/api/types-tabac/<int:tid>", methods=["DELETE"])
+@require_auth
+def types_tabac_delete(tid):
+    db.delete_type_tabac(tid)
+    return ok({"deleted":tid})
+
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_frontend(path):
