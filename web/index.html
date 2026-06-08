@@ -612,6 +612,11 @@ select option{background:var(--bg3)}
                   <input type="checkbox" id="posRembFrais" checked onchange="updatePosTotals()" style="width:auto;margin:0"> J'absorbe les frais sur le remboursement
                 </label>
               </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <span style="font-size:13px;color:var(--text3);flex:1">Reduction</span>
+                <input type="number" id="posReduc" value="0" step="1" min="0" style="width:90px;text-align:right;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px" oninput="updatePosTotals()">
+                <span style="font-size:13px;color:var(--text3)">EUR</span>
+              </div>
               <div class="pos-total"><span style="font-size:14px;color:var(--text3);font-weight:500">VENTE</span><span class="amt" id="posTotal">0.00 EUR</span></div>
               <div class="pos-pay">
                 <button class="pos-paybtn active" id="posPayCash" onclick="setPosPay('cash')">Comptant (paye)</button>
@@ -3826,10 +3831,12 @@ function setPosPay(mode){
   updatePosTotals();
 }
 function getCartTotal(){ var t=0; posCart.forEach(function(l){t+=l.prix*l.qty;}); return t; }
+function getReduc(){ var r=document.getElementById('posReduc'); var v=r?(parseFloat(r.value)||0):0; return v<0?0:v; }
+function getCartTotalNet(){ var t=getCartTotal()-getReduc(); return t<0?0:t; }
 function getRemb(){ var ri=document.getElementById('posRemb'); return ri?(parseFloat(ri.value)||0):0; }
 function updatePosTotals(){
-  var venteTotal=getCartTotal();
-  var el=document.getElementById('posTotal'); if(el)el.textContent=venteTotal.toFixed(2)+' EUR';
+  var venteBrut=getCartTotal();var reduc=getReduc();var venteTotal=venteBrut-reduc;if(venteTotal<0)venteTotal=0;
+  var el=document.getElementById('posTotal'); if(el)el.textContent=venteTotal.toFixed(2)+' EUR'+(reduc>0?' (-'+reduc.toFixed(2)+')':'');
   // mode de paiement : utile seulement si vente comptant OU remboursement>0
   var remb=getRemb();
   var pm=document.getElementById('posMode');
@@ -3860,7 +3867,8 @@ renderPosCart=function(){
 async function posEncaisser(){
   var cid=parseInt(document.getElementById('posClient').value);
   if(!cid){notify('Choisis un client','error');return;}
-  var venteTotal=getCartTotal();
+  var venteBrutEnc=getCartTotal();var reducEnc=getReduc();var venteTotal=venteBrutEnc-reducEnc;if(venteTotal<0)venteTotal=0;
+  var facteurReduc=(venteBrutEnc>0)?(venteTotal/venteBrutEnc):1;
   var remb=getRemb();
   if(venteTotal<=0 && remb<=0){notify('Rien a encaisser','error');return;}
   var mode=document.getElementById('posMode').value;
@@ -3870,7 +3878,7 @@ async function posEncaisser(){
   for(var i=0;i<posCart.length;i++){
     var l=posCart[i];
     var modeVente=(posPayMode==='credit')?'Liquide':mode;
-    var _posDate=(document.getElementById('posDate')&&document.getElementById('posDate').value)?document.getElementById('posDate').value:undefined;var body={client_id:cid,type:'debit',motif:l.nom,quantite:l.qty,unite:l.unite,prix_unitaire:l.prix,mode_paiement:modeVente,notes:(posPayMode==='cash'?'[CAISSE PAYE] ':'[CAISSE CREDIT] ')+'Vente caisse',frais_deduits:0,compte:'euro',date:_posDate};
+    var _posDate=(document.getElementById('posDate')&&document.getElementById('posDate').value)?document.getElementById('posDate').value:undefined;var body={client_id:cid,type:'debit',motif:l.nom,quantite:l.qty,unite:l.unite,prix_unitaire:Math.round(l.prix*facteurReduc*100)/100,mode_paiement:modeVente,notes:(posPayMode==='cash'?'[CAISSE PAYE] ':'[CAISSE CREDIT] ')+'Vente caisse',frais_deduits:0,compte:'euro',date:_posDate};
     try{var r=await api('/api/transactions',{method:'POST',body:body});if(r&&r.ok)ok++;else fail++;}catch(e){fail++;}
   }
   // 2) Remboursement de dette (credit)
@@ -3885,7 +3893,7 @@ async function posEncaisser(){
     if(venteTotal>0)msg.push('vente '+venteTotal.toFixed(2)+' EUR');
     if(remb>0)msg.push('remboursement '+remb.toFixed(2)+' EUR');
     notify('Encaisse : '+msg.join(' + '));
-    posCart=[];renderPosCart();
+    posCart=[];var _pr=document.getElementById('posReduc');if(_pr)_pr.value='0';renderPosCart();
     var ri=document.getElementById('posRemb');if(ri)ri.value='0';
     onPosClientChange(); // recharge la dette a jour
     if(typeof loadDashboard==='function')loadDashboard();
