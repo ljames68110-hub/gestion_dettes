@@ -967,7 +967,7 @@ def _build_facture_html(trans, client, type_):
     qty = trans.get("quantite", 1) or 1
     pu = trans.get("prix_unitaire", 0) or 0
     unite = trans.get("unite","piece")
-    unite_label = "g" if unite=="gramme" else "pcs"
+    unite_label = "g" if unite=="gramme" else ("L" if unite=="litre" else ("paquet(s)" if unite=="paquet" else "pcs"))
     notes = trans.get("notes","") or ""
     client_nom = client.get("nom","—") if client else "—"
     client_tel = client.get("tel","") or ""
