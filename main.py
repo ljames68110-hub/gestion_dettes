@@ -117,7 +117,7 @@ def main():
             resizable        = True,
             background_color = "#0a0a0f",
         )
-        webview.start(debug=False, icon=icon, gui="edgechromium")
+        webview.start(debug=True, icon=icon, gui="edgechromium")
         _save_backup_on_exit()  # apres fermeture fenetre
     except ImportError:
         print("[Gestion Perso] PyWebView absent — navigateur")

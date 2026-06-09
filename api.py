@@ -1254,6 +1254,23 @@ def catalogue_adjust_stock(iid):
     db.adjust_stock_catalogue(iid, delta)
     return ok(db.get_catalogue_item(iid))
 
+
+# -- ASSOCIES -----------------------------------------------------------------
+@app.route("/api/associes")
+@require_auth
+def associes_list():
+    return ok(db.get_associes())
+
+@app.route("/api/associes", methods=["POST"])
+@require_auth
+def associes_create():
+    data = request.json or {}
+    nom = (data.get("nom") or "").strip()
+    if not nom:
+        return err("Nom requis")
+    cid = db.add_client(nom=nom, associe=1)
+    return ok({"id": cid}), 201
+
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_frontend(path):

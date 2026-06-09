@@ -206,19 +206,21 @@ def has_pin():
 
 # ── CLIENTS ───────────────────────────────────────────────────────────────────
 
-def add_client(nom, email=None, tel=None, notes=None):
+def add_client(nom, email=None, tel=None, notes=None, associe=0):
+    _ensure_associe_column()
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO clients (nom,email,tel,notes) VALUES (?,?,?,?)",
-            (nom, email or "", tel or "", notes or "")
+            "INSERT INTO clients (nom,email,tel,notes,associe) VALUES (?,?,?,?,?)",
+            (nom, email or "", tel or "", notes or "", int(associe or 0))
         )
         conn.commit()
         return cur.lastrowid
 
 def get_clients():
+    _ensure_associe_column()
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT id, nom, email, tel, notes FROM clients ORDER BY nom"
+            "SELECT id, nom, email, tel, notes, COALESCE(associe,0) as associe FROM clients ORDER BY nom"
         ).fetchall()
     return [dict(r) for r in rows]
 
@@ -946,3 +948,20 @@ def adjust_stock_catalogue(item_id, delta):
     with get_conn() as conn:
         conn.execute("UPDATE catalogue SET stock = COALESCE(stock,0) + ? WHERE id=?", (float(delta), item_id))
         conn.commit()
+
+
+# -- ASSOCIES -----------------------------------------------------------------
+def _ensure_associe_column():
+    with get_conn() as conn:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(clients)").fetchall()}
+        if "associe" not in cols:
+            conn.execute("ALTER TABLE clients ADD COLUMN associe INTEGER DEFAULT 0")
+            conn.commit()
+
+def get_associes():
+    _ensure_associe_column()
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, nom, email, tel, notes, COALESCE(associe,0) as associe FROM clients WHERE associe=1 ORDER BY nom"
+        ).fetchall()
+    return [dict(r) for r in rows]
