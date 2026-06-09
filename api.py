@@ -1271,6 +1271,34 @@ def associes_create():
     cid = db.add_client(nom=nom, associe=1)
     return ok({"id": cid}), 201
 
+@app.route("/api/clients/<int:cid>/tabac-paquets")
+@require_auth
+def client_tabac_paquets(cid):
+    with db.get_conn() as conn:
+        rows = conn.execute("""SELECT COALESCE(mode_paiement,'Tabac') as nom, type, COALESCE(SUM(quantite),0) as qte FROM transactions WHERE client_id=? AND COALESCE(compte,'euro')='tabac' GROUP BY COALESCE(mode_paiement,'Tabac'), type""", (cid,)).fetchall()
+        prix_map = {}
+        try:
+            for t in conn.execute("SELECT nom, prix FROM types_tabac").fetchall():
+                prix_map[t["nom"]] = t["prix"]
+        except Exception:
+            pass
+    detail = {}
+    for r in rows:
+        nom = r["nom"] or "Tabac"
+        d = detail.setdefault(nom, {"nom": nom, "paquets": 0, "prix": prix_map.get(nom, 0)})
+        if r["type"] == "debit":
+            d["paquets"] += r["qte"]
+        else:
+            d["paquets"] -= r["qte"]
+    total_p = 0; total_v = 0; details = []
+    for nom, d in detail.items():
+        d["paquets"] = round(d["paquets"], 2)
+        d["valeur"] = round(d["paquets"] * (d["prix"] or 0), 2)
+        if d["paquets"] != 0:
+            total_p += d["paquets"]; total_v += d["valeur"]; details.append(d)
+    return ok({"paquets": round(total_p,2), "valeur": round(total_v,2), "details": details})
+
+
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_frontend(path):

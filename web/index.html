@@ -639,7 +639,7 @@ select option{background:var(--bg3)}
                 <button class="pos-paybtn" id="posPayCredit" onclick="setPosPay('credit')">A credit (dette)</button>
               </div>
               <select class="pos-mode" id="posMode" onchange="posModeChanged()">
-                <option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS</option><option value="Paysafecard">Paysafecard</option><option value="WesternUnion">Western Union</option>
+                <option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS</option><option value="Paysafecard">Paysafecard</option><option value="WesternUnion">Western Union</option><option value="Cantine">🍽 Cantine</option>
               </select>
               <div id="posTabacQtyWrap" style="display:none;align-items:center;gap:8px;margin-top:4px">
                 <span style="font-size:13px;color:var(--gold2);flex:1">Nombre de paquets</span>
@@ -1454,14 +1454,14 @@ async function loadSolde(){
   const cid=document.getElementById('soldeClientSel').value;
   const content=document.getElementById('soldeContent');
   if(!cid){content.style.display='none';document.getElementById('exportCsvBtn').style.display='none';return;}
-  var _r277=await Promise.all([api('/api/clients/'+cid+'/stats'),api('/api/clients/'+cid+'/transactions'),api('/api/clients/'+cid+'/stats-comptes'),api('/api/clients/'+cid)]);var sr=_r277[0];var tr2=_r277[1];var sc=_r277[2];var cr=_r277[3];
+  var _r277=await Promise.all([api('/api/clients/'+cid+'/stats'),api('/api/clients/'+cid+'/transactions'),api('/api/clients/'+cid+'/stats-comptes'),api('/api/clients/'+cid),api('/api/clients/'+cid+'/tabac-paquets')]);var sr=_r277[0];var tr2=_r277[1];var sc=_r277[2];var cr=_r277[3];var tp=_r277[4];
   if(!sr||!sr.ok)return;
   const s=sr.data;const trans=(tr2 && tr2.data ? tr2.data : []);
   const clientData = cr && cr.ok ? cr.data : {};
   // Stocker pour openTransDetail
   if(cid) trans.forEach(function(t){ clientTransactions[t.id]=t; });
   // graphique injecté dynamiquement dans le HTML ci-dessous
-  var comptes = sc && sc.ok ? sc.data : {euro:{solde:0},cantine:{solde:0},tabac:{solde:0}};
+  var comptes = sc && sc.ok ? sc.data : {euro:{solde:0},cantine:{solde:0},tabac:{solde:0}};if(tp&&tp.ok&&tp.data){comptes.tabac.paquets=tp.data.paquets;comptes.tabac.valeur=tp.data.valeur;comptes.tabac.details=tp.data.details;}
   const dette=comptes.euro.solde;
   const isPos=dette>0;const col=isPos?'var(--green)':dette<0?'var(--red)':'var(--text3)';
   const msg=isPos?'Ce client vous doit '+fmt(dette):'<span style="color:var(--red)">⚠️ Vous devez '+fmt(Math.abs(dette))+' a ce client</span>';
@@ -1487,7 +1487,7 @@ async function loadSolde(){
   + infoCard
   + '<div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase">💶 Compte euros</div><div class="solde-amount" style="color:'+col+'">'+(dette>0?'+':'')+fmt(dette)+'</div><div style="font-size:13px;color:'+col+';margin-top:6px">'+msg+'</div></div>'
   + '<div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">🍽 Compte cantine</div><div style="font-size:28px;font-weight:700;color:'+(comptes.cantine.solde>0?'var(--green)':'var(--text3)')+'">'+(comptes.cantine.solde>0?'+':'')+fmt(comptes.cantine.solde)+'</div></div>'
-  + '<div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">🚬 Compte tabac</div><div style="font-size:28px;font-weight:700;color:'+(comptes.tabac.solde>0?'var(--green)':'var(--text3)')+'">'+(comptes.tabac.solde>0?'+':'')+fmt(comptes.tabac.solde)+'</div></div><div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px">Résumé</div><div style="display:grid;gap:10px">'+rowS('Total vendu (débits)','+'+fmt(s.total_debit),'var(--green)')+rowS('Total remboursé (crédits)','-'+fmt(s.total_credit),'var(--red)')+rowS('Frais reçus',fmt(s.total_frais),'var(--text2)')+rowS('Nb transactions',s.nb_transactions,'var(--text)')+'</div></div><div class="card" style="grid-column:1/-1"><div class="card-title">📈 Évolution</div><div style="position:relative;height:160px;margin-bottom:16px"><canvas id="evolutionChart_'+cid+'" style="width:100%;height:160px"></canvas></div><div class="card-title">Historique</div>'+trans.slice(0,20).map(t=>'<div class="timeline-item"><div class="tl-dot" style="background:'+(t.type==='debit'?'var(--green)':'var(--red)')+'"></div><div class="tl-info"><div class="tl-title">'+t.motif+' · '+t.mode_paiement+'</div><div class="tl-date">'+fmtDate(t.date)+' · Qté '+t.quantite+' × '+fmt(t.prix_unitaire)+'</div></div><div class="tl-amount" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</div></div>').join('')+(!trans.length?'<p style="color:var(--text3);text-align:center;padding:20px">Aucune transaction</p>':'')+'</div></div>'
+  + '<div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">🚬 Compte tabac</div><div style="font-size:28px;font-weight:700;color:'+(((comptes.tabac.paquets||0)!=0)?'var(--gold2)':'var(--text3)')+'">'+(comptes.tabac.paquets||0)+' paquet(s)</div><div style="font-size:12px;color:var(--text3);margin-top:4px">Prix de revient ~ '+fmt(comptes.tabac.valeur||0)+'</div>'+((comptes.tabac.details&&comptes.tabac.details.length)?('<div style="font-size:11px;color:var(--text3);margin-top:6px;text-align:left">'+comptes.tabac.details.map(function(d){return d.nom+' : '+d.paquets+' ('+fmt(d.valeur)+')';}).join('<br>')+'</div>'):'')+'</div><div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px">Résumé</div><div style="display:grid;gap:10px">'+rowS('Total vendu (débits)','+'+fmt(s.total_debit),'var(--green)')+rowS('Total remboursé (crédits)','-'+fmt(s.total_credit),'var(--red)')+rowS('Frais reçus',fmt(s.total_frais),'var(--text2)')+rowS('Nb transactions',s.nb_transactions,'var(--text)')+'</div></div><div class="card" style="grid-column:1/-1"><div class="card-title">📈 Évolution</div><div style="position:relative;height:160px;margin-bottom:16px"><canvas id="evolutionChart_'+cid+'" style="width:100%;height:160px"></canvas></div><div class="card-title">Historique</div>'+trans.slice(0,20).map(t=>'<div class="timeline-item"><div class="tl-dot" style="background:'+(t.type==='debit'?'var(--green)':'var(--red)')+'"></div><div class="tl-info"><div class="tl-title">'+t.motif+' · '+t.mode_paiement+'</div><div class="tl-date">'+fmtDate(t.date)+' · Qté '+t.quantite+' × '+fmt(t.prix_unitaire)+'</div></div><div class="tl-amount" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</div></div>').join('')+(!trans.length?'<p style="color:var(--text3);text-align:center;padding:20px">Aucune transaction</p>':'')+'</div></div>'
   // Section frais par remboursement
   +buildFraisSection(trans, cid)
   // FIX : dettesSection_cid ajouté dans le HTML avant le setTimeout
@@ -3900,8 +3900,8 @@ async function posEncaisser(){
   // 1) Ventes (articles du panier)
   for(var i=0;i<posCart.length;i++){
     var l=posCart[i];
-    var modeVente=(posPayMode==='credit')?'Liquide':mode;
-    var _posDate=(document.getElementById('posDate')&&document.getElementById('posDate').value)?document.getElementById('posDate').value:undefined;var body={client_id:cid,type:'debit',motif:l.nom,quantite:l.qty,unite:l.unite,prix_unitaire:Math.round(l.prix*facteurReduc*100)/100,mode_paiement:modeVente,notes:(posPayMode==='cash'?'[CAISSE PAYE] ':'[CAISSE CREDIT] ')+'Vente caisse',frais_deduits:0,compte:'euro',date:_posDate};
+    var modeVente=(posPayMode==='credit')?(mode==='Cantine'?'Cantine':'Liquide'):mode;var _compteVente=(mode==='Cantine')?'cantine':'euro';
+    var _posDate=(document.getElementById('posDate')&&document.getElementById('posDate').value)?document.getElementById('posDate').value:undefined;var body={client_id:cid,type:'debit',motif:l.nom,quantite:l.qty,unite:l.unite,prix_unitaire:Math.round(l.prix*facteurReduc*100)/100,mode_paiement:modeVente,notes:(posPayMode==='cash'?'[CAISSE PAYE] ':'[CAISSE CREDIT] ')+'Vente caisse',frais_deduits:0,compte:_compteVente,date:_posDate};
     try{var r=await api('/api/transactions',{method:'POST',body:body});if(r&&r.ok)ok++;else fail++;}catch(e){fail++;}
   }
   // 2) Remboursement de dette (credit)
