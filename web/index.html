@@ -263,7 +263,6 @@ select option{background:var(--bg3)}
 <div class="nav-item" onclick="goPage('settings',this)"><span class="nav-icon">⚙</span> Paramètres</div>
     <div class="nav-item" data-page="rappels" onclick="goPage('rappels',this)"><span class="nav-icon">🔔</span> Rappels</div>
     
-    <div class="nav-item" onclick="goPage('assistant',this)"><span class="nav-icon">🤖</span> Assistant IA</div>
     <div class="nav-item" onclick="goPage('entrees',this)"><span class="nav-icon">📦</span> Entrees materiel</div>
     <div class="nav-item" onclick="goPage('stock',this)"><span class="nav-icon">📊</span> Stock</div>
     <div class="nav-item" onclick="goPage('recap',this)"><span class="nav-icon">📊</span> Récap mensuel</div>
@@ -631,9 +630,13 @@ select option{background:var(--bg3)}
                 <button class="pos-paybtn active" id="posPayCash" onclick="setPosPay('cash')">Comptant (paye)</button>
                 <button class="pos-paybtn" id="posPayCredit" onclick="setPosPay('credit')">A credit (dette)</button>
               </div>
-              <select class="pos-mode" id="posMode">
+              <select class="pos-mode" id="posMode" onchange="posModeChanged()">
                 <option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS</option><option value="Paysafecard">Paysafecard</option><option value="WesternUnion">Western Union</option>
               </select>
+              <div id="posTabacQtyWrap" style="display:none;align-items:center;gap:8px;margin-top:4px">
+                <span style="font-size:13px;color:var(--gold2);flex:1">Nombre de paquets</span>
+                <input type="number" id="posTabacQty" value="1" min="1" step="1" style="width:90px;text-align:right;padding:6px 8px;border-radius:8px;border:1px solid var(--gold);background:var(--bg3);color:var(--text);font-size:14px">
+              </div>
               <button class="pos-cashout" id="posCashout" onclick="posEncaisser()">Encaisser</button>
             </div>
           </div>
@@ -1274,7 +1277,7 @@ async function refreshPinLength(){
 }
 
 // ── NAVIGATION ──
-const TITLES={caisse:'Caisse',catalogue:'Catalogue Produits',factures:'Factures & Bons',assistant:'Assistant IA',stock:'Stock',dashboard:'Tableau de bord',clients:'Clients',transactions:'Transactions',soldes:'Soldes & Dettes',settings:'Parametres',rappels:'Rappels et Relances',entrees:'Entrees materiel',recap:'Recap mensuel'};
+const TITLES={caisse:'Caisse',catalogue:'Catalogue Produits',factures:'Factures & Bons',stock:'Stock',dashboard:'Tableau de bord',clients:'Clients',transactions:'Transactions',soldes:'Soldes & Dettes',settings:'Parametres',rappels:'Rappels et Relances',entrees:'Entrees materiel',recap:'Recap mensuel'};
 function goPage(name,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -1289,7 +1292,6 @@ function goPage(name,el){
   if(name==='soldes')initSoldes();
   if(name==='settings'){initSettings();loadMotifs();loadTarifs();}
   if(name==='rappels')loadRappels();
-  if(name==='assistant')initAssistant();
   if(name==='entrees')loadEntrees();
   if(name==='stock')loadStock();
   if(name==='recap')initRecap();
@@ -3798,7 +3800,7 @@ async function supprimerFacture(fid){if(!confirm('Supprimer ce document ?'))retu
 function initFactures(){var sel=document.getElementById('facturesClientFilter');if(sel){var prev=sel.value;sel.innerHTML='<option value="">Tous les clients</option>';clientsCache.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.nom;sel.appendChild(o);});if(prev)sel.value=prev;}loadFactures(0);}
 // ===== CAISSE =====
 var posCart=[];var posPayMode='cash';
-function initCaisse(){var _pd=document.getElementById('posDate');if(_pd&&!_pd.value){_pd.value=new Date().toISOString().slice(0,10);}var sel=document.getElementById('posClient');if(sel){var prev=sel.value;sel.innerHTML='<option value="">-- Choisir un client (obligatoire) --</option>';(clientsCache||[]).forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.nom;sel.appendChild(o);});if(prev)sel.value=prev;}if(!catalogueCache||!catalogueCache.length){loadCatalogue().then(function(){renderPosGrid('');});}else renderPosGrid('');renderPosCart();setPosPay('cash');}
+function initCaisse(){if(typeof loadTypesTabac==='function'){loadTypesTabac().then(function(){fillPosModeTabac();posModeChanged();}).catch(function(){fillPosModeTabac();posModeChanged();});}else{fillPosModeTabac();posModeChanged();}var _pd=document.getElementById('posDate');if(_pd&&!_pd.value){_pd.value=new Date().toISOString().slice(0,10);}var sel=document.getElementById('posClient');if(sel){var prev=sel.value;sel.innerHTML='<option value="">-- Choisir un client (obligatoire) --</option>';(clientsCache||[]).forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.nom;sel.appendChild(o);});if(prev)sel.value=prev;}if(!catalogueCache||!catalogueCache.length){loadCatalogue().then(function(){renderPosGrid('');});}else renderPosGrid('');renderPosCart();setPosPay('cash');}
 function renderPosGrid(filter){filter=(filter||'').toLowerCase();var grid=document.getElementById('posGrid');if(!grid)return;grid.innerHTML='';var list=(catalogueCache||[]).filter(function(it){return !filter||(it.nom+' '+it.categorie).toLowerCase().includes(filter);});if(!list.length){grid.innerHTML='<div class="pos-empty" style="grid-column:1/-1">Aucun article. Ajoutez-en dans le Catalogue.</div>';return;}list.forEach(function(it){var u=it.unite==='gramme'?'g':it.unite==='litre'?'L':'pcs';var card=document.createElement('div');card.className='pos-prod';card.onclick=function(){addToCart(it);};card.innerHTML='<div class="pcat">'+it.categorie+'</div><div class="pname">'+it.nom+'</div><div class="pprice">'+parseFloat(it.prix_vente).toFixed(2)+' EUR<span style="font-size:10px;color:var(--text3)"> /'+u+'</span></div>';grid.appendChild(card);});}
 function addToCart(it){var line=posCart.find(function(l){return l.id===it.id;});if(line){line.qty+=1;}else{posCart.push({id:it.id,nom:it.nom,prix:parseFloat(it.prix_vente)||0,qty:1,unite:it.unite||'piece'});}renderPosCart();}
 function posChangeQty(id,delta){var line=posCart.find(function(l){return l.id===id;});if(!line)return;line.qty=Math.max(0,Math.round((line.qty+delta)*100)/100);if(line.qty<=0){posCart=posCart.filter(function(l){return l.id!==id;});}renderPosCart();}
@@ -3877,6 +3879,8 @@ renderPosCart=function(){
 async function posEncaisser(){
   var cid=parseInt(document.getElementById('posClient').value);
   if(!cid){notify('Choisis un client','error');return;}
+  var _tmode=document.getElementById('posMode').value;
+  if(_tmode&&_tmode.indexOf('tabac:')===0){return posEncaisserTabac(cid,_tmode);}
   var venteBrutEnc=getCartTotal();var reducEnc=getReduc();var venteTotal=venteBrutEnc-reducEnc;if(venteTotal<0)venteTotal=0;
   var facteurReduc=(venteBrutEnc>0)?(venteTotal/venteBrutEnc):1;
   var remb=getRemb();
@@ -4050,6 +4054,72 @@ async function deleteTypeTabac(id){
   notify('Type supprime');await loadTypesTabac();
 }
 </script>
+
+<script>
+// ===== PAIEMENT EN TABAC (caisse) =====
+function fillPosModeTabac(){
+  var sel=document.getElementById('posMode');
+  if(!sel)return;
+  // retirer les anciennes options tabac
+  Array.prototype.slice.call(sel.querySelectorAll('option[data-tabac="1"]')).forEach(function(o){o.remove();});
+  (typesTabacCache||[]).forEach(function(t){
+    var o=document.createElement('option');
+    o.value='tabac:'+t.id;
+    o.setAttribute('data-tabac','1');
+    o.textContent='🚬 '+t.nom+(t.prix>0?(' ('+parseFloat(t.prix).toFixed(2)+' EUR)'):'');
+    sel.appendChild(o);
+  });
+}
+function posModeChanged(){
+  var sel=document.getElementById('posMode');
+  var wrap=document.getElementById('posTabacQtyWrap');
+  if(!sel||!wrap)return;
+  var isTabac=sel.value && sel.value.indexOf('tabac:')===0;
+  wrap.style.display=isTabac?'flex':'none';
+}
+async function posEncaisserTabac(cid,mode){
+  var tid=parseInt(mode.split(':')[1]);
+  var t=(typesTabacCache||[]).find(function(x){return x.id===tid;});
+  if(!t){notify('Type de tabac introuvable','error');return;}
+  var packs=parseFloat(document.getElementById('posTabacQty').value)||0;
+  if(packs<=0){notify('Indique le nombre de paquets','error');return;}
+  var prix=parseFloat(t.prix)||0;
+  var valeur=Math.round(packs*prix*100)/100;
+  var _posDate=(document.getElementById('posDate')&&document.getElementById('posDate').value)?document.getElementById('posDate').value:undefined;
+  var btn=document.getElementById('posCashout');btn.disabled=true;btn.textContent='Encaissement...';
+  var motif=(posCart.length?posCart.map(function(l){return l.nom;}).join(', '):'Paiement tabac');
+  var comptant=(posPayMode==='cash');
+  var body={client_id:cid,type:'debit',motif:motif,quantite:packs,unite:'paquet',
+    prix_unitaire:prix,mode_paiement:t.nom,
+    notes:(comptant?'[CAISSE PAYE] ':'[CAISSE CREDIT] ')+'Tabac: '+packs+' x '+t.nom,
+    frais_deduits:0,compte:'tabac',date:_posDate};
+  var ok=true;
+  try{var r=await api('/api/transactions',{method:'POST',body:body});if(!r||!r.ok)ok=false;}catch(e){ok=false;}
+  // Les articles du panier sortent de leur stock
+  posCart.forEach(function(l){api('/api/catalogue/'+l.id+'/adjust-stock',{method:'POST',body:{delta:-l.qty}}).catch(function(){});});
+  // Comptant : le tabac rentre dans le stock
+  if(comptant && ok){
+    var nouveauStock=(parseFloat(t.stock)||0)+packs;
+    try{await api('/api/types-tabac/'+tid,{method:'PUT',body:{stock:nouveauStock}});}catch(e){}
+  }
+  btn.disabled=false;btn.textContent='Encaisser';
+  if(ok){
+    notify(comptant
+      ? (packs+' '+t.nom+' encaisse(s) -> stock (valeur ~'+valeur.toFixed(2)+' EUR)')
+      : (packs+' '+t.nom+' ajoute(s) a la dette tabac du client'));
+    posCart=[];var _pr=document.getElementById('posReduc');if(_pr)_pr.value='0';
+    document.getElementById('posTabacQty').value='1';
+    renderPosCart();
+    if(typeof loadTypesTabac==='function')loadTypesTabac();
+    if(typeof loadDashboard==='function')loadDashboard();
+    if(typeof loadTransactions==='function')loadTransactions();
+    onPosClientChange();
+  }else{
+    notify('Erreur encaissement tabac','error');
+  }
+}
+</script>
+
 
 
 
