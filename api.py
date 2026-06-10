@@ -1365,6 +1365,17 @@ def factures_groupee():
     fid, num = db.create_facture(transs[0]["id"], cid, type_, html_content, total_net)
     return ok({"facture_id": fid, "numero": num}), 201
 
+@app.route("/api/catalogue/<int:iid>/photo", methods=["POST"])
+@require_auth
+def catalogue_set_photo(iid):
+    data = request.json or {}
+    photo = data.get("photo", "")
+    db._ensure_catalogue_table()
+    with db.get_conn() as conn:
+        conn.execute("UPDATE catalogue SET photo=? WHERE id=?", (photo, iid))
+        conn.commit()
+    return ok(db.get_catalogue_item(iid))
+
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_frontend(path):

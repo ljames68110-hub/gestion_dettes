@@ -647,6 +647,9 @@ def _ensure_catalogue_table():
         if "stock" not in cols:
             conn.execute("ALTER TABLE catalogue ADD COLUMN stock REAL DEFAULT 0")
             conn.commit()
+        if "photo" not in cols:
+            conn.execute("ALTER TABLE catalogue ADD COLUMN photo TEXT DEFAULT ''")
+            conn.commit()
 
 def get_catalogue():
     _ensure_catalogue_table()
