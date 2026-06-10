@@ -299,7 +299,7 @@ def transactions_create():
     try:
         client = db.get_client(data["client_id"])
         type_doc = "vente" if type_ == "debit" else "remboursement"
-        if created:
+        if created and not data.get("no_facture"):
             html_content, numero = _build_facture_html(created, client, type_doc)
             db.create_facture(tid, data["client_id"], type_doc, html_content, net)
     except Exception as _fe:
@@ -1298,6 +1298,72 @@ def client_tabac_paquets(cid):
             total_p += d["paquets"]; total_v += d["valeur"]; details.append(d)
     return ok({"paquets": round(total_p,2), "valeur": round(total_v,2), "details": details})
 
+
+def _build_facture_groupee_html(transs, client, type_):
+    from datetime import datetime
+    date_str = datetime.now().strftime("%d/%m/%Y a %H:%M")
+    is_vente = type_ == "vente"
+    titre = "FACTURE DE VENTE" if is_vente else "BON DE REMBOURSEMENT"
+    couleur = "#16a34a" if is_vente else "#c9a84c"
+    client_nom = client.get("nom","-") if client else "-"
+    client_tel = client.get("tel","") or ""
+    tid0 = transs[0].get("id",0)
+    prefix = "FAC" if is_vente else "BON"
+    numero = f"{prefix}-{datetime.now().strftime('%Y%m%d')}-{tid0:05d}"
+    date_t = (transs[0].get("date","") or "")[:10].split("-")
+    date_fmt = "/".join(reversed(date_t)) if len(date_t)==3 else ""
+    rows_html = ""
+    total = 0
+    for t in transs:
+        qty = t.get("quantite",1) or 1
+        pu = t.get("prix_unitaire",0) or 0
+        mb = t.get("montant_brut",0) or 0
+        mode = t.get("mode_paiement","-")
+        motif = t.get("motif","-")
+        unite = t.get("unite","piece")
+        ulabel = "g" if unite=="gramme" else ("L" if unite=="litre" else ("paquet(s)" if unite=="paquet" else "pcs"))
+        total += mb
+        rows_html += f"<tr><td><strong>{motif}</strong></td><td>{float(qty):.1f} {ulabel}</td><td>{float(pu):.2f} EUR</td><td>{mode}</td><td style='text-align:right;font-weight:600'>{float(mb):.2f} EUR</td></tr>"
+    total = round(total,2)
+    total_label = "Total du" if is_vente else "Montant rembourse"
+    html = f"""<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>{titre} {numero}</title>
+<style>*{{margin:0;padding:0;box-sizing:border-box}}body{{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:32px;max-width:600px;margin:auto}}
+.header{{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:16px;border-bottom:3px solid {couleur}}}
+.app-name{{font-size:22px;font-weight:bold;color:{couleur}}}.app-sub{{font-size:11px;color:#666}}
+.doc-type{{text-align:right}}.doc-type h1{{font-size:18px;color:{couleur}}}.numero{{font-size:13px;font-family:monospace;color:#333;margin-top:4px}}.date{{font-size:11px;color:#666}}
+.section{{margin-bottom:20px}}.section-title{{font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #eee}}
+.info-box{{background:#f9f9f9;border:1px solid #eee;border-radius:6px;padding:12px}}.info-box strong{{display:block;margin-bottom:4px;color:#333}}
+table{{width:100%;border-collapse:collapse;margin-bottom:16px}}thead tr{{background:{couleur};color:white}}th{{padding:8px 10px;text-align:left;font-size:11px}}td{{padding:8px 10px;border-bottom:1px solid #f0f0f0}}
+.total-section{{background:#f5f5f5;border:1px solid #ddd;border-radius:6px;padding:16px}}.total-row.main{{font-size:16px;font-weight:bold;color:{couleur};border-top:2px solid {couleur};margin-top:8px;padding-top:8px;display:flex;justify-content:space-between}}
+.footer{{margin-top:32px;padding-top:16px;border-top:1px solid #eee;text-align:center;font-size:10px;color:#999}}</style></head><body>
+<div class="header"><div><div class="app-name">Gestion Perso</div><div class="app-sub">Gestion de dettes &amp; creances</div></div>
+<div class="doc-type"><h1>{titre}</h1><div class="numero">{numero}</div><div class="date">Emis le {date_str}</div></div></div>
+<div class="section"><div class="section-title">Client</div><div class="info-box"><strong>{client_nom}</strong><span>{client_tel}</span></div></div>
+<div class="section"><div class="section-title">Detail ({date_fmt})</div><table><thead><tr><th>Article</th><th>Qte</th><th>P.U.</th><th>Mode</th><th style="text-align:right">Montant</th></tr></thead><tbody>{rows_html}</tbody></table></div>
+<div class="total-section"><div class="total-row main"><span>{total_label}</span><span>{total:.2f} EUR</span></div></div>
+<div class="footer">Gestion Perso - Document genere le {date_str}</div></body></html>"""
+    return html, numero
+
+@app.route("/api/factures/groupee", methods=["POST"])
+@require_auth
+def factures_groupee():
+    data = request.json or {}
+    cid = data.get("client_id")
+    tids = data.get("transaction_ids", [])
+    type_ = data.get("type", "vente")
+    if not cid or not tids:
+        return err("Donnees manquantes")
+    client = db.get_client(cid)
+    with db.get_conn() as conn:
+        qmarks = ",".join("?" for _ in tids)
+        rows = conn.execute("SELECT * FROM transactions WHERE id IN (%s)" % qmarks, tuple(tids)).fetchall()
+    transs = [dict(r) for r in rows]
+    if not transs:
+        return err("Transactions introuvables")
+    total_net = round(sum((t.get("montant_net") or 0) for t in transs), 2)
+    html_content, numero = _build_facture_groupee_html(transs, client, type_)
+    fid, num = db.create_facture(transs[0]["id"], cid, type_, html_content, total_net)
+    return ok({"facture_id": fid, "numero": num}), 201
 
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")

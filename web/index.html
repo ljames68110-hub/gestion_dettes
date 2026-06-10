@@ -266,6 +266,7 @@ select option{background:var(--bg3)}
     <div class="nav-item" onclick="goPage('entrees',this)"><span class="nav-icon">📦</span> Entrees materiel</div>
     <div class="nav-item" onclick="goPage('stock',this)"><span class="nav-icon">📊</span> Stock</div>
     <div class="nav-item" onclick="goPage('recap',this)"><span class="nav-icon">📊</span> Récap mensuel</div>
+    <div class="nav-item" onclick="goPage('compta',this)"><span class="nav-icon">📒</span> Compta</div>
     <div class="nav-item" onclick="openModalImprimer()"><span class="nav-icon">🖨</span> Imprimer</div>
     <div class="nav-item" onclick="exportAll()"><span class="nav-icon">↓</span> Export CSV complet</div>
     <div class="nav-item" onclick="exportDB()"><span class="nav-icon">💾</span> Exporter la base</div>
@@ -641,6 +642,7 @@ select option{background:var(--bg3)}
                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);margin-top:6px;cursor:pointer">
                   <input type="checkbox" id="posRembFrais" checked onchange="updatePosTotals()" style="width:auto;margin:0"> J'absorbe les frais sur le remboursement
                 </label>
+                <div id="posFraisInfo" style="display:none;font-size:11px;color:var(--gold2);margin-top:6px;padding:6px 8px;background:var(--bg2);border-radius:6px;border:1px solid var(--gold);line-height:1.5"></div>
               </div>
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
                 <span style="font-size:13px;color:var(--text3);flex:1">Reduction</span>
@@ -652,7 +654,7 @@ select option{background:var(--bg3)}
                 <button class="pos-paybtn active" id="posPayCash" onclick="setPosPay('cash')">Comptant (paye)</button>
                 <button class="pos-paybtn" id="posPayCredit" onclick="setPosPay('credit')">A credit (dette)</button>
               </div>
-              <select class="pos-mode" id="posMode" onchange="posModeChanged()">
+              <select class="pos-mode" id="posMode" onchange="posModeChanged();updatePosTotals()">
                 <option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS</option><option value="Paysafecard">Paysafecard</option><option value="WesternUnion">Western Union</option><option value="Cantine">🍽 Cantine</option>
               </select>
               <div id="posTabacQtyWrap" style="display:none;align-items:center;gap:8px;margin-top:4px">
@@ -716,6 +718,26 @@ select option{background:var(--bg3)}
       </div>
 
       <!-- RAPPELS -->
+      <div class="page" id="pg-compta">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px">
+          <span style="font-size:13px;color:var(--text3)">Du</span>
+          <input type="date" id="comptaDu" onchange="computeCompta()" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">
+          <span style="font-size:13px;color:var(--text3)">au</span>
+          <input type="date" id="comptaAu" onchange="computeCompta()" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">
+          <select id="comptaClient" onchange="computeCompta()" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);min-width:160px"><option value="">Tous les clients</option></select>
+          <button class="btn primary" onclick="exportComptaPDF()" style="margin-left:auto">🧾 Export PDF</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px">
+          <div class="stat-card green"><div class="stat-label">Ventes (periode)</div><div class="stat-value" id="comptaVentes">—</div></div>
+          <div class="stat-card blue"><div class="stat-label">Encaisse (periode)</div><div class="stat-value" id="comptaEncaisse">—</div></div>
+          <div class="stat-card gold"><div class="stat-label">Benefice estime</div><div class="stat-value" id="comptaBenef">—</div></div>
+          <div class="stat-card red"><div class="stat-label">Dette totale</div><div class="stat-value" id="comptaDette">—</div></div>
+        </div>
+        <div class="table-wrap">
+          <div class="table-header"><span>Operations de la periode</span></div>
+          <table><thead><tr><th>Date</th><th>Client</th><th>Type</th><th>Motif</th><th>Mode</th><th style="text-align:right">Montant</th></tr></thead><tbody id="comptaTbody"></tbody></table>
+        </div>
+      </div>
       <div class="page" id="pg-rappels">
         <div style="display:flex;justify-content:flex-end"><button class="btn primary" onclick="openModalRappel()">+ Ajouter un rappel</button></div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
@@ -1299,7 +1321,7 @@ async function refreshPinLength(){
 }
 
 // ── NAVIGATION ──
-const TITLES={caisse:'Caisse',catalogue:'Catalogue Produits',factures:'Factures & Bons',stock:'Stock',dashboard:'Tableau de bord',clients:'Clients',transactions:'Transactions',soldes:'Soldes & Dettes',settings:'Parametres',rappels:'Rappels et Relances',entrees:'Entrees materiel',recap:'Recap mensuel'};
+const TITLES={caisse:'Caisse',catalogue:'Catalogue Produits',factures:'Factures & Bons',stock:'Stock',dashboard:'Tableau de bord',clients:'Clients',transactions:'Transactions',soldes:'Soldes & Dettes',settings:'Parametres',rappels:'Rappels et Relances',entrees:'Entrees materiel',recap:'Recap mensuel',compta:'Comptabilite'};
 function goPage(name,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -1320,6 +1342,7 @@ function goPage(name,el){
   if(name==='catalogue'){loadCatalogue();}
   if(name==='caisse'){initCaisse();}
   if(name==='factures'){initFactures();}
+  if(name==='compta'){initCompta();}
 }
 
 // ── DASHBOARD ──
@@ -3871,7 +3894,7 @@ function getCartTotalNet(){ var t=getCartTotal()-getReduc(); return t<0?0:t; }
 function getRemb(){ var ri=document.getElementById('posRemb'); return ri?(parseFloat(ri.value)||0):0; }
 function updatePosTotals(){
   var venteBrut=getCartTotal();var reduc=getReduc();var venteTotal=venteBrut-reduc;if(venteTotal<0)venteTotal=0;
-  var el=document.getElementById('posTotal'); if(el)el.textContent=venteTotal.toFixed(2)+' EUR'+(reduc>0?' (-'+reduc.toFixed(2)+')':'');
+  var el=document.getElementById('posTotal'); if(el)el.textContent=venteTotal.toFixed(2)+' EUR'+(reduc>0?' (-'+reduc.toFixed(2)+')':'');updatePosFrais();
   // mode de paiement : utile seulement si vente comptant OU remboursement>0
   var remb=getRemb();
   var pm=document.getElementById('posMode');
@@ -3910,13 +3933,13 @@ async function posEncaisser(){
   if(venteTotal<=0 && remb<=0){notify('Rien a encaisser','error');return;}
   var mode=document.getElementById('posMode').value;
   var btn=document.getElementById('posCashout');btn.disabled=true;btn.textContent='Encaissement...';
-  var ok=0,fail=0;
+  var ok=0,fail=0;var venteTids=[];
   // 1) Ventes (articles du panier)
   for(var i=0;i<posCart.length;i++){
     var l=posCart[i];
     var modeVente=(posPayMode==='credit')?(mode==='Cantine'?'Cantine':'Liquide'):mode;var _compteVente=(mode==='Cantine')?'cantine':'euro';
-    var _posDate=(document.getElementById('posDate')&&document.getElementById('posDate').value)?document.getElementById('posDate').value:undefined;var body={client_id:cid,type:'debit',motif:l.nom,quantite:l.qty,unite:l.unite,prix_unitaire:Math.round(l.prix*facteurReduc*100)/100,mode_paiement:modeVente,notes:(posPayMode==='cash'?'[CAISSE PAYE] ':'[CAISSE CREDIT] ')+'Vente caisse',frais_deduits:0,compte:_compteVente,date:_posDate};
-    try{var r=await api('/api/transactions',{method:'POST',body:body});if(r&&r.ok)ok++;else fail++;}catch(e){fail++;}
+    var _posDate=(document.getElementById('posDate')&&document.getElementById('posDate').value)?document.getElementById('posDate').value:undefined;var body={client_id:cid,type:'debit',motif:l.nom,quantite:l.qty,unite:l.unite,prix_unitaire:Math.round(l.prix*facteurReduc*100)/100,mode_paiement:modeVente,notes:(posPayMode==='cash'?'[CAISSE PAYE] ':'[CAISSE CREDIT] ')+'Vente caisse',frais_deduits:0,compte:_compteVente,date:_posDate,no_facture:true};
+    try{var r=await api('/api/transactions',{method:'POST',body:body});if(r&&r.ok){ok++;if(r.data&&r.data.id)venteTids.push(r.data.id);}else fail++;}catch(e){fail++;}
   }
   // 2) Remboursement de dette (credit)
   if(remb>0){
@@ -3929,7 +3952,7 @@ async function posEncaisser(){
     var msg=[];
     if(venteTotal>0)msg.push('vente '+venteTotal.toFixed(2)+' EUR');
     if(remb>0)msg.push('remboursement '+remb.toFixed(2)+' EUR');
-    notify('Encaisse : '+msg.join(' + '));
+    notify('Encaisse : '+msg.join(' + '));if(venteTids.length){api('/api/factures/groupee',{method:'POST',body:{client_id:cid,transaction_ids:venteTids,type:'vente'}}).catch(function(){});}
     posCart.forEach(function(l){api('/api/catalogue/'+l.id+'/adjust-stock',{method:'POST',body:{delta:-l.qty}}).catch(function(){});});
     posCart=[];var _pr=document.getElementById('posReduc');if(_pr)_pr.value='0';renderPosCart();
     var ri=document.getElementById('posRemb');if(ri)ri.value='0';
@@ -4239,6 +4262,104 @@ async function setTabacStock(id,val){
   else notify('Erreur','error');
 }
 </script>
+
+<script>
+// ===== COMPTA =====
+var comptaData=null;
+function initCompta(){
+  var now=new Date();
+  var first=new Date(now.getFullYear(),now.getMonth(),1);
+  var du=document.getElementById('comptaDu');var au=document.getElementById('comptaAu');
+  if(du&&!du.value)du.value=first.toISOString().slice(0,10);
+  if(au&&!au.value)au.value=now.toISOString().slice(0,10);
+  var sel=document.getElementById('comptaClient');
+  if(sel){var prev=sel.value;sel.innerHTML='<option value="">Tous les clients</option>';(clientsCache||[]).filter(function(c){return !c.associe;}).forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.nom;sel.appendChild(o);});if(prev)sel.value=prev;}
+  computeCompta();
+}
+async function computeCompta(){
+  var du=(document.getElementById('comptaDu')||{}).value||'';
+  var au=(document.getElementById('comptaAu')||{}).value||'';
+  var cidf=(document.getElementById('comptaClient')||{}).value||'';
+  var res=await api('/api/transactions?limit=5000');
+  var trans=(res&&res.ok)?res.data:[];
+  var cmap={};(clientsCache||[]).forEach(function(c){cmap[c.id]=c.nom;});
+  var costmap={};(catalogueCache||[]).forEach(function(a){costmap[a.nom]=parseFloat(a.prix_achat||0);});
+  var ventes=0,encaisse=0,benef=0,detteTotale=0;var rows=[];
+  trans.forEach(function(t){
+    var compte=t.compte||'euro';
+    if(!cidf || String(t.client_id)===String(cidf)){
+      if(compte!=='tabac'){
+        if(t.type==='debit')detteTotale+=parseFloat(t.montant_net||0);
+        else detteTotale-=parseFloat(t.montant_net||0);
+      }
+    }
+    var d=(t.date||'').slice(0,10);
+    if(du&&d<du)return;if(au&&d>au)return;
+    if(cidf&&String(t.client_id)!==String(cidf))return;
+    if(compte==='tabac')return;
+    var net=parseFloat(t.montant_net||0);
+    if(t.type==='debit'){ventes+=net;var cost=(costmap[t.motif]||0)*parseFloat(t.quantite||1);benef+=(net-cost);}
+    else{encaisse+=net;}
+    rows.push(t);
+  });
+  document.getElementById('comptaVentes').textContent=fmt(ventes);
+  document.getElementById('comptaEncaisse').textContent=fmt(encaisse);
+  document.getElementById('comptaBenef').textContent=fmt(benef);
+  document.getElementById('comptaDette').textContent=fmt(detteTotale);
+  var tb=document.getElementById('comptaTbody');tb.innerHTML='';
+  if(!rows.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">Aucune operation</td></tr>';}
+  else rows.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');}).forEach(function(t){
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td>'+((t.date||'').slice(0,10))+'</td><td>'+(cmap[t.client_id]||'?')+'</td><td>'+(t.type==='debit'?'Vente':'Encaissement')+'</td><td>'+(t.motif||'')+'</td><td>'+(t.mode_paiement||'')+'</td><td style="text-align:right;font-weight:600;color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+(t.type==='debit'?'+':'-')+fmt(parseFloat(t.montant_net||0))+'</td>';
+    tb.appendChild(tr);
+  });
+  comptaData={ventes:ventes,encaisse:encaisse,benef:benef,detteTotale:detteTotale,rows:rows,du:du,au:au,client:(cidf?(cmap[cidf]||'?'):'Tous les clients')};
+}
+function exportComptaPDF(){
+  if(!comptaData){computeCompta();return;}
+  var d=comptaData;
+  var rowsHtml=d.rows.slice().sort(function(a,b){return (a.date||'').localeCompare(b.date||'');}).map(function(t){
+    return '<tr><td>'+((t.date||'').slice(0,10))+'</td><td>'+(t.type==='debit'?'Vente':'Encaissement')+'</td><td>'+(t.motif||'')+'</td><td>'+(t.mode_paiement||'')+'</td><td style="text-align:right">'+(t.type==='debit'?'+':'-')+parseFloat(t.montant_net||0).toFixed(2)+' EUR</td></tr>';
+  }).join('');
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Compta</title><style>body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:24px}h1{color:#c9a84c;font-size:20px;margin-bottom:6px}table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#c9a84c;color:#fff;padding:6px 8px;text-align:left;font-size:11px}td{padding:6px 8px;border-bottom:1px solid #eee}.cards{display:flex;gap:12px;margin:14px 0}.card{flex:1;border:1px solid #ddd;border-radius:6px;padding:10px}.card .l{font-size:10px;color:#888;text-transform:uppercase}.card .v{font-size:17px;font-weight:bold}</style></head><body>'
+    +'<h1>Comptabilite — Gestion Perso</h1>'
+    +'<div>Periode : '+d.du+' au '+d.au+' &nbsp;&middot;&nbsp; Client : '+d.client+'</div>'
+    +'<div class="cards"><div class="card"><div class="l">Ventes</div><div class="v" style="color:#16a34a">'+d.ventes.toFixed(2)+' EUR</div></div>'
+    +'<div class="card"><div class="l">Encaisse</div><div class="v" style="color:#2563eb">'+d.encaisse.toFixed(2)+' EUR</div></div>'
+    +'<div class="card"><div class="l">Benefice estime</div><div class="v" style="color:#c9a84c">'+d.benef.toFixed(2)+' EUR</div></div>'
+    +'<div class="card"><div class="l">Dette totale</div><div class="v" style="color:#dc2626">'+d.detteTotale.toFixed(2)+' EUR</div></div></div>'
+    +'<table><thead><tr><th>Date</th><th>Type</th><th>Motif</th><th>Mode</th><th style="text-align:right">Montant</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'
+    +'<p style="margin-top:20px;font-size:10px;color:#999">Document genere le '+new Date().toLocaleString()+'</p></body></html>';
+  var b=new Blob([html],{type:'text/html'});var u=URL.createObjectURL(b);
+  var pf=document.getElementById('printFrame');
+  if(pf){pf.src=u;document.getElementById('modalPrintPreview').classList.add('open');pf.onload=function(){try{pf.contentWindow.print();}catch(e){}pf.onload=null;};}
+  else window.open(u,'_blank');
+}
+</script>
+
+<script>
+// ===== CAISSE : affichage des frais de remboursement =====
+function updatePosFrais(){
+  var info=document.getElementById('posFraisInfo'); if(!info)return;
+  var remb=(typeof getRemb==='function')?getRemb():0;
+  var mode=(document.getElementById('posMode')||{}).value||'';
+  var rate=(typeof FEES!=='undefined'&&FEES[mode])?FEES[mode]:0;
+  if(remb>0 && rate>0){
+    var frais=Math.round(remb*rate*100)/100;
+    var jAbsorbe=document.getElementById('posRembFrais')?document.getElementById('posRembFrais').checked:true;
+    info.style.display='block';
+    info.innerHTML='Frais '+mode+' ('+(rate*100).toFixed(0)+'%) sur '+remb.toFixed(2)+' EUR = <strong>'+frais.toFixed(2)+' EUR</strong><br>'
+      +(jAbsorbe
+        ? '✅ Tu absorbes les frais : le client est credite de <strong>'+remb.toFixed(2)+' EUR</strong>'
+        : '⚠️ Le client paie les frais : credite de <strong>'+(remb-frais).toFixed(2)+' EUR</strong> (tu gardes '+frais.toFixed(2)+' EUR)');
+  }else{
+    info.style.display='none';
+    info.innerHTML='';
+  }
+}
+</script>
+
+
 
 
 
