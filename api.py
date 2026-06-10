@@ -978,6 +978,9 @@ def _build_facture_html(trans, client, type_):
     prefix = "FAC" if is_vente else "BON"
     now_str = datetime.now().strftime("%Y%m%d")
     numero = f"{prefix}-{now_str}-{tid:05d}"
+    _pmap = _catalogue_photo_map()
+    _ph = _pmap.get(motif, "")
+    _pimg = f'<img src="{_ph}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px">' if _ph else ""
 
     html = f"""<!DOCTYPE html>
 <html lang="fr">
@@ -1049,7 +1052,7 @@ tr:nth-child(even) td{{background:#fafafa}}
     <thead><tr><th>Article</th><th>Qté</th><th>P.U.</th><th>Mode</th><th style="text-align:right">Montant</th></tr></thead>
     <tbody>
       <tr>
-        <td><strong>{motif}</strong></td>
+        <td>{_pimg}<strong>{motif}</strong></td>
         <td>{float(qty):.1f} {unite_label}</td>
         <td>{float(pu):.2f} €</td>
         <td>{mode}</td>
@@ -1313,6 +1316,7 @@ def _build_facture_groupee_html(transs, client, type_):
     date_t = (transs[0].get("date","") or "")[:10].split("-")
     date_fmt = "/".join(reversed(date_t)) if len(date_t)==3 else ""
     rows_html = ""
+    _pmap = _catalogue_photo_map()
     total = 0
     for t in transs:
         qty = t.get("quantite",1) or 1
@@ -1323,7 +1327,9 @@ def _build_facture_groupee_html(transs, client, type_):
         unite = t.get("unite","piece")
         ulabel = "g" if unite=="gramme" else ("L" if unite=="litre" else ("paquet(s)" if unite=="paquet" else "pcs"))
         total += mb
-        rows_html += f"<tr><td><strong>{motif}</strong></td><td>{float(qty):.1f} {ulabel}</td><td>{float(pu):.2f} EUR</td><td>{mode}</td><td style='text-align:right;font-weight:600'>{float(mb):.2f} EUR</td></tr>"
+        _ph = _pmap.get(motif, "")
+        _pimg = f'<img src="{_ph}" style="width:34px;height:34px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:6px">' if _ph else ""
+        rows_html += f"<tr><td>{_pimg}<strong>{motif}</strong></td><td>{float(qty):.1f} {ulabel}</td><td>{float(pu):.2f} EUR</td><td>{mode}</td><td style='text-align:right;font-weight:600'>{float(mb):.2f} EUR</td></tr>"
     total = round(total,2)
     total_label = "Total du" if is_vente else "Montant rembourse"
     html = f"""<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>{titre} {numero}</title>
@@ -1375,6 +1381,16 @@ def catalogue_set_photo(iid):
         conn.execute("UPDATE catalogue SET photo=? WHERE id=?", (photo, iid))
         conn.commit()
     return ok(db.get_catalogue_item(iid))
+
+def _catalogue_photo_map():
+    m = {}
+    try:
+        for c in db.get_catalogue():
+            if c.get("photo"):
+                m[c.get("nom")] = c.get("photo")
+    except Exception:
+        pass
+    return m
 
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
