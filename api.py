@@ -679,6 +679,17 @@ def rappels_create():
     )
     return ok({"id": rid}), 201
 
+@app.route("/api/rappels/actif", methods=["POST"])
+@require_auth
+def rappels_set_actif():
+    data = request.json or {}
+    cid = data.get("client_id")
+    if not cid:
+        return err("client_id manquant")
+    actif = 1 if data.get("actif", 1) else 0
+    db.set_rappel_actif(int(cid), actif, data.get("nom", ""), data.get("dette", 0) or 0)
+    return ok({"client_id": cid, "actif": actif})
+
 @app.route("/api/rappels/<int:rid>", methods=["DELETE"])
 @require_auth
 def rappels_delete(rid):
@@ -1204,6 +1215,16 @@ def frais_dus_facturer():
     # 3) Marquer les frais comme factures
     db.set_frais_statut(ids, "facture")
     return ok({"total": total, "transaction_id": tid})
+
+@app.route("/api/frais-dus/paye", methods=["POST"])
+@require_auth
+def frais_dus_paye():
+    data = request.json or {}
+    ids = data.get("ids", [])
+    if not ids:
+        return err("Selection vide")
+    total = db.payer_frais_dus(ids)
+    return ok({"total": total})
 
 @app.route("/api/frais-dus/oublier", methods=["POST"])
 @require_auth

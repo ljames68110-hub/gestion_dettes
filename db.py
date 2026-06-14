@@ -422,6 +422,25 @@ def update_transaction(trans_id, data):
 
 # ── RAPPELS ──────────────────────────────────────────────────────────────────
 
+def _ensure_rappel_actif():
+    with get_conn() as conn:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(rappels)").fetchall()}
+        if "actif" not in cols:
+            conn.execute("ALTER TABLE rappels ADD COLUMN actif INTEGER DEFAULT 1")
+            conn.commit()
+def set_rappel_actif(client_id, actif, nom="", dette=0):
+    """Active (1) ou desactive (0) le rappel d'un client. Cree la ligne si besoin
+    (date vide pour ne pas compter comme une relance reelle)."""
+    _ensure_rappel_actif()
+    with get_conn() as conn:
+        row = conn.execute("SELECT id FROM rappels WHERE client_id=?", (client_id,)).fetchone()
+        if row:
+            conn.execute("UPDATE rappels SET actif=? WHERE client_id=?", (int(actif), client_id))
+        else:
+            conn.execute("INSERT INTO rappels (client_id,nom,dette,date,note,actif) VALUES (?,?,?,?,?,?)",
+                         (client_id, nom, dette, "", "", int(actif)))
+        conn.commit()
+
 def add_rappel(client_id, nom, dette, date, note=""):
     with get_conn() as conn:
         # Un seul rappel actif par client — remplacer si existe
@@ -886,6 +905,32 @@ def set_frais_statut(frais_ids, statut):
             conn.execute("UPDATE frais_dus SET statut=? WHERE id=?", (statut, int(fid)))
         conn.commit()
 
+
+def payer_frais_dus(frais_ids):
+    """Marque des frais comme payes : remet frais=0 et net=brut sur la
+    transaction liee (le solde se corrige), garde la trace [FRAIS PAYE],
+    et passe la ligne frais_dus en statut paye. Renvoie le total regle."""
+    _ensure_frais_dus_table()
+    total = 0.0
+    with get_conn() as conn:
+        for fid in frais_ids:
+            row = conn.execute("SELECT transaction_id, montant FROM frais_dus WHERE id=?", (int(fid),)).fetchone()
+            if not row:
+                continue
+            tid = row["transaction_id"]
+            montant = row["montant"] or 0
+            if tid:
+                t = conn.execute("SELECT montant_brut, COALESCE(notes,'') AS notes FROM transactions WHERE id=?", (tid,)).fetchone()
+                if t:
+                    brut = t["montant_brut"]
+                    notes = t["notes"] or ""
+                    if "[FRAIS PAYE]" not in notes:
+                        notes = (notes + " [FRAIS PAYE]").strip()
+                    conn.execute("UPDATE transactions SET frais=0, montant_net=?, notes=? WHERE id=?", (brut, notes, tid))
+                    total += montant
+            conn.execute("UPDATE frais_dus SET statut='paye' WHERE id=?", (int(fid),))
+        conn.commit()
+    return round(total, 2)
 
 # -- TYPES DE TABAC -----------------------------------------------------------
 def _ensure_types_tabac_table():
