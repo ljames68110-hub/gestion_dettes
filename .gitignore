@@ -8,3 +8,9 @@ build/
 *.db.backup
 .gp_tmp_*
 installer_output/
+
+dettes.db
+dettes.db.enc
+dettes.salt
+dettes_*.db
+*.bak

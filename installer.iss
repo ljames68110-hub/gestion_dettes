@@ -12,7 +12,7 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
-DefaultDirName={autopf}\Gestion Perso
+DefaultDirName={localappdata}\Gestion Perso
 DefaultGroupName={#AppName}
 AllowNoIcons=no
 OutputDir=installer_output
@@ -21,7 +21,7 @@ SetupIconFile=app_icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 UninstallDisplayIcon={app}\{#AppExeName}
 UninstallDisplayName={#AppName}
 VersionInfoVersion={#AppVersion}
@@ -29,7 +29,7 @@ VersionInfoCompany={#AppPublisher}
 VersionInfoDescription={#AppName} Installer
 CloseApplications=yes
 RestartApplications=no
-UsePreviousAppDir=yes
+UsePreviousAppDir=no
 CreateAppDir=yes
 
 [Languages]
