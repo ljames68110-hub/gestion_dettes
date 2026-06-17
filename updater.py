@@ -17,7 +17,7 @@ from pathlib import Path
 LATEST_URL = "https://raw.githubusercontent.com/ljames68110-hub/gestion_dettes/main/latest.json"
 CHECK_INTERVAL = 3600  # vérifier toutes les heures
 
-APP_VERSION = "1.2"  # version courante - incremente a chaque MAJ
+APP_VERSION = "1.9"  # version courante - incremente a chaque MAJ
 
 def get_current_exe():
     """Retourne le chemin de l'exe en cours d'exécution."""
@@ -103,27 +103,50 @@ def download_update(url, dest, expected_sha=None, progress_cb=None):
 
 def apply_update_windows(new_exe, current_exe):
     """
-    Sur Windows, l exe en cours ne peut pas etre remplace directement.
-    On cree un script .bat qui attend la fermeture de l app, remplace, relance.
+    Cree un .bat qui attend la fermeture de l'app, remplace l'exe, EFFACE les
+    variables PyInstaller heritees (_MEIPASS2...) puis relance. Sans cet effacement,
+    le nouveau .exe cherche python3xx.dll dans le dossier temp de l'ancienne
+    instance (supprime) -> 'python3xx.dll introuvable'.
     """
-    import time as _time
     bat_path = os.path.join(os.path.dirname(current_exe), "_gp_update.bat")
+    exe_name = os.path.basename(current_exe)
+    bat = (
+        "@echo off\r\n"
+        "setlocal enabledelayedexpansion\r\n"
+        "echo Mise a jour en cours...\r\n"
+        ":waitproc\r\n"
+        'tasklist /fi "imagename eq __EXE__" 2>nul | find /i "__EXE__" >nul\r\n'
+        "if not errorlevel 1 (\r\n"
+        "    ping -n 2 127.0.0.1 >nul\r\n"
+        "    goto waitproc\r\n"
+        ")\r\n"
+        "set /a tries=0\r\n"
+        ":domove\r\n"
+        'move /y "__NEW__" "__CUR__" >nul 2>&1\r\n'
+        "if not errorlevel 1 goto moveok\r\n"
+        "set /a tries+=1\r\n"
+        "if !tries! geq 30 goto movefail\r\n"
+        "ping -n 2 127.0.0.1 >nul\r\n"
+        "goto domove\r\n"
+        ":moveok\r\n"
+        'set "_MEIPASS2="\r\n'
+        'set "_PYI_ARCHIVE_INDEX="\r\n'
+        'set "_PYI_APPLICATION_HOME_DIR="\r\n'
+        'set "_PYI_PARENT_PROCESS_LEVEL="\r\n'
+        "ping -n 3 127.0.0.1 >nul\r\n"
+        'start "" "__CUR__"\r\n'
+        "goto cleanup\r\n"
+        ":movefail\r\n"
+        "echo ERREUR: fichier verrouille.\r\n"
+        "pause\r\n"
+        ":cleanup\r\n"
+        'del "%~f0"\r\n'
+    )
+    bat = bat.replace("__EXE__", exe_name).replace("__NEW__", new_exe).replace("__CUR__", current_exe)
     with open(bat_path, "w", encoding="ascii") as f:
-        f.write("@echo off\r\n")
-        f.write("echo Mise a jour en cours...\r\n")
-        f.write("timeout /t 3 /nobreak >nul\r\n")
-        f.write(f"move /y \"{new_exe}\" \"{current_exe}\"\r\n")
-        f.write("if %errorlevel% equ 0 (\r\n")
-        f.write(f"    start \"\" \"{current_exe}\"\r\n")
-        f.write("    echo Redemarrage lance.\r\n")
-        f.write(") else (\r\n")
-        f.write("    echo ERREUR remplacement.\r\n")
-        f.write("    pause\r\n")
-        f.write(")\r\n")
-        f.write(f"del \"{bat_path}\"\r\n")
-
+        f.write(bat)
     subprocess.Popen(
-        f'cmd /c "{bat_path}"',
+        'cmd /c "' + bat_path + '"',
         shell=True,
         creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
     )

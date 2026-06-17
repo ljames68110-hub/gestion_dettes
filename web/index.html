@@ -1035,6 +1035,7 @@ select option{background:var(--bg3)}
     <div class="modal-sub">Enregistrer un stock entrant</div>
     <div class="form-grid">
       <div class="form-group full"><label>Description *</label><input type="text" id="entreeDesc" placeholder="Ex: 50g Bedo, Tabac x10..."></div>
+      <div class="form-group full"><label>Article du catalogue (+ stock)</label><select id="entreeCatLink" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif"><option value="">-- Aucun --</option><option value="__new__">+ Creer un nouvel article</option></select></div>
       <div class="form-group"><label>Quantite</label><input type="number" id="entreeQty" value="1" min="0" step="0.01"></div>
       <div class="form-group"><label>Unite</label>
         <select id="entreeUnite" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif">
@@ -1374,7 +1375,7 @@ async function loadDashboard(){
   if(!tres.data.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">Aucune transaction</td></tr>';return;}
   tres.data.forEach(t=>{
     const tr=document.createElement('tr');
-    tr.innerHTML='<td>'+fmtDate(t.date)+'</td><td style="color:var(--text)">'+(t.client_nom||'—')+'</td><td>'+t.motif+'</td><td>'+(t.type==='debit'?'<span style="color:var(--text3)">—</span>':t.mode_paiement)+'</td><td><span class="badge '+t.type+'">'+(t.type==='credit'?'Remboursement':'Vente')+'</span></td><td style="text-align:right"><span class="mono" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</span></td>';
+    tr.innerHTML='<td>'+fmtDate(t.date)+'</td><td style="color:var(--text)">'+(t.client_nom||'—')+'</td><td>'+t.motif+'</td><td>'+(t.type==='debit'?'<span style="color:var(--text3)">—</span>':t.mode_paiement)+'</td><td><span class="badge '+t.type+'">'+(t.type==='credit'?'Remboursement':'Vente')+'</span></td><td style="text-align:right"><span class="mono" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_brut)+'</span></td>';
     tbody.appendChild(tr);
   });
 }
@@ -1478,7 +1479,7 @@ function renderTransactions(){
   list.forEach(t=>{
     const tr=document.createElement('tr');tr.style.cursor='pointer';
     tr.onclick=(e)=>{if(!e.target.closest('button'))openTransDetail(t.id);};
-    tr.innerHTML='<td>'+fmtDate(t.date)+'</td><td style="color:var(--text)">'+(t.client_nom||'—')+'</td><td>'+t.motif+'</td><td>'+(t.type==='debit'?'<span style="color:var(--text3)">—</span>':t.mode_paiement)+'</td><td>'+t.quantite+'</td><td class="mono">'+fmt(t.prix_unitaire)+'</td><td class="mono">'+fmt(t.montant_brut)+'</td><td class="mono" style="color:var(--red)">'+fmt(t.frais)+'</td><td><span class="badge '+t.type+'">'+(t.type==='credit'?'Remboursement':'Vente')+'</span></td><td style="text-align:right"><span class="mono" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</span></td><td style="display:flex;gap:4px"><button class="btn" style="padding:4px 8px;font-size:11px" onclick="openEditTrans('+t.id+')">✏</button><button class="btn danger" style="padding:4px 8px;font-size:11px" onclick="deleteTrans('+t.id+')">✕</button></td>';
+    tr.innerHTML='<td>'+fmtDate(t.date)+'</td><td style="color:var(--text)">'+(t.client_nom||'—')+'</td><td>'+t.motif+'</td><td>'+(t.type==='debit'?'<span style="color:var(--text3)">—</span>':t.mode_paiement)+'</td><td>'+t.quantite+'</td><td class="mono">'+fmt(t.prix_unitaire)+'</td><td class="mono">'+fmt(t.montant_brut)+'</td><td class="mono" style="color:var(--red)">'+fmt(t.frais)+'</td><td><span class="badge '+t.type+'">'+(t.type==='credit'?'Remboursement':'Vente')+'</span></td><td style="text-align:right"><span class="mono" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_brut)+'</span></td><td style="display:flex;gap:4px"><button class="btn" style="padding:4px 8px;font-size:11px" onclick="openEditTrans('+t.id+')">✏</button><button class="btn danger" style="padding:4px 8px;font-size:11px" onclick="deleteTrans('+t.id+')">✕</button></td>';
     tbody.appendChild(tr);
   });
 }
@@ -1530,7 +1531,7 @@ async function loadSolde(){
   + infoCard
   + '<div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase">💶 Compte euros</div><div class="solde-amount" style="color:'+col+'">'+(dette>0?'+':'')+fmt(dette)+'</div><div style="font-size:13px;color:'+col+';margin-top:6px">'+msg+'</div></div>'
   + '<div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">🍽 Compte cantine</div><div style="font-size:28px;font-weight:700;color:'+(comptes.cantine.solde>0?'var(--green)':'var(--text3)')+'">'+(comptes.cantine.solde>0?'+':'')+fmt(comptes.cantine.solde)+'</div></div>'
-  + '<div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">🚬 Compte tabac</div><div style="font-size:28px;font-weight:700;color:'+(((comptes.tabac.paquets||0)!=0)?'var(--gold2)':'var(--text3)')+'">'+(comptes.tabac.paquets||0)+' paquet(s)</div><div style="font-size:12px;color:var(--text3);margin-top:4px">Prix de revient ~ '+fmt(comptes.tabac.valeur||0)+'</div>'+((comptes.tabac.details&&comptes.tabac.details.length)?('<div style="font-size:11px;color:var(--text3);margin-top:6px;text-align:left">'+comptes.tabac.details.map(function(d){return d.nom+' : '+d.paquets+' ('+fmt(d.valeur)+')';}).join('<br>')+'</div>'):'')+'</div><div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px">Résumé</div><div style="display:grid;gap:10px">'+rowS('Total vendu (débits)','+'+fmt(s.total_debit),'var(--green)')+rowS('Total remboursé (crédits)','-'+fmt(s.total_credit),'var(--red)')+rowS('Frais reçus',fmt(s.total_frais),'var(--text2)')+rowS('Nb transactions',s.nb_transactions,'var(--text)')+'</div></div><div class="card" style="grid-column:1/-1"><div class="card-title">📈 Évolution</div><div style="position:relative;height:160px;margin-bottom:16px"><canvas id="evolutionChart_'+cid+'" style="width:100%;height:160px"></canvas></div><div class="card-title">Historique</div>'+trans.slice(0,20).map(t=>'<div class="timeline-item"><div class="tl-dot" style="background:'+(t.type==='debit'?'var(--green)':'var(--red)')+'"></div><div class="tl-info"><div class="tl-title">'+t.motif+' · '+t.mode_paiement+'</div><div class="tl-date">'+fmtDate(t.date)+' · Qté '+t.quantite+' × '+fmt(t.prix_unitaire)+'</div></div><div class="tl-amount" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</div></div>').join('')+(!trans.length?'<p style="color:var(--text3);text-align:center;padding:20px">Aucune transaction</p>':'')+'</div></div>'
+  + '<div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">🚬 Compte tabac</div><div style="font-size:28px;font-weight:700;color:'+(((comptes.tabac.paquets||0)!=0)?'var(--gold2)':'var(--text3)')+'">'+(comptes.tabac.paquets||0)+' paquet(s)</div><div style="font-size:12px;color:var(--text3);margin-top:4px">Prix de revient ~ '+fmt(comptes.tabac.valeur||0)+'</div>'+((comptes.tabac.details&&comptes.tabac.details.length)?('<div style="font-size:11px;color:var(--text3);margin-top:6px;text-align:left">'+comptes.tabac.details.map(function(d){return d.nom+' : '+d.paquets+' ('+fmt(d.valeur)+')';}).join('<br>')+'</div>'):'')+'</div><div class="solde-big"><div style="font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px">Résumé</div><div style="display:grid;gap:10px">'+rowS('Total vendu (débits)','+'+fmt(s.total_debit),'var(--green)')+rowS('Total remboursé (crédits)','-'+fmt(s.total_credit),'var(--red)')+rowS('Frais reçus',fmt(s.total_frais),'var(--text2)')+rowS('Nb transactions',s.nb_transactions,'var(--text)')+'</div></div><div class="card" style="grid-column:1/-1"><div class="card-title">📈 Évolution</div><div style="position:relative;height:160px;margin-bottom:16px"><canvas id="evolutionChart_'+cid+'" style="width:100%;height:160px"></canvas></div><div class="card-title">Historique</div>'+'<div style="max-height:420px;overflow-y:auto;padding-right:4px">'+trans.map(t=>'<div class="timeline-item" style="cursor:pointer" onclick="openTransDetail('+t.id+')"><div class="tl-dot" style="background:'+(t.type==='debit'?'var(--green)':'var(--red)')+'"></div><div class="tl-info"><div class="tl-title">'+t.motif+' · '+t.mode_paiement+'</div><div class="tl-date">'+fmtDate(t.date)+' · Qté '+t.quantite+' × '+fmt(t.prix_unitaire)+'</div></div><div class="tl-amount" style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+( t.type==='debit'?'+':'-')+fmt(t.montant_brut)+'</div></div>').join('')+'</div>'+(!trans.length?'<p style="color:var(--text3);text-align:center;padding:20px">Aucune transaction</p>':'')+'</div></div>'
   // Section frais par remboursement
   +buildFraisSection(trans, cid)
   // FIX : dettesSection_cid ajouté dans le HTML avant le setTimeout
@@ -2104,7 +2105,7 @@ function openTransDetail(id){
   document.getElementById('detailTitle').textContent=t.motif+' — '+fmtDate(t.date);
   document.getElementById('detailSub').innerHTML='<span class="badge '+t.type+'">'+(t.type==='credit'?'Remboursement':'Vente')+'</span>';
   const col=t.type==='debit'?'var(--green)':'var(--red)';
-  document.getElementById('detailBody').innerHTML='<div style="background:var(--bg3);border-radius:var(--radius2);padding:20px;text-align:center;margin-bottom:16px"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">'+(t.type==='debit'?'Montant vendu':'Remboursement reçu')+'</div><div style="font-size:36px;font-weight:600;font-family:DM Mono,monospace;color:'+col+'">'+(t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</div></div>'+drRow('Client',t.client_nom||'—',null)+drRow('Date',fmtDate(t.date),null)+drRow('Motif',t.motif,null)+(t.type==='debit'?'':drRow('Mode',t.mode_paiement,null))+drRow('Quantite',(t.quantite||1)+' '+(t.unite==='gramme'?'g':'pcs'),null)+drRow('Prix unitaire',fmt(t.prix_unitaire),null)+drRow('Montant brut',fmt(t.montant_brut),null)+drRow('Frais',fmt(t.frais),t.frais>0?'var(--red)':null)+drRow('Montant net',fmt(t.montant_net),col)+(t.entree_description?drRow('Entree materiel','📦 '+t.entree_description+(t.entree_date?' — '+fmtDate(t.entree_date):''),'var(--gold2)'):'')+(t.notes&&t.notes.trim()?drRow('Notes',t.notes,'var(--text3)'):'')+(t.reference?drRow('Reference',t.reference,null):'');
+  document.getElementById('detailBody').innerHTML='<div style="background:var(--bg3);border-radius:var(--radius2);padding:20px;text-align:center;margin-bottom:16px"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">'+(t.type==='debit'?'Montant vendu':'Remboursement reçu')+'</div><div style="font-size:36px;font-weight:600;font-family:DM Mono,monospace;color:'+col+'">'+(t.type==='debit'?'+':'-')+fmt(t.montant_brut)+'</div></div>'+drRow('Client',t.client_nom||'—',null)+drRow('Date',fmtDate(t.date),null)+drRow('Motif',t.motif,null)+(t.type==='debit'?'':drRow('Mode',t.mode_paiement,null))+drRow('Quantite',(t.quantite||1)+' '+(t.unite==='gramme'?'g':'pcs'),null)+drRow('Prix unitaire',fmt(t.prix_unitaire),null)+drRow('Montant brut',fmt(t.montant_brut),null)+drRow('Frais',fmt(t.frais),t.frais>0?'var(--red)':null)+drRow('Montant net',fmt(t.montant_net),col)+(t.entree_description?drRow('Entree materiel','📦 '+t.entree_description+(t.entree_date?' — '+fmtDate(t.entree_date):''),'var(--gold2)'):'')+(t.notes&&t.notes.trim()?drRow('Notes',t.notes,'var(--text3)'):'')+(t.reference?drRow('Reference',t.reference,null):'');
   document.getElementById('modalDetail').classList.add('open');
 }
 function drRow(label,val,color){return '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;color:var(--text3)">'+label+'</span><span style="font-size:13px;font-weight:500;'+(color?'color:'+color+';':'')+'font-family:DM Mono,monospace">'+val+'</span></div>';}
@@ -2561,6 +2562,7 @@ async function saveEntree() {
   if (res && res.ok) {
     closeModal('entree');
     notify(eid ? "Entree modifiee" : "Entree enregistree");
+    if(!eid){var _cl=document.getElementById('entreeCatLink');var _clv=_cl?_cl.value:'';var _q=parseFloat(document.getElementById('entreeQty').value)||0;var _px=parseFloat(document.getElementById('entreePrix').value)||0;var _un=(document.getElementById('entreeUnite')||{}).value||'piece';if(_clv==='__new__'){var _cr=await api('/api/catalogue',{method:'POST',body:{nom:desc,categorie:'General',description:'',prix_vente:_px,prix_achat:_px,unite:_un,stock_min:0,stock:_q}});if(_cr&&_cr.ok){var _nid=_cr.data&&_cr.data.id;if(typeof loadCatalogue==='function')await loadCatalogue();notify('Article ajoute au catalogue');if(_nid&&confirm('Article "'+desc+'" cree dans le catalogue. As-tu une photo a ajouter ?'))openEditCatalogue(_nid);}}else if(_clv){await api('/api/catalogue/'+_clv+'/adjust-stock',{method:'POST',body:{delta:_q}});if(typeof loadCatalogue==='function')await loadCatalogue();notify('Stock catalogue mis a jour');}}
     await loadEntrees();
   } else notify('Erreur', 'error');
 }
@@ -2780,7 +2782,7 @@ async function doPrint() {
       html += "<tr><td>" + fmtDate(t.date) + "</td>";
       html += "<td class=\"" + (isV?"vente":"remboursement") + "\">" + (isV?"Vente":"Remboursement") + "</td>";
       html += "<td>" + t.motif + "</td><td>" + (isV?"—":t.mode_paiement) + "</td>";
-      html += "<td class=\"" + (isV?"vente":"remboursement") + "\">" + (isV?"+":"-") + parseFloat(t.montant_net||0).toFixed(2) + " EUR</td></tr>";
+      html += "<td class=\"" + (isV?"vente":"remboursement") + "\">" + (isV?"+":"-") + parseFloat(t.montant_brut||0).toFixed(2) + " EUR</td></tr>";
     });
     html += "<tr class=\"total-row\"><td colspan=\"4\">Total " + nom + "</td><td>Dette : " + (dette>=0?"+":"") + dette.toFixed(2) + " EUR</td></tr>";
     html += "</tbody></table></div>";
@@ -3546,8 +3548,8 @@ async function exportClientPDF(){
     html += '<td>'+t.motif+'</td>';
     html += '<td>'+(t.quantite||1)+' '+(t.unite==='gramme'?'g':'pcs')+'</td>';
     html += '<td>'+parseFloat(t.prix_unitaire||0).toFixed(2)+' EUR</td>';
-    html += '<td class="'+(isV?'vente':'remb')+'">'+(isV?'+':'-')+parseFloat(t.montant_net||0).toFixed(2)+' EUR</td>';
-    html += '<td style="color:#666">'+(t.notes||'')+'</td></tr>';
+    html += '<td class="'+(isV?'vente':'remb')+'">'+(isV?'+':'-')+parseFloat(t.montant_brut||0).toFixed(2)+' EUR</td>';
+    html += '<td style="color:#666">'+((t.notes||'').replace(/\[[^\]]*\]/g,'').replace(/\s{2,}/g,' ').trim())+'</td></tr>';
   });
   html += '</tbody></table>';
   html += '<div class="footer">Gestion Perso - Fiche client '+nom+' - '+date_str+'</div>';
@@ -3897,7 +3899,7 @@ async function factureFraisCaisse(){
 }
 
 function initCaisse(){loadAssocieFraisAuto();if(typeof loadTypesTabac==='function'){loadTypesTabac().then(function(){fillPosModeTabac();posModeChanged();}).catch(function(){fillPosModeTabac();posModeChanged();});}else{fillPosModeTabac();posModeChanged();}var _pd=document.getElementById('posDate');if(_pd&&!_pd.value){_pd.value=new Date().toISOString().slice(0,10);}var _pt=document.getElementById('posTime');if(_pt&&!_pt.value){var _now=new Date();_pt.value=(''+_now.getHours()).padStart(2,'0')+':'+(''+_now.getMinutes()).padStart(2,'0');}var sel=document.getElementById('posClient');if(sel){var prev=sel.value;sel.innerHTML='<option value="">-- Choisir un client (obligatoire) --</option>';(clientsCache||[]).forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.nom+(c.associe?' (associe)':'');sel.appendChild(o);});if(prev)sel.value=prev;}if(!catalogueCache||!catalogueCache.length){loadCatalogue().then(function(){renderPosGrid('');});}else renderPosGrid('');renderPosCart();setPosPay('cash');}
-function renderPosGrid(filter){filter=(filter||'').toLowerCase();var grid=document.getElementById('posGrid');if(!grid)return;grid.innerHTML='';var list=(catalogueCache||[]).filter(function(it){return !filter||(it.nom+' '+it.categorie).toLowerCase().includes(filter);});if(!list.length){grid.innerHTML='<div class="pos-empty" style="grid-column:1/-1">Aucun article. Ajoutez-en dans le Catalogue.</div>';return;}list.forEach(function(it){var u=it.unite==='gramme'?'g':it.unite==='litre'?'L':'pcs';var card=document.createElement('div');card.className='pos-prod';card.onclick=function(){addToCart(it);};card.innerHTML=(it.photo?'<img src="'+it.photo+'" style="width:100%;height:80px;object-fit:cover;border-radius:8px;margin-bottom:6px">':'')+'<div class="pcat">'+it.categorie+'</div><div class="pname">'+it.nom+'</div><div class="pprice">'+parseFloat(it.prix_vente).toFixed(2)+' EUR<span style="font-size:10px;color:var(--text3)"> /'+u+'</span></div>';grid.appendChild(card);});}
+function renderPosGrid(filter){filter=(filter||'').toLowerCase();var grid=document.getElementById('posGrid');if(!grid)return;grid.innerHTML='';var list=(catalogueCache||[]).filter(function(it){return !filter||(it.nom+' '+it.categorie).toLowerCase().includes(filter);});if(!list.length){grid.innerHTML='<div class="pos-empty" style="grid-column:1/-1">Aucun article. Ajoutez-en dans le Catalogue.</div>';return;}list.forEach(function(it){var u=it.unite==='gramme'?'g':it.unite==='litre'?'L':'pcs';var card=document.createElement('div');card.className='pos-prod';var _stk=(it.stock===undefined||it.stock===null||it.stock==='')?null:parseFloat(it.stock);var _smin=parseFloat(it.stock_min||0)||0;var _scol=(_stk===null)?'var(--text3)':(_stk<=0?'#e05555':((_smin>0&&_stk<=_smin)?'#e0a04c':'#4cc97a'));var _stxt=(_stk===null)?'—':((Math.round(_stk*100)/100)+' '+u);card.onclick=function(){addToCart(it);};card.innerHTML=(it.photo?'<img src="'+it.photo+'" style="width:100%;height:80px;object-fit:cover;border-radius:8px;margin-bottom:6px">':'')+'<div class="pcat">'+it.categorie+'</div><div class="pname">'+it.nom+'</div><div class="pprice">'+parseFloat(it.prix_vente).toFixed(2)+' EUR<span style="font-size:10px;color:var(--text3)"> /'+u+'</span></div>'+'<div style="font-size:11px;margin-top:3px;font-weight:600;color:'+_scol+'">Stock : '+_stxt+'</div>';grid.appendChild(card);});}
 function addToCart(it){var line=posCart.find(function(l){return l.id===it.id;});if(line){line.qty+=1;}else{var pv=parseFloat(it.prix_vente)||0;var pa=parseFloat(it.prix_achat)||0;posCart.push({id:it.id,nom:it.nom,prixVente:pv,prixAchat:pa,prix:(posIsAssocie?pa:pv),qty:1,unite:it.unite||'piece'});}renderPosCart();}
 function posChangeQty(id,delta){var line=posCart.find(function(l){return l.id===id;});if(!line)return;line.qty=Math.max(0,Math.round((line.qty+delta)*100)/100);if(line.qty<=0){posCart=posCart.filter(function(l){return l.id!==id;});}renderPosCart();}
 function posSetQty(id,val){var line=posCart.find(function(l){return l.id===id;});if(!line)return;line.qty=Math.max(0,parseFloat(val)||0);renderPosCart();}
@@ -4384,7 +4386,7 @@ function exportComptaPDF(){
   if(!comptaData){computeCompta();return;}
   var d=comptaData;
   var rowsHtml=d.rows.slice().sort(function(a,b){return (a.date||'').localeCompare(b.date||'');}).map(function(t){
-    return '<tr><td>'+((t.date||'').slice(0,10))+'</td><td>'+(t.type==='debit'?'Vente':'Encaissement')+'</td><td>'+(t.motif||'')+'</td><td>'+(t.mode_paiement||'')+'</td><td style="text-align:right">'+(t.type==='debit'?'+':'-')+parseFloat(t.montant_net||0).toFixed(2)+' EUR</td></tr>';
+    return '<tr><td>'+((t.date||'').slice(0,10))+'</td><td>'+(t.type==='debit'?'Vente':'Encaissement')+'</td><td>'+(t.motif||'')+'</td><td>'+(t.mode_paiement||'')+'</td><td style="text-align:right">'+(t.type==='debit'?'+':'-')+parseFloat(t.montant_brut||0).toFixed(2)+' EUR</td></tr>';
   }).join('');
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Compta</title><style>body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:24px}h1{color:#c9a84c;font-size:20px;margin-bottom:6px}table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#c9a84c;color:#fff;padding:6px 8px;text-align:left;font-size:11px}td{padding:6px 8px;border-bottom:1px solid #eee}.cards{display:flex;gap:12px;margin:14px 0}.card{flex:1;border:1px solid #ddd;border-radius:6px;padding:10px}.card .l{font-size:10px;color:#888;text-transform:uppercase}.card .v{font-size:17px;font-weight:bold}</style></head><body>'
     +'<h1>Comptabilite — Gestion Perso</h1>'
@@ -4595,6 +4597,28 @@ async function exportAssociePDF(cid){
   else window.open(u,'_blank');
 }
 </script>
+<script>
+/* auto-verification des mises a jour (apres connexion seulement) */
+(function(){
+  var done=false, finished=false, attempts=0;
+  function locked(){
+    var ls=document.getElementById('lockScreen');
+    return !ls || ls.style.display!=='none';
+  }
+  async function tryAuto(){
+    if(finished) return;
+    if(locked()) return;
+    attempts++;
+    try{
+      var res=await api('/api/update/check');
+      if(res&&res.ok){ finished=true; if(res.data&&res.data.available){ done=true; checkUpdate(); } }
+    }catch(e){}
+    if(attempts>=5) finished=true;
+  }
+  var iv=setInterval(function(){ if(finished){ clearInterval(iv); return; } tryAuto(); }, 5000);
+})();
+</script>
+<script>(function(){var modal=document.getElementById('modalEntree');if(!modal)return;new MutationObserver(function(){if(modal.classList.contains('open')){var sel=document.getElementById('entreeCatLink');if(!sel)return;sel.innerHTML='<option value="">-- Aucun --</option><option value="__new__">+ Creer un nouvel article</option>';(catalogueCache||[]).forEach(function(it){var o=document.createElement('option');o.value=it.id;o.textContent=it.nom;sel.appendChild(o);});sel.value='';}}).observe(modal,{attributes:true,attributeFilter:['class']});})();</script>
 
 
 
