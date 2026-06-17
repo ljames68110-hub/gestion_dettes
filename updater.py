@@ -17,7 +17,7 @@ from pathlib import Path
 LATEST_URL = "https://raw.githubusercontent.com/ljames68110-hub/gestion_dettes/main/latest.json"
 CHECK_INTERVAL = 3600  # vérifier toutes les heures
 
-APP_VERSION = "1.9"  # version courante - incremente a chaque MAJ
+APP_VERSION = "2.0"  # version courante - incremente a chaque MAJ
 
 def get_current_exe():
     """Retourne le chemin de l'exe en cours d'exécution."""
@@ -31,7 +31,7 @@ def get_current_version():
     if getattr(sys, "frozen", False):
         return {"version": APP_VERSION}
     local = Path(__file__).parent / "latest.json"
-    if local.exists():
+    if False and local.exists():   # dev: ignore latest.json perime, on prend APP_VERSION
         try:
             return json.loads(local.read_text(encoding="utf-8"))
         except Exception:

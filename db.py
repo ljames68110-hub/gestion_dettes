@@ -317,17 +317,29 @@ def get_stats_client(client_id: int):
             return conn.execute(sql, a).fetchone()[0] or 0
 
         nb        = q("SELECT COUNT(*) FROM transactions WHERE client_id=?", client_id)
-        credit    = q("SELECT COALESCE(SUM(montant_net),0) FROM transactions WHERE client_id=? AND type='credit'", client_id)
-        debit     = q("SELECT COALESCE(SUM(montant_net),0) FROM transactions WHERE client_id=? AND type='debit'", client_id)
+        credit    = q("SELECT COALESCE(SUM(montant_brut),0) FROM transactions WHERE client_id=? AND type='credit'", client_id)
+        debit     = q("SELECT COALESCE(SUM(montant_brut),0) FROM transactions WHERE client_id=? AND type='debit'", client_id)
         frais     = q("SELECT COALESCE(SUM(frais),0) FROM transactions WHERE client_id=? AND type='credit'", client_id)
         nb_credit = q("SELECT COUNT(*) FROM transactions WHERE client_id=? AND type='credit'", client_id)
         nb_debit  = q("SELECT COUNT(*) FROM transactions WHERE client_id=? AND type='debit'", client_id)
 
+        # Solde base BRUT : les frais ne sont PAS comptes dans le solde.
+        # On rajoute uniquement les frais encore EN ATTENTE (ni payes ni factures).
+        # Un frais paye/facture reste sur la transaction (trace) mais ne compte plus
+        # dans le solde -> evite le double comptage avec le debit de frais reportes.
+        debit_brut  = q("SELECT COALESCE(SUM(montant_brut),0) FROM transactions WHERE client_id=? AND type='debit'", client_id)
+        credit_brut = q("SELECT COALESCE(SUM(montant_brut),0) FROM transactions WHERE client_id=? AND type='credit'", client_id)
+        try:
+            frais_pending = q("SELECT COALESCE(SUM(frais),0) FROM transactions WHERE client_id=? AND type='credit' AND frais>0 AND id NOT IN (SELECT transaction_id FROM frais_dus WHERE statut IN ('paye','facture') AND transaction_id IS NOT NULL)", client_id)
+        except Exception:
+            frais_pending = frais
+        solde_val = round(debit_brut - credit_brut + frais_pending, 2)
+
     return {
         "nb_transactions": nb,
-        "total_credit":    round(credit, 2),   # remboursements reçus
-        "total_debit":     round(debit, 2),    # ventes effectuées
-        "solde":           round(debit - credit, 2),  # dette nette du client (debit-credit)
+        "total_credit":    round(credit, 2),
+        "total_debit":     round(debit, 2),
+        "solde":           solde_val,
         "total_frais":     round(frais, 2),
         "nb_credits":      nb_credit,
         "nb_debits":       nb_debit,
