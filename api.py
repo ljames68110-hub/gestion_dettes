@@ -1426,6 +1426,43 @@ def serve_frontend(path):
 
 # ── DÉMARRAGE ─────────────────────────────────────────────────────────────────
 
+# -- PRETS TABAC --------------------------------------------------------------
+@app.route("/api/clients/<int:cid>/prets")
+@require_auth
+def client_prets(cid):
+    return ok(db.get_prets_client(cid))
+
+@app.route("/api/prets/en-cours")
+@require_auth
+def prets_en_cours():
+    return ok(db.get_prets_en_cours())
+
+@app.route("/api/prets", methods=["POST"])
+@require_auth
+def prets_create():
+    data = request.json or {}
+    cid = data.get("client_id")
+    if not cid:
+        return err("Client requis")
+    try:
+        pid = db.add_pret(cid, data.get("type_tabac",""), data.get("qte_pretee",0), data.get("qte_rendre",0), data.get("date_echeance"), data.get("notes"))
+    except Exception as e:
+        return err(str(e))
+    return ok({"id": pid}), 201
+
+@app.route("/api/prets/<int:pid>/rendu", methods=["PUT","POST"])
+@require_auth
+def prets_rendu(pid):
+    db.marquer_pret_rendu(pid)
+    return ok({"id": pid})
+
+@app.route("/api/prets/<int:pid>", methods=["DELETE"])
+@require_auth
+def prets_delete(pid):
+    db.delete_pret(pid)
+    return ok({"deleted": pid})
+
+
 def start(host="127.0.0.1", port=5000, debug=False):
     db.init_db()
     app.run(host=host, port=port, debug=debug, use_reloader=False)

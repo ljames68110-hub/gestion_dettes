@@ -1025,3 +1025,58 @@ def get_associes():
             "SELECT id, nom, email, tel, notes, COALESCE(associe,0) as associe FROM clients WHERE associe=1 ORDER BY nom"
         ).fetchall()
     return [dict(r) for r in rows]
+
+# -- PRETS TABAC --------------------------------------------------------------
+def _ensure_prets_table():
+    with get_conn() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS prets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id INTEGER NOT NULL,
+            type_tabac TEXT,
+            qte_pretee REAL DEFAULT 0,
+            qte_rendre REAL DEFAULT 0,
+            date_pret TEXT DEFAULT (datetime('now')),
+            date_echeance TEXT,
+            statut TEXT DEFAULT 'en_cours',
+            date_rendu TEXT,
+            notes TEXT,
+            FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
+        )""")
+        conn.commit()
+
+def add_pret(client_id, type_tabac, qte_pretee, qte_rendre, date_echeance=None, notes=None):
+    _ensure_prets_table()
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO prets (client_id,type_tabac,qte_pretee,qte_rendre,date_echeance,notes) VALUES (?,?,?,?,?,?)",
+            (int(client_id), (type_tabac or "").strip(), float(qte_pretee or 0), float(qte_rendre or 0), date_echeance, notes))
+        conn.commit()
+        return cur.lastrowid
+
+def get_prets_client(cid, statut=None):
+    _ensure_prets_table()
+    with get_conn() as conn:
+        if statut:
+            rows = conn.execute("SELECT * FROM prets WHERE client_id=? AND statut=? ORDER BY (date_echeance IS NULL), date_echeance, id", (int(cid), statut)).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM prets WHERE client_id=? ORDER BY (statut='rendu'), (date_echeance IS NULL), date_echeance, id", (int(cid),)).fetchall()
+    return [dict(r) for r in rows]
+
+def get_prets_en_cours():
+    _ensure_prets_table()
+    with get_conn() as conn:
+        rows = conn.execute("SELECT p.*, c.nom as client_nom FROM prets p LEFT JOIN clients c ON c.id=p.client_id WHERE p.statut='en_cours' ORDER BY (p.date_echeance IS NULL), p.date_echeance, p.id").fetchall()
+    return [dict(r) for r in rows]
+
+def marquer_pret_rendu(pid):
+    _ensure_prets_table()
+    with get_conn() as conn:
+        conn.execute("UPDATE prets SET statut='rendu', date_rendu=datetime('now') WHERE id=?", (int(pid),))
+        conn.commit()
+
+def delete_pret(pid):
+    _ensure_prets_table()
+    with get_conn() as conn:
+        conn.execute("DELETE FROM prets WHERE id=?", (int(pid),))
+        conn.commit()
+
