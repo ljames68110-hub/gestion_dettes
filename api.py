@@ -394,12 +394,19 @@ def update_apply():
         return err("updater non disponible")
     if not PENDING_UPDATE:
         return err("Aucune mise à jour en attente — faites d'abord /api/update/check")
-    import threading
+    rem = PENDING_UPDATE
+    import threading, tempfile, time
     def _do():
-        updater.check_and_update(
-            on_update_available = lambda r: True,
-            on_done = lambda ok_, msg: print(f"[Updater] {msg}"),
-        )
+        try:
+            exe = updater.get_current_exe()
+            if not exe:
+                print("[Updater] mode dev - pas d'exe a remplacer"); return
+            tmp = tempfile.NamedTemporaryFile(suffix=".exe", dir=exe.parent, delete=False); tmp.close()
+            updater.download_update(rem["asset_url"], tmp.name, rem.get("sha256"))
+            updater.apply_update_windows(tmp.name, str(exe))
+            time.sleep(2); os._exit(0)
+        except Exception as e:
+            print(f"[Updater] erreur apply: {e}")
     threading.Thread(target=_do, daemon=True).start()
     return ok({"message": f"Téléchargement de {PENDING_UPDATE['version']} en cours..."})
 
