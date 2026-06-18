@@ -192,9 +192,9 @@ def client_stats_comptes(cid):
     for r in rows:
         compte = r["compte"] if r["compte"] in result else "euro"
         if r["type"] == "debit":
-            result[compte]["debit"] += r["total_brut"]
+            result[compte]["debit"] += r["total_net"]
         else:
-            result[compte]["credit"] += r["total_brut"]
+            result[compte]["credit"] += r["total_net"]
             result[compte]["frais"] += r["total_frais"]
     
     # Calculer les soldes
@@ -980,6 +980,9 @@ def _build_facture_html(trans, client, type_):
     unite = trans.get("unite","piece")
     unite_label = "g" if unite=="gramme" else ("L" if unite=="litre" else ("paquet(s)" if unite=="paquet" else "pcs"))
     notes = trans.get("notes","") or ""
+    import re as _re
+    notes_clean = _re.sub(r'\[[^\]]*\]', '', notes)
+    notes_clean = _re.sub(r'\s{2,}', ' ', notes_clean).strip()
     client_nom = client.get("nom","—") if client else "—"
     client_tel = client.get("tel","") or ""
     client_email = client.get("email","") or ""
@@ -1082,7 +1085,7 @@ tr:nth-child(even) td{{background:#fafafa}}
   </div>
 </div>
 
-{"<div class='notes-box' style='margin-top:16px'><strong>Notes :</strong> " + notes + "</div>" if notes.strip() and not notes.startswith("[") else ""}
+{"<div class='notes-box' style='margin-top:16px'><strong>Notes :</strong> " + notes_clean + "</div>" if notes_clean else ""}
 
 <div class="footer">
   Document généré automatiquement par Gestion Perso · {date_str}<br>
