@@ -1050,6 +1050,10 @@ def add_pret(client_id, type_tabac, qte_pretee, qte_rendre, date_echeance=None, 
         cur = conn.execute(
             "INSERT INTO prets (client_id,type_tabac,qte_pretee,qte_rendre,date_echeance,notes) VALUES (?,?,?,?,?,?)",
             (int(client_id), (type_tabac or "").strip(), float(qte_pretee or 0), float(qte_rendre or 0), date_echeance, notes))
+        try:
+            conn.execute("UPDATE types_tabac SET stock = stock - ? WHERE nom=?", (float(qte_pretee or 0), (type_tabac or "").strip()))
+        except Exception:
+            pass
         conn.commit()
         return cur.lastrowid
 
@@ -1071,6 +1075,12 @@ def get_prets_en_cours():
 def marquer_pret_rendu(pid):
     _ensure_prets_table()
     with get_conn() as conn:
+        row = conn.execute("SELECT type_tabac, qte_rendre FROM prets WHERE id=? AND statut='en_cours'", (int(pid),)).fetchone()
+        if row:
+            try:
+                conn.execute("UPDATE types_tabac SET stock = stock + ? WHERE nom=?", (float(row[1] or 0), row[0] or ""))
+            except Exception:
+                pass
         conn.execute("UPDATE prets SET statut='rendu', date_rendu=datetime('now') WHERE id=?", (int(pid),))
         conn.commit()
 
