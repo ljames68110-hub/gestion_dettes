@@ -1470,6 +1470,15 @@ def prets_delete(pid):
     return ok({"deleted": pid})
 
 
+@app.route("/api/clients/<int:cid>/effacer-transactions", methods=["POST"])
+@require_auth
+def client_effacer_transactions(cid):
+    if not db.get_client(cid):
+        return err("Client introuvable", 404)
+    n = db.reset_client_data(cid)
+    return ok({"deleted": n})
+
+
 def start(host="127.0.0.1", port=5000, debug=False):
     db.init_db()
     app.run(host=host, port=port, debug=debug, use_reloader=False)

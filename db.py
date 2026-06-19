@@ -1080,3 +1080,19 @@ def delete_pret(pid):
         conn.execute("DELETE FROM prets WHERE id=?", (int(pid),))
         conn.commit()
 
+
+def reset_client_data(client_id):
+    """Efface transactions + frais_dus + prets + factures d'un client."""
+    _ensure_frais_dus_table(); _ensure_prets_table()
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM transactions WHERE client_id=?", (int(client_id),))
+        n = cur.rowcount
+        conn.execute("DELETE FROM frais_dus WHERE client_id=?", (int(client_id),))
+        conn.execute("DELETE FROM prets WHERE client_id=?", (int(client_id),))
+        try:
+            conn.execute("DELETE FROM factures WHERE client_id=?", (int(client_id),))
+        except Exception:
+            pass
+        conn.commit()
+    return n
+
