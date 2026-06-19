@@ -1452,7 +1452,7 @@ def prets_create():
     if not cid:
         return err("Client requis")
     try:
-        pid = db.add_pret(cid, data.get("type_tabac",""), data.get("qte_pretee",0), data.get("qte_rendre",0), data.get("date_echeance"), data.get("notes"))
+        pid = db.add_pret(cid, data.get("type_tabac",""), data.get("qte_pretee",0), data.get("qte_rendre",0), data.get("date_echeance"), data.get("notes"), data.get("catalogue_id"))
     except Exception as e:
         return err(str(e))
     return ok({"id": pid}), 201

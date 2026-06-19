@@ -1042,16 +1042,25 @@ def _ensure_prets_table():
             notes TEXT,
             FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE
         )""")
+        try:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(prets)").fetchall()]
+            if "catalogue_id" not in cols:
+                conn.execute("ALTER TABLE prets ADD COLUMN catalogue_id INTEGER")
+        except Exception:
+            pass
         conn.commit()
 
-def add_pret(client_id, type_tabac, qte_pretee, qte_rendre, date_echeance=None, notes=None):
+def add_pret(client_id, type_tabac, qte_pretee, qte_rendre, date_echeance=None, notes=None, catalogue_id=None):
     _ensure_prets_table()
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO prets (client_id,type_tabac,qte_pretee,qte_rendre,date_echeance,notes) VALUES (?,?,?,?,?,?)",
-            (int(client_id), (type_tabac or "").strip(), float(qte_pretee or 0), float(qte_rendre or 0), date_echeance, notes))
+            "INSERT INTO prets (client_id,type_tabac,qte_pretee,qte_rendre,date_echeance,notes,catalogue_id) VALUES (?,?,?,?,?,?,?)",
+            (int(client_id), (type_tabac or "").strip(), float(qte_pretee or 0), float(qte_rendre or 0), date_echeance, notes, (int(catalogue_id) if catalogue_id else None)))
         try:
-            conn.execute("UPDATE types_tabac SET stock = stock - ? WHERE nom=?", (float(qte_pretee or 0), (type_tabac or "").strip()))
+            if catalogue_id:
+                conn.execute("UPDATE catalogue SET stock = COALESCE(stock,0) - ? WHERE id=?", (float(qte_pretee or 0), int(catalogue_id)))
+            else:
+                conn.execute("UPDATE types_tabac SET stock = stock - ? WHERE nom=?", (float(qte_pretee or 0), (type_tabac or "").strip()))
         except Exception:
             pass
         conn.commit()
@@ -1075,10 +1084,13 @@ def get_prets_en_cours():
 def marquer_pret_rendu(pid):
     _ensure_prets_table()
     with get_conn() as conn:
-        row = conn.execute("SELECT type_tabac, qte_rendre FROM prets WHERE id=? AND statut='en_cours'", (int(pid),)).fetchone()
+        row = conn.execute("SELECT type_tabac, qte_rendre, catalogue_id FROM prets WHERE id=? AND statut='en_cours'", (int(pid),)).fetchone()
         if row:
             try:
-                conn.execute("UPDATE types_tabac SET stock = stock + ? WHERE nom=?", (float(row[1] or 0), row[0] or ""))
+                if row[2]:
+                    conn.execute("UPDATE catalogue SET stock = COALESCE(stock,0) + ? WHERE id=?", (float(row[1] or 0), int(row[2])))
+                else:
+                    conn.execute("UPDATE types_tabac SET stock = stock + ? WHERE nom=?", (float(row[1] or 0), row[0] or ""))
             except Exception:
                 pass
         conn.execute("UPDATE prets SET statut='rendu', date_rendu=datetime('now') WHERE id=?", (int(pid),))
