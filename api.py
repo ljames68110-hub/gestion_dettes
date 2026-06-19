@@ -1480,6 +1480,35 @@ def client_effacer_transactions(cid):
     return ok({"deleted": n})
 
 
+@app.route("/api/update/apply-local", methods=["POST"])
+@require_auth
+def update_apply_local():
+    """Met a jour depuis un fichier .exe fourni (sans telechargement reseau)."""
+    if not HAS_UPDATER:
+        return err("updater non disponible")
+    data = request.json or {}
+    b64 = data.get("data") or ""
+    if not b64:
+        return err("Aucun fichier recu")
+    exe = updater.get_current_exe()
+    if not exe:
+        return err("Mode dev : pas d'exe a remplacer")
+    import base64, tempfile, threading, time
+    try:
+        raw = base64.b64decode(b64)
+        if len(raw) < 1000000:
+            return err("Fichier trop petit (pas un .exe ?)")
+        tmp = tempfile.NamedTemporaryFile(suffix=".exe", dir=exe.parent, delete=False)
+        tmp.write(raw); tmp.close()
+        updater.apply_update_windows(tmp.name, str(exe))
+    except Exception as e:
+        return err("Echec : " + str(e))
+    def _bye():
+        time.sleep(2); os._exit(0)
+    threading.Thread(target=_bye, daemon=True).start()
+    return ok({"message": "Mise a jour depuis le fichier, redemarrage..."})
+
+
 def start(host="127.0.0.1", port=5000, debug=False):
     db.init_db()
     app.run(host=host, port=port, debug=debug, use_reloader=False)

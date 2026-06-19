@@ -1076,7 +1076,7 @@ select option{background:var(--bg3)}
     <div class="modal-title">☁ Mise à jour</div>
     <div class="modal-sub" id="updateSub">Vérification...</div>
     <div id="updateBody" style="margin:16px 0;font-size:14px;color:var(--text2)"></div>
-    <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('update')">Fermer</button><button class="btn-save" id="btnApplyUpdate" onclick="applyUpdate()" style="display:none">⬇ Installer</button></div>
+    <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('update')">Fermer</button><button class="btn-save" id="btnLocalUpdate" onclick="pickLocalUpdate()">📁 Depuis un fichier</button><input type="file" id="updLocalFile" accept=".exe" style="display:none" onchange="applyLocalUpdate(this)"><button class="btn-save" id="btnApplyUpdate" onclick="applyUpdate()" style="display:none">⬇ Installer</button></div>
   </div>
 </div>
 
@@ -4617,6 +4617,8 @@ async function validerAchat(){var cid=parseInt((document.getElementById('posClie
 function renderPosCats(){var box=document.getElementById('posCats');if(!box)return;var cats=[];(catalogueCache||[]).forEach(function(it){var c=it.categorie||'General';if(cats.indexOf(c)<0)cats.push(c);});cats.sort();var cur=window.posCatFilter||'';var html='<div class="pos-cat'+(cur===''?' active':'')+'" onclick="setPosCat(\'\')">Tous</div>';cats.forEach(function(c){var cesc=String(c).replace(/'/g,"\\'");html+='<div class="pos-cat'+(cur===c?' active':'')+'" onclick="setPosCat(\''+cesc+'\')">'+c+'</div>';});box.innerHTML=html;}
 function setPosCat(c){window.posCatFilter=c;renderPosCats();renderPosGrid((document.getElementById('posSearch')||{}).value||'');}
 function fillPosPretItems(){var sel=document.getElementById('posPretItem');if(!sel)return;if((!catalogueCache||!catalogueCache.length)&&typeof loadCatalogue==='function'){loadCatalogue().then(function(){fillPosPretItems();});return;}var cur=sel.value;sel.innerHTML='';(catalogueCache||[]).forEach(function(it){var o=document.createElement('option');o.value=it.id;var st=(it.stock!==undefined&&it.stock!==null)?(' (stock '+parseFloat(it.stock).toFixed(0)+')'):'';o.textContent=it.nom+st;sel.appendChild(o);});if(cur)sel.value=cur;}
+function pickLocalUpdate(){var i=document.getElementById('updLocalFile');if(i){i.value='';i.click();}}
+async function applyLocalUpdate(input){if(!input.files||!input.files[0])return;var f=input.files[0];var btn=document.getElementById('btnLocalUpdate');if(btn){btn.textContent='Lecture du fichier...';btn.disabled=true;}try{var b64=await new Promise(function(res,rej){var rd=new FileReader();rd.onload=function(){res(String(rd.result).split(',')[1]);};rd.onerror=function(){rej(new Error('lecture'));};rd.readAsDataURL(f);});if(btn)btn.textContent='Installation...';var r=await api('/api/update/apply-local',{method:'POST',body:{data:b64}});if(r&&r.ok){notify('Installation lancee, redemarrage dans quelques secondes');}else{notify((r&&(r.error||r.message))||'Echec de la mise a jour','error');if(btn){btn.textContent='📁 Depuis un fichier';btn.disabled=false;}}}catch(e){notify('Erreur : '+e,'error');if(btn){btn.textContent='📁 Depuis un fichier';btn.disabled=false;}}}
 /* auto-verification des mises a jour (apres connexion seulement) */
 (function(){
   var done=false, finished=false, attempts=0;
