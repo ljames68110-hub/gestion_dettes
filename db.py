@@ -206,12 +206,12 @@ def has_pin():
 
 # ── CLIENTS ───────────────────────────────────────────────────────────────────
 
-def add_client(nom, email=None, tel=None, notes=None, associe=0):
+def add_client(nom, email=None, tel=None, notes=None, associe=0, photo=None):
     _ensure_associe_column()
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO clients (nom,email,tel,notes,associe) VALUES (?,?,?,?,?)",
-            (nom, email or "", tel or "", notes or "", int(associe or 0))
+            "INSERT INTO clients (nom,email,tel,notes,associe,photo) VALUES (?,?,?,?,?,?)",
+            (nom, email or "", tel or "", notes or "", int(associe or 0), photo or "")
         )
         conn.commit()
         return cur.lastrowid
@@ -220,7 +220,7 @@ def get_clients():
     _ensure_associe_column()
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT id, nom, email, tel, notes, COALESCE(associe,0) as associe FROM clients ORDER BY nom"
+            "SELECT id, nom, email, tel, notes, COALESCE(associe,0) as associe, COALESCE(photo,'') as photo FROM clients ORDER BY nom"
         ).fetchall()
     return [dict(r) for r in rows]
 
@@ -231,15 +231,17 @@ def get_client(client_id: int):
         ).fetchone()
     return dict(row) if row else None
 
-def update_client(client_id: int, nom=None, email=None, tel=None, notes=None):
+def update_client(client_id: int, nom=None, email=None, tel=None, notes=None, photo=None):
+    _ensure_associe_column()
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM clients WHERE id=?", (client_id,)).fetchone()
         if not row:
             return False
         conn.execute(
-            "UPDATE clients SET nom=?,email=?,tel=?,notes=? WHERE id=?",
+            "UPDATE clients SET nom=?,email=?,tel=?,notes=?,photo=? WHERE id=?",
             (nom or row["nom"], email or row["email"],
-             tel or row["tel"], notes or row["notes"], client_id)
+             tel or row["tel"], notes or row["notes"],
+             (photo if photo is not None else row["photo"]), client_id)
         )
         conn.commit()
     return True
@@ -1016,6 +1018,9 @@ def _ensure_associe_column():
         cols = {r[1] for r in conn.execute("PRAGMA table_info(clients)").fetchall()}
         if "associe" not in cols:
             conn.execute("ALTER TABLE clients ADD COLUMN associe INTEGER DEFAULT 0")
+            conn.commit()
+        if "photo" not in cols:
+            conn.execute("ALTER TABLE clients ADD COLUMN photo TEXT DEFAULT ''")
             conn.commit()
 
 def get_associes():
