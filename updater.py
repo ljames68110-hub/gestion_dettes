@@ -17,7 +17,7 @@ from pathlib import Path
 LATEST_URL = "https://raw.githubusercontent.com/ljames68110-hub/gestion_dettes/main/latest.json"
 CHECK_INTERVAL = 3600  # vérifier toutes les heures
 
-APP_VERSION = "2.12"  # version courante - incremente a chaque MAJ
+APP_VERSION = "2.13"  # version courante - incremente a chaque MAJ
 
 def get_current_exe():
     """Retourne le chemin de l'exe en cours d'exécution."""
@@ -45,19 +45,17 @@ def fetch_remote_info():
     """Recupere la derniere release depuis l API GitHub."""
     try:
         req = urllib.request.Request(
-            API_URL,
+            LATEST_URL,
             headers={"User-Agent": "GestionPerso-Updater/1.0", "Accept": "application/vnd.github+json"}
         )
         with urllib.request.urlopen(req, timeout=10) as r:
             data = json.loads(r.read().decode())
-        # Trouver l exe dans les assets
-        asset = next((a for a in data.get("assets", []) if a["name"] == "GestionPerso.exe"), None)
-        if not asset:
+        if not data.get("version"):
             return None
         return {
-            "version":   data["tag_name"],
-            "asset_url": asset["browser_download_url"],
-            "sha256":    None  # pas de sha dans l API GitHub directement
+            "version":   data["version"],
+            "asset_url": data.get("asset_url"),
+            "sha256":    data.get("sha256")
         }
     except Exception as e:
         print(f"[Updater] Impossible de verifier : {e}")
