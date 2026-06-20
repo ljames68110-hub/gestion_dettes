@@ -3542,7 +3542,7 @@ async function exportClientPDF(){
   html += '<tr><td>+'+(s.total_debit||0).toFixed(2)+' EUR</td><td>-'+(s.total_credit||0).toFixed(2)+' EUR</td>';
   html += '<td>'+(s.total_frais||0).toFixed(2)+' EUR</td><td>'+(s.nb_transactions||0)+'</td></tr></table>';
   html += '<h2>Historique</h2>';
-  html += '<table><thead><tr><th>Date</th><th>Type</th><th>Motif</th><th>Qte</th><th>P.U.</th><th>Net</th><th>Notes</th></tr></thead><tbody>';
+  html += '<table><thead><tr><th>Date</th><th>Type</th><th>Motif</th><th>Qte</th><th>P.U.</th><th>Brut</th><th>Frais</th><th>Net</th><th>Notes</th></tr></thead><tbody>';
   trans.forEach(function(t){
     var isV = t.type==='debit';
     html += '<tr><td>'+fmtDate(t.date)+'</td>';
@@ -3551,6 +3551,8 @@ async function exportClientPDF(){
     html += '<td>'+(t.quantite||1)+' '+(t.unite==='gramme'?'g':'pcs')+'</td>';
     html += '<td>'+parseFloat(t.prix_unitaire||0).toFixed(2)+' EUR</td>';
     html += '<td class="'+(isV?'vente':'remb')+'">'+(isV?'+':'-')+parseFloat(t.montant_brut||0).toFixed(2)+' EUR</td>';
+    html += '<td style="color:#c9a84c">'+(parseFloat(t.frais||0)>0?('-'+parseFloat(t.frais||0).toFixed(2)+' EUR'):'-')+'</td>';
+    html += '<td class="'+(isV?'vente':'remb')+'">'+(isV?'+':'-')+(t.montant_net!=null?parseFloat(t.montant_net):(parseFloat(t.montant_brut||0)-parseFloat(t.frais||0))).toFixed(2)+' EUR</td>';
     html += '<td style="color:#666">'+((t.notes||'').replace(/\[[^\]]*\]/g,'').replace(/\s{2,}/g,' ').trim())+'</td></tr>';
   });
   html += '</tbody></table>';
