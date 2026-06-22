@@ -209,6 +209,7 @@ def main():
             height           = 800,
             min_size         = (900, 600),
             resizable        = True,
+            maximized        = True,
             background_color = "#0a0a0f",
         )
         webview.start(debug=False, icon=icon, gui="edgechromium")
