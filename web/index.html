@@ -3992,7 +3992,7 @@ async function posEncaisser(){
   var venteBrutEnc=getCartTotal();var reducEnc=getReduc();var venteTotal=venteBrutEnc-reducEnc;if(venteTotal<0)venteTotal=0;
   var facteurReduc=(venteBrutEnc>0)?(venteTotal/venteBrutEnc):1;
   var remb=getRemb();
-  if(venteTotal<=0 && remb<=0){notify('Rien a encaisser','error');return;}
+  if(posCart.length===0 && remb<=0){notify('Rien a encaisser','error');return;}
   var mode=document.getElementById('posMode').value;var _posTicketRaw=((document.getElementById('posTicketCode')||{}).value||'').trim();var _posTicketTag=_posTicketRaw?(' [TICKET code='+_posTicketRaw+']'):'';
   var btn=document.getElementById('posCashout');btn.disabled=true;btn.textContent='Encaissement...';
   var ok=0,fail=0;var venteTids=[];
