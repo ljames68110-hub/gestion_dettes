@@ -2327,8 +2327,8 @@ async function checkUpdate(){
   const res=await api('/api/update/check');
   if(!res||!res.ok){document.getElementById('updateSub').textContent='Erreur de connexion';return;}
   const d=res.data;
-  if(!d.available){document.getElementById('updateSub').textContent='✓ Vous êtes à jour';document.getElementById('updateBody').innerHTML='Version : <strong style="color:var(--gold2)">'+d.current_version+'</strong>';}
-  else{document.getElementById('updateSub').textContent='🆕 Mise à jour disponible';document.getElementById('updateBody').innerHTML='Actuelle : <strong>'+d.current_version+'</strong><br>Nouvelle : <strong style="color:var(--gold2)">'+d.new_version+'</strong>';document.getElementById('btnApplyUpdate').style.display='inline-flex';}
+  if(!d.available){document.getElementById('updateSub').textContent='✓ Vous êtes à jour';document.getElementById('updateBody').innerHTML='Version : <strong style="color:var(--gold2)">'+(d.current_version||'?')+'</strong>';}
+  else{document.getElementById('updateSub').textContent='🆕 Mise à jour disponible';document.getElementById('updateBody').innerHTML='Actuelle : <strong>'+(d.current_version||'?')+'</strong><br>Nouvelle : <strong style="color:var(--gold2)">'+d.new_version+'</strong>';document.getElementById('btnApplyUpdate').style.display='inline-flex';}
 }
 async function applyUpdate(){
   document.getElementById('btnApplyUpdate').textContent='⬇ Téléchargement...';document.getElementById('btnApplyUpdate').disabled=true;
@@ -3825,7 +3825,7 @@ function initRaccourcis(){
 </script>
 
 <div class="modal-bg" id="modalCatalogue" onclick="if(event.target===this)this.classList.remove('open')">
-  <div class="modal" style="max-width:780px">
+  <div class="modal" style="max-width:820px">
     <input type="hidden" id="catId">
     <div class="modal-title" id="catModalTitle">Nouvel article</div>
     <div class="modal-sub">Ajouter au catalogue produits</div>
@@ -3964,7 +3964,7 @@ function updatePosTotals(){
     pm.disabled=!needMode; pm.style.opacity=needMode?'1':'0.4'; pm.style.pointerEvents=needMode?'auto':'none';
   }
   var btn=document.getElementById('posCashout');
-  if(btn) btn.disabled=(venteTotal<=0 && remb<=0);
+  if(btn) btn.disabled=(posCart.length===0 && remb<=0);
 }
 // surcharger renderPosCart pour recalculer les totaux ensuite
 var _oldRenderCart = (typeof renderPosCart==='function')?renderPosCart:null;

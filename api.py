@@ -371,11 +371,11 @@ def export_csv_all():
 def update_check():
     """Vérifie si une mise à jour est disponible."""
     if not HAS_UPDATER:
-        return ok({"available": False, "reason": "updater non disponible"})
+        return ok({"available": False, "reason": "updater non disponible", "current_version": "?"})
     global PENDING_UPDATE
     remote = updater.fetch_remote_info()
     if not remote:
-        return ok({"available": False, "reason": "Impossible de joindre GitHub"})
+        return ok({"available": False, "reason": "Impossible de joindre GitHub", "current_version": (updater.get_current_version().get("version","?") if HAS_UPDATER else "?")})
     current = updater.get_current_version()
     available = updater.version_gt(remote.get("version","0"), current.get("version","0"))
     if available:
