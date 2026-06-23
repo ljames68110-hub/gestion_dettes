@@ -1224,7 +1224,7 @@ def get_rentabilite():
         out = []
         for a in arts:
             r = conn.execute(
-                "SELECT COALESCE(SUM(quantite),0) AS q, COALESCE(SUM(montant_brut),0) AS rev "
+                "SELECT COALESCE(SUM(quantite),0) AS q, COALESCE(SUM(CASE WHEN instr(COALESCE(notes,''),'[CAISSE CREDIT]')=0 THEN montant_brut ELSE 0 END),0) AS rev "
                 "FROM transactions WHERE type='debit' AND motif=?",
                 (a["nom"],)
             ).fetchone()
