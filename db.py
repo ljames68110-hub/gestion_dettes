@@ -307,7 +307,18 @@ def get_all_transactions(limit=200):
 
 
 def delete_transaction(trans_id: int):
+    _ensure_sim_table()
     with get_conn() as conn:
+        row = conn.execute("SELECT motif,quantite,type,COALESCE(notes,'') AS notes FROM transactions WHERE id=?", (trans_id,)).fetchone()
+        if row and row["type"] == "debit" and "[CAISSE" in (row["notes"] or ""):
+            cat = conn.execute("SELECT id FROM catalogue WHERE nom=? AND actif=1", (row["motif"],)).fetchone()
+            if cat:
+                is_sim = conn.execute("SELECT COUNT(*) FROM sim_cards WHERE catalogue_id=?", (cat["id"],)).fetchone()[0] > 0
+                if not is_sim:
+                    conn.execute("UPDATE catalogue SET stock=COALESCE(stock,0)+? WHERE id=?", (row["quantite"] or 0, cat["id"]))
+        for s in conn.execute("SELECT id,catalogue_id FROM sim_cards WHERE transaction_id=? AND statut='vendu'", (trans_id,)).fetchall():
+            conn.execute("UPDATE sim_cards SET statut='stock', transaction_id=NULL, client_id=NULL, date_vente=NULL WHERE id=?", (s["id"],))
+            _sync_sim_stock(conn, s["catalogue_id"])
         conn.execute("DELETE FROM transactions WHERE id=?", (trans_id,))
         conn.commit()
 
