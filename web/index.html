@@ -3546,7 +3546,9 @@ async function exportClientPDF(){
   trans.forEach(function(t){
     var isV = t.type==='debit';
     html += '<tr><td>'+fmtDate(t.date)+'</td>';
-    html += '<td class="'+(isV?'vente':'remb')+'">'+(isV?'Vente':'Remb.')+'</td>';
+    var _md=(t.mode_paiement&&t.mode_paiement!=='Liquide')?(' ('+t.mode_paiement+')'):'';
+    var _tl=isV?'Vente':((client&&client.associe)?'Depot':'Remb.');
+    html += '<td class="'+(isV?'vente':'remb')+'">'+_tl+_md+'</td>';
     html += '<td>'+t.motif+'</td>';
     html += '<td>'+(t.quantite||1)+' '+(t.unite==='gramme'?'g':'pcs')+'</td>';
     html += '<td>'+parseFloat(t.prix_unitaire||0).toFixed(2)+' EUR</td>';
