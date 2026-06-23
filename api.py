@@ -969,6 +969,16 @@ def catalogue_delete(iid):
 
 # ── FACTURES ──────────────────────────────────────────────────────────────────
 
+def _fmt_ticket(raw):
+    parts = []
+    for p in (raw or '').split('|'):
+        if ':' in p:
+            c, am = p.rsplit(':', 1)
+            parts.append(f'{c} ({am} €)' if am else c)
+        elif p:
+            parts.append(p)
+    return ', '.join(parts)
+
 def _build_facture_html(trans, client, type_):
     """Génère le HTML d'une facture ou d'un bon de remboursement."""
     from datetime import datetime
@@ -993,7 +1003,7 @@ def _build_facture_html(trans, client, type_):
     notes_clean = _re.sub(r'\s{2,}', ' ', notes_clean).strip()
     ticket_aff = ''
     if '[TICKET code=' in notes:
-        ticket_aff = notes.split('[TICKET code=',1)[1].split(']',1)[0].replace('|', ', ')
+        ticket_aff = _fmt_ticket(notes.split('[TICKET code=',1)[1].split(']',1)[0])
     ticket_html = f'<span>Code ticket : <strong>{ticket_aff}</strong></span>' if ticket_aff else ''
     client_nom = client.get("nom","—") if client else "—"
     client_tel = client.get("tel","") or ""
@@ -1361,7 +1371,7 @@ def _build_facture_groupee_html(transs, client, type_):
                 _cc = _cc.strip()
                 if _cc and _cc not in _allcodes:
                     _allcodes.append(_cc)
-    tickets_html_g = ('<div class="total-row"><span>Codes ticket</span><span>' + ', '.join(_allcodes) + '</span></div>') if _allcodes else ''
+    tickets_html_g = ('<div class="total-row"><span>Codes ticket</span><span>' + ', '.join(_fmt_ticket(_x) for _x in _allcodes) + '</span></div>') if _allcodes else ''
     _pmap = _catalogue_photo_map()
     total = 0
     for t in transs:
