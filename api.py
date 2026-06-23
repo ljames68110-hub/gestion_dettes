@@ -991,6 +991,10 @@ def _build_facture_html(trans, client, type_):
     import re as _re
     notes_clean = _re.sub(r'\[[^\]]*\]', '', notes)
     notes_clean = _re.sub(r'\s{2,}', ' ', notes_clean).strip()
+    ticket_aff = ''
+    if '[TICKET code=' in notes:
+        ticket_aff = notes.split('[TICKET code=',1)[1].split(']',1)[0].replace('|', ', ')
+    ticket_html = f'<span>Code ticket : <strong>{ticket_aff}</strong></span>' if ticket_aff else ''
     client_nom = client.get("nom","—") if client else "—"
     client_tel = client.get("tel","") or ""
     client_email = client.get("email","") or ""
@@ -1063,7 +1067,7 @@ tr:nth-child(even) td{{background:#fafafa}}
     <div class="info-box">
       <div class="section-title">Transaction</div>
       <strong>#{tid} — {date_fmt}</strong>
-      <span>Type : <span class="badge">{"Vente" if is_vente else ("Dépôt" if (client and client.get("associe")) else "Remboursement")}</span></span>
+      {ticket_html}<span>Type : <span class="badge">{"Vente" if is_vente else ("Dépôt" if (client and client.get("associe")) else "Remboursement")}</span></span>
     </div>
   </div>
 </div>
@@ -1348,6 +1352,15 @@ def _build_facture_groupee_html(transs, client, type_):
     date_t = (transs[0].get("date","") or "")[:10].split("-")
     date_fmt = "/".join(reversed(date_t)) if len(date_t)==3 else ""
     rows_html = ""
+    _allcodes = []
+    for _tt in transs:
+        _n = _tt.get("notes","") or ""
+        if '[TICKET code=' in _n:
+            for _cc in _n.split('[TICKET code=',1)[1].split(']',1)[0].split('|'):
+                _cc = _cc.strip()
+                if _cc and _cc not in _allcodes:
+                    _allcodes.append(_cc)
+    tickets_html_g = ('<div class="total-row"><span>Codes ticket</span><span>' + ', '.join(_allcodes) + '</span></div>') if _allcodes else ''
     _pmap = _catalogue_photo_map()
     total = 0
     for t in transs:
@@ -1378,7 +1391,7 @@ table{{width:100%;border-collapse:collapse;margin-bottom:16px}}thead tr{{backgro
 <div class="doc-type"><h1>{titre}</h1><div class="numero">{numero}</div><div class="date">Emis le {date_str}</div></div></div>
 <div class="section"><div class="section-title">Client</div><div class="info-box"><strong>{client_nom}</strong><span>{client_tel}</span></div></div>
 <div class="section"><div class="section-title">Detail ({date_fmt})</div><table><thead><tr><th>Article</th><th>Qte</th><th>P.U.</th><th>Mode</th><th style="text-align:right">Montant</th></tr></thead><tbody>{rows_html}</tbody></table></div>
-<div class="total-section"><div class="total-row main"><span>{total_label}</span><span>{total:.2f} EUR</span></div></div>
+<div class="total-section">{tickets_html_g}<div class="total-row main"><span>{total_label}</span><span>{total:.2f} EUR</span></div></div>
 <div class="footer">Gestion Perso - Document genere le {date_str}</div></body></html>"""
     return html, numero
 
