@@ -1036,6 +1036,7 @@ select option{background:var(--bg3)}
     <div id="detailBody" style="margin:16px 0"></div>
     <div class="modal-actions">
       <button class="btn danger" onclick="deleteTransFromDetail()">🗑 Supprimer</button>
+      <button class="btn" onclick="recreerFacture()">&#128196; Recr&eacute;er facture</button>
       <button class="btn-cancel" onclick="closeModal('detail')">Fermer</button>
       <button class="btn-save" onclick="editTransFromDetail()">✏ Modifier</button>
     </div>
@@ -4697,6 +4698,12 @@ function _rcard(label,val,col){
 }
 
 function _ticketCodes(v){return (v||'').split(/[\n,;]+/).map(function(s){return s.trim();}).filter(Boolean).join('|');}
+async function recreerFacture(){
+  if(!currentDetailId)return;
+  var r=await api('/api/factures/generer/'+currentDetailId,{method:'POST'});
+  if(r&&r.ok){ notify('Facture recreee','success'); if(typeof loadFactures==='function')loadFactures(); }
+  else notify('Erreur creation facture','error');
+}
 /* auto-verification des mises a jour (apres connexion seulement) */
 (function(){
   var done=false, finished=false, attempts=0;

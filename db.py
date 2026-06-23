@@ -1252,3 +1252,10 @@ def get_rentabilite():
                 "benefice": benefice, "rembourse": rembourse,
             })
         return out
+
+
+def delete_factures_by_transaction(transaction_id):
+    _ensure_factures_table()
+    with get_conn() as conn:
+        conn.execute("DELETE FROM factures WHERE transaction_id=?", (transaction_id,))
+        conn.commit()

@@ -1157,6 +1157,7 @@ def factures_generer(tid):
     client = db.get_client(trans["client_id"])
     type_ = "vente" if trans["type"] == "debit" else "remboursement"
     html_content, numero = _build_facture_html(trans, client, type_)
+    db.delete_factures_by_transaction(tid)
     fid, num = db.create_facture(tid, trans["client_id"], type_, html_content, trans["montant_net"])
     return ok({"id": fid, "numero": num}), 201
 
