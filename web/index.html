@@ -265,6 +265,7 @@ select option{background:var(--bg3)}
     
     <div class="nav-item" onclick="goPage('entrees',this)"><span class="nav-icon">📦</span> Entrees materiel</div>
     <div class="nav-item" onclick="goPage('stock',this)"><span class="nav-icon">📊</span> Stock</div>
+    <div class="nav-item" onclick="goPage('rentab',this)"><span class="nav-icon">&#128200;</span> Rentabilite</div>
     <div class="nav-item" onclick="goPage('recap',this)"><span class="nav-icon">📊</span> Récap mensuel</div>
     <div class="nav-item" onclick="goPage('compta',this)"><span class="nav-icon">📒</span> Compta</div>
     <div class="nav-item" onclick="openModalImprimer()"><span class="nav-icon">🖨</span> Imprimer</div>
@@ -584,7 +585,18 @@ select option{background:var(--bg3)}
       </div>
 
       <!-- STOCK -->
-      <div class="page" id="pg-stock">
+      <div class="page" id="pg-rentab">
+        <div id="rentabSummary" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px"></div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;overflow:hidden">
+        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:var(--bg3);color:var(--text3);text-align:left">
+        <th style="padding:10px">Article</th><th style="padding:10px;text-align:center">Stock</th>
+        <th style="padding:10px;text-align:center">Vendu</th><th style="padding:10px;text-align:right">Investi</th>
+        <th style="padding:10px;text-align:right">R&eacute;cup&eacute;r&eacute;</th><th style="padding:10px;text-align:right">B&eacute;n&eacute;fice</th>
+        <th style="padding:10px">&Eacute;tat</th></tr></thead>
+        <tbody id="rentabBody"></tbody></table></div></div>
+        </div>
+        <div class="page" id="pg-stock">
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
           <div class="stat-card red"><div class="stat-label">Total investi</div><div class="stat-value" id="stockTotalInvesti">—</div></div>
           <div class="stat-card green"><div class="stat-label">Stock total restant</div><div class="stat-value" id="stockTotalRestant">—</div></div>
@@ -1325,7 +1337,7 @@ async function refreshPinLength(){
 }
 
 // ── NAVIGATION ──
-const TITLES={caisse:'Caisse',catalogue:'Catalogue Produits',factures:'Factures & Bons',stock:'Stock',dashboard:'Tableau de bord',clients:'Clients',transactions:'Transactions',soldes:'Soldes & Dettes',settings:'Parametres',rappels:'Rappels et Relances',entrees:'Entrees materiel',recap:'Recap mensuel',compta:'Comptabilite'};
+const TITLES={rentab:'Rentabilite par article',caisse:'Caisse',catalogue:'Catalogue Produits',factures:'Factures & Bons',stock:'Stock',dashboard:'Tableau de bord',clients:'Clients',transactions:'Transactions',soldes:'Soldes & Dettes',settings:'Parametres',rappels:'Rappels et Relances',entrees:'Entrees materiel',recap:'Recap mensuel',compta:'Comptabilite'};
 function goPage(name,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -1342,6 +1354,7 @@ function goPage(name,el){
   if(name==='rappels')loadRappels();
   if(name==='entrees')loadEntrees();
   if(name==='stock')loadStock();
+  if(name==='rentab')loadRentab();
   if(name==='recap')initRecap();
   if(name==='catalogue'){loadCatalogue();}
   if(name==='caisse'){initCaisse();}
@@ -4648,6 +4661,41 @@ function depTicketToggle(){var w=document.getElementById('depTicketWrap');var v=
 function zoomTile(el){var im=el.parentNode.querySelector('img');if(im&&typeof openPhotoLightbox==='function')openPhotoLightbox(im.src);}
 function posToggleGratuit(id){var l=posCart.find(function(x){return x.id===id;});if(!l)return;l.gratuit=!l.gratuit;renderPosCart();updatePosTotals();}
 async function getConsoPersoClient(){var f=(clientsCache||[]).find(function(c){return (c.nom||'').toLowerCase()==='conso perso';});if(f)return f.id;var r=await api('/api/clients',{method:'POST',body:{nom:'Conso perso'}});if(r&&r.ok&&r.data){if(typeof loadClients==='function'){try{await loadClients();}catch(e){}}return r.data.id;}return null;}
+async function loadRentab(){
+  var res=await api('/api/rentabilite');
+  var body=document.getElementById('rentabBody');
+  var sum=document.getElementById('rentabSummary');
+  if(!body)return;
+  var list=(res&&res.ok)?res.data:[];
+  var tInv=0,tRec=0,tBen=0,nbOk=0;
+  body.innerHTML='';
+  if(!list.length){ body.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:24px">Aucun article</td></tr>'; }
+  list.forEach(function(r){
+    tInv+=r.investi; tRec+=r.recupere; tBen+=r.benefice; if(r.rembourse)nbOk++;
+    var col=r.benefice>=0?'var(--green)':'var(--red)';
+    var reste=(r.investi-r.recupere);
+    var etat=r.rembourse?'<span style="color:var(--green);font-weight:600">\u2713 rembours\u00e9</span>':(r.investi>0?'<span style="color:var(--text3)">reste '+reste.toFixed(2)+' \u20ac</span>':'<span style="color:var(--text3)">-</span>');
+    body.innerHTML+='<tr style="border-bottom:1px solid var(--border)">'
+      +'<td style="padding:9px 10px">'+r.nom+'</td>'
+      +'<td style="padding:9px 10px;text-align:center">'+(r.stock||0)+'</td>'
+      +'<td style="padding:9px 10px;text-align:center">'+(r.qty_vendue||0)+'</td>'
+      +'<td style="padding:9px 10px;text-align:right">'+r.investi.toFixed(2)+' \u20ac</td>'
+      +'<td style="padding:9px 10px;text-align:right">'+r.recupere.toFixed(2)+' \u20ac</td>'
+      +'<td style="padding:9px 10px;text-align:right;color:'+col+';font-weight:600">'+(r.benefice>=0?'+':'')+r.benefice.toFixed(2)+' \u20ac</td>'
+      +'<td style="padding:9px 10px">'+etat+'</td></tr>';
+  });
+  var bc=tBen>=0?'var(--green)':'var(--red)';
+  sum.innerHTML=_rcard('Investi total',tInv.toFixed(2)+' \u20ac','var(--gold2)')
+    +_rcard('R\u00e9cup\u00e9r\u00e9 total',tRec.toFixed(2)+' \u20ac','var(--text)')
+    +_rcard('B\u00e9n\u00e9fice total',(tBen>=0?'+':'')+tBen.toFixed(2)+' \u20ac',bc)
+    +_rcard('Articles rembours\u00e9s',nbOk+' / '+list.length,'var(--text)');
+}
+function _rcard(label,val,col){
+  return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:13px 18px;min-width:150px">'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:4px">'+label+'</div>'
+    +'<div style="font-size:20px;font-weight:700;color:'+col+'">'+val+'</div></div>';
+}
+
 /* auto-verification des mises a jour (apres connexion seulement) */
 (function(){
   var done=false, finished=false, attempts=0;

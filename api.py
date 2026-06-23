@@ -1548,6 +1548,12 @@ def sim_cards_sold(sid):
     return ok(row)
 
 
+@app.route("/api/rentabilite")
+@require_auth
+def rentabilite_list():
+    return ok(db.get_rentabilite())
+
+
 def start(host="127.0.0.1", port=5000, debug=False):
     db.init_db()
     app.run(host=host, port=port, debug=debug, use_reloader=False)

@@ -1209,3 +1209,35 @@ def mark_sim_sold(sim_id, transaction_id=None, client_id=None, date_vente=None):
         _sync_sim_stock(conn, row["catalogue_id"])
         conn.commit()
         return dict(conn.execute("SELECT * FROM sim_cards WHERE id=?", (sim_id,)).fetchone())
+
+
+def get_rentabilite():
+    """Rentabilite par article: investi=(stock+vendu)*prix_achat, recupere=CA des ventes."""
+    _ensure_catalogue_table()
+    with get_conn() as conn:
+        arts = conn.execute(
+            "SELECT id,nom,categorie,COALESCE(prix_achat,0) AS prix_achat,"
+            "COALESCE(prix_vente,0) AS prix_vente,COALESCE(stock,0) AS stock,"
+            "COALESCE(unite,'piece') AS unite FROM catalogue WHERE actif=1 "
+            "ORDER BY categorie,nom"
+        ).fetchall()
+        out = []
+        for a in arts:
+            r = conn.execute(
+                "SELECT COALESCE(SUM(quantite),0) AS q, COALESCE(SUM(montant_brut),0) AS rev "
+                "FROM transactions WHERE type='debit' AND motif=?",
+                (a["nom"],)
+            ).fetchone()
+            qv = r["q"] or 0
+            recupere = round(r["rev"] or 0, 2)
+            pa = a["prix_achat"] or 0
+            investi = round((a["stock"] + qv) * pa, 2)
+            benefice = round(recupere - investi, 2)
+            rembourse = bool(investi > 0 and recupere >= investi)
+            out.append({
+                "id": a["id"], "nom": a["nom"], "categorie": a["categorie"],
+                "prix_achat": pa, "prix_vente": a["prix_vente"], "stock": a["stock"],
+                "qty_vendue": qv, "investi": investi, "recupere": recupere,
+                "benefice": benefice, "rembourse": rembourse,
+            })
+        return out
