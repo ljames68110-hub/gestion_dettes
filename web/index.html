@@ -296,9 +296,9 @@ select option{background:var(--bg3)}
       <!-- DASHBOARD -->
       <div class="page active" id="pg-dashboard">
         <div class="stats-grid">
-          <div class="stat-card gold"><div class="stat-label">Encaissé ce mois</div><div class="stat-value" id="s-credit">—</div><div class="stat-sub">Crédits du mois</div><div class="stat-icon">💰</div></div>
-          <div class="stat-card green"><div class="stat-label">Solde du mois</div><div class="stat-value" id="s-solde">—</div><div class="stat-sub">Ce mois (D − C)</div><div class="stat-icon">📈</div></div>
-          <div class="stat-card red"><div class="stat-label">Ventes ce mois</div><div class="stat-value" id="s-debit">—</div><div class="stat-sub">Débits du mois</div><div class="stat-icon">⚠</div></div>
+          <div class="stat-card gold"><div class="stat-label">Encaissé cette semaine</div><div class="stat-value" id="s-credit">—</div><div class="stat-sub">Crédits de la semaine</div><div class="stat-icon">💰</div></div>
+          <div class="stat-card green"><div class="stat-label">Solde de la semaine</div><div class="stat-value" id="s-solde">—</div><div class="stat-sub">Cette semaine (D − C)</div><div class="stat-icon">📈</div></div>
+          <div class="stat-card red"><div class="stat-label">Ventes cette semaine</div><div class="stat-value" id="s-debit">—</div><div class="stat-sub">Débits de la semaine</div><div class="stat-icon">⚠</div></div>
           <div class="stat-card blue"><div class="stat-label">Clients</div><div class="stat-value" id="s-clients">—</div><div class="stat-sub">Enregistrés</div><div class="stat-icon">👥</div></div>
         </div>
         <div class="charts-row">
@@ -1369,10 +1369,10 @@ async function loadDashboard(){
   if(!res||!res.ok)return;
   const d=res.data;
   document.getElementById('s-clients').textContent=d.nb_clients;
-  var _ym=new Date().toISOString().slice(0,7);
+  var _now=new Date();var _dow=(_now.getDay()+6)%7;var _wd=new Date(_now.getFullYear(),_now.getMonth(),_now.getDate()-_dow);var _ws=_wd.getFullYear()+'-'+String(_wd.getMonth()+1).padStart(2,'0')+'-'+String(_wd.getDate()).padStart(2,'0');
   var _tdash=await api('/api/transactions?limit=5000');
   var _mDeb=0,_mCre=0;
-  if(_tdash&&_tdash.ok){_tdash.data.forEach(function(t){if((t.date||'').slice(0,7)!==_ym)return;if((t.compte||'euro')==='tabac')return;var n=parseFloat(t.montant_net||0);if(t.type==='debit')_mDeb+=n;else _mCre+=n;});}
+  if(_tdash&&_tdash.ok){_tdash.data.forEach(function(t){if((t.date||'').slice(0,10)<_ws)return;if((t.compte||'euro')==='tabac')return;var n=parseFloat(t.montant_net||0);if(t.type==='debit')_mDeb+=n;else _mCre+=n;});}
   document.getElementById('s-debit').textContent=fmt(_mDeb);
   document.getElementById('s-credit').textContent=fmt(_mCre);
   var se=document.getElementById('s-solde');var _mNet=_mDeb-_mCre;se.textContent=fmt(_mNet);se.style.color=_mNet>=0?'var(--green)':'var(--red)';
