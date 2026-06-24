@@ -1578,6 +1578,14 @@ def rentabilite_list():
     return ok(db.get_rentabilite())
 
 
+@app.route("/api/transactions/<int:tid>/photo-ticket", methods=["POST"])
+@require_auth
+def transaction_set_photo(tid):
+    data = request.json or {}
+    db.set_transaction_photo(tid, data.get("photo", ""))
+    return ok({"id": tid})
+
+
 def start(host="127.0.0.1", port=5000, debug=False):
     db.init_db()
     app.run(host=host, port=port, debug=debug, use_reloader=False)

@@ -94,6 +94,8 @@ def init_db():
             c.execute("ALTER TABLE transactions ADD COLUMN unite TEXT DEFAULT 'piece'")
         if "compte" not in trans_cols:
             c.execute("ALTER TABLE transactions ADD COLUMN compte TEXT DEFAULT 'euro'")
+        if "photo_ticket" not in trans_cols:
+            c.execute("ALTER TABLE transactions ADD COLUMN photo_ticket TEXT DEFAULT ''")
             # Migrer les transactions existantes selon mode_paiement
             c.execute("UPDATE transactions SET compte='cantine' WHERE mode_paiement='Cantine'")
             c.execute("UPDATE transactions SET compte='tabac' WHERE mode_paiement IN ('Tabac','Blonde','PotTabac')")
@@ -278,7 +280,7 @@ def get_transactions(client_id: int):
                       t.montant_brut,t.mode_paiement,t.frais,t.montant_net,
                       t.reference,t.notes,t.entree_id,t.linked_debit_id,
                       COALESCE(t.unite,'piece') as unite,
-                      COALESCE(t.compte,'euro') as compte,
+                      COALESCE(t.compte,'euro') as compte, COALESCE(t.photo_ticket,'') as photo_ticket,
                       e.description as entree_description,
                       e.date as entree_date
                FROM transactions t
@@ -294,7 +296,7 @@ def get_all_transactions(limit=200):
         rows = conn.execute(
             """SELECT t.*, c.nom as client_nom,
                       COALESCE(t.unite,'piece') as unite,
-                      COALESCE(t.compte,'euro') as compte,
+                      COALESCE(t.compte,'euro') as compte, COALESCE(t.photo_ticket,'') as photo_ticket,
                       e.description as entree_description,
                       e.date as entree_date
                FROM transactions t
@@ -1258,4 +1260,10 @@ def delete_factures_by_transaction(transaction_id):
     _ensure_factures_table()
     with get_conn() as conn:
         conn.execute("DELETE FROM factures WHERE transaction_id=?", (transaction_id,))
+        conn.commit()
+
+
+def set_transaction_photo(transaction_id, photo):
+    with get_conn() as conn:
+        conn.execute("UPDATE transactions SET photo_ticket=? WHERE id=?", (photo, transaction_id))
         conn.commit()

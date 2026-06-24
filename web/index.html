@@ -2121,7 +2121,7 @@ function openTransDetail(id){
   document.getElementById('detailTitle').textContent=t.motif+' — '+fmtDate(t.date);
   document.getElementById('detailSub').innerHTML='<span class="badge '+t.type+'">'+(t.type==='credit'?'Remboursement':'Vente')+'</span>';
   const col=t.type==='debit'?'var(--green)':'var(--red)';
-  document.getElementById('detailBody').innerHTML='<div style="background:var(--bg3);border-radius:var(--radius2);padding:20px;text-align:center;margin-bottom:16px"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">'+(t.type==='debit'?'Montant vendu':'Remboursement reçu')+'</div><div style="font-size:36px;font-weight:600;font-family:DM Mono,monospace;color:'+col+'">'+(t.type==='debit'?'+':'-')+fmt(t.montant_brut)+'</div></div>'+drRow('Client',t.client_nom||'—',null)+drRow('Date',fmtDate(t.date),null)+drRow('Motif',t.motif,null)+(t.type==='debit'?'':drRow('Mode',t.mode_paiement,null))+drRow('Quantite',(t.quantite||1)+' '+(t.unite==='gramme'?'g':'pcs'),null)+drRow('Prix unitaire',fmt(t.prix_unitaire),null)+drRow('Montant brut',fmt(t.montant_brut),null)+drRow('Frais',fmt(t.frais),t.frais>0?'var(--red)':null)+drRow('Montant net',fmt(t.montant_net),col)+(t.entree_description?drRow('Entree materiel','📦 '+t.entree_description+(t.entree_date?' — '+fmtDate(t.entree_date):''),'var(--gold2)'):'')+(_sim?drRow('Carte SIM','Tel '+_sim.puce+(_sim.last4?(' / 4 derniers serie '+_sim.last4):''),'var(--gold2)'):'')+(_tk?drRow('Code ticket',_tk,'var(--gold2)'):'')+(_notesC&&_notesC.trim()?drRow('Notes',_notesC,'var(--text3)'):'')+(t.reference?drRow('Reference',t.reference,null):'');
+  document.getElementById('detailBody').innerHTML='<div style="background:var(--bg3);border-radius:var(--radius2);padding:20px;text-align:center;margin-bottom:16px"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">'+(t.type==='debit'?'Montant vendu':'Remboursement reçu')+'</div><div style="font-size:36px;font-weight:600;font-family:DM Mono,monospace;color:'+col+'">'+(t.type==='debit'?'+':'-')+fmt(t.montant_brut)+'</div></div>'+drRow('Client',t.client_nom||'—',null)+drRow('Date',fmtDate(t.date),null)+drRow('Motif',t.motif,null)+(t.type==='debit'?'':drRow('Mode',t.mode_paiement,null))+drRow('Quantite',(t.quantite||1)+' '+(t.unite==='gramme'?'g':'pcs'),null)+drRow('Prix unitaire',fmt(t.prix_unitaire),null)+drRow('Montant brut',fmt(t.montant_brut),null)+drRow('Frais',fmt(t.frais),t.frais>0?'var(--red)':null)+drRow('Montant net',fmt(t.montant_net),col)+(t.entree_description?drRow('Entree materiel','📦 '+t.entree_description+(t.entree_date?' — '+fmtDate(t.entree_date):''),'var(--gold2)'):'')+(_sim?drRow('Carte SIM','Tel '+_sim.puce+(_sim.last4?(' / 4 derniers serie '+_sim.last4):''),'var(--gold2)'):'')+(_tk?drRow('Code ticket',_tk,'var(--gold2)'):'')+(_notesC&&_notesC.trim()?drRow('Notes',_notesC,'var(--text3)'):'')+(t.reference?drRow('Reference',t.reference,null):'')+_ticketPhotoBlock(t);
   document.getElementById('modalDetail').classList.add('open');
 }
 function drRow(label,val,color){return '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;color:var(--text3)">'+label+'</span><span style="font-size:13px;font-weight:500;'+(color?'color:'+color+';':'')+'font-family:DM Mono,monospace">'+val+'</span></div>';}
@@ -4710,6 +4710,19 @@ function _ticketEnsure(listId){var box=document.getElementById(listId);if(box&&!
 function _ticketClear(listId){var box=document.getElementById(listId);if(box)box.innerHTML='';}
 function _collectTickets(listId){var box=document.getElementById(listId);var out=[];if(!box)return {codes:'',error:null};var rows=box.querySelectorAll('.tkrow');for(var i=0;i<rows.length;i++){var c=((rows[i].querySelector('.tkc')||{}).value||'').trim();var a=((rows[i].querySelector('.tka')||{}).value||'').trim();if(!c&&!a)continue;if(c&&!a)return {codes:'',error:'Montant manquant pour le code "'+c+'"'};if(a&&!c)return {codes:'',error:'Code manquant pour le montant '+a};out.push(c+':'+a);}return {codes:out.join('|'),error:null};}
 function _fmtTickets(raw){return (raw||'').split('|').map(function(p){var i=p.lastIndexOf(':');if(i<0)return p;var c=p.slice(0,i),a=p.slice(i+1);return a?(c+' ('+a+' \u20ac)'):c;}).join(', ');}
+function _ticketPhotoBlock(t){
+  var img=t.photo_ticket?('<div style="padding:10px 0"><img src="'+t.photo_ticket+'" style="max-height:160px;max-width:100%;border-radius:8px;cursor:pointer" onclick="openPhotoLightbox(this.src)"></div>'):'';
+  var btn='<label style="display:inline-block;margin-top:4px;font-size:12px;color:var(--gold2);cursor:pointer">'+(t.photo_ticket?'Changer la photo ticket':'+ Ajouter une photo ticket')+'<input type="file" accept="image/*" style="display:none" onchange="uploadTransPhoto(this,'+t.id+')"></label>';
+  return img+btn;
+}
+function uploadTransPhoto(input,tid){
+  if(!input.files||!input.files[0])return;
+  resizeImageFile(input.files[0],700).then(async function(b64){
+    var r=await api('/api/transactions/'+tid+'/photo-ticket',{method:'POST',body:{photo:b64}});
+    if(r&&r.ok){var x=allTransactions.find(function(y){return y.id===parseInt(tid);});if(x)x.photo_ticket=b64;if(typeof clientTransactions!=='undefined'&&clientTransactions[tid])clientTransactions[tid].photo_ticket=b64;notify('Photo enregistree','success');openTransDetail(tid);}
+    else notify('Erreur photo','error');
+  });
+}
 /* auto-verification des mises a jour (apres connexion seulement) */
 (function(){
   var done=false, finished=false, attempts=0;
