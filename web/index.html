@@ -4711,10 +4711,14 @@ function _ticketClear(listId){var box=document.getElementById(listId);if(box)box
 function _collectTickets(listId){var box=document.getElementById(listId);var out=[];if(!box)return {codes:'',error:null};var rows=box.querySelectorAll('.tkrow');for(var i=0;i<rows.length;i++){var c=((rows[i].querySelector('.tkc')||{}).value||'').trim();var a=((rows[i].querySelector('.tka')||{}).value||'').trim();if(!c&&!a)continue;if(c&&!a)return {codes:'',error:'Montant manquant pour le code "'+c+'"'};if(a&&!c)return {codes:'',error:'Code manquant pour le montant '+a};out.push(c+':'+a);}return {codes:out.join('|'),error:null};}
 function _fmtTickets(raw){return (raw||'').split('|').map(function(p){var i=p.lastIndexOf(':');if(i<0)return p;var c=p.slice(0,i),a=p.slice(i+1);return a?(c+' ('+a+' \u20ac)'):c;}).join(', ');}
 function _ticketPhotoBlock(t){
-  var img=t.photo_ticket?('<div style="padding:10px 0;text-align:center"><img src="'+t.photo_ticket+'" style="max-height:240px;max-width:100%;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:zoom-in;display:block;margin:0 auto" onclick="openPhotoLightbox(this.src)"></div>'):'';
-  var btn='<label style="display:inline-block;margin-top:4px;font-size:12px;color:var(--gold2);cursor:pointer">'+(t.photo_ticket?'Changer la photo ticket':'+ Ajouter une photo ticket')+'<input type="file" accept="image/*" style="display:none" onchange="uploadTransPhoto(this,'+t.id+')"></label>';
-  return img+btn;
+  if(!t.photo_ticket){return '<div style="margin-top:6px"><label style="display:inline-block;font-size:12px;color:var(--gold2);cursor:pointer">+ Ajouter une photo ticket<input type="file" accept="image/*" style="display:none" onchange="uploadTransPhoto(this,'+t.id+')"></label></div>';}
+  return '<div style="padding:10px 0;text-align:center">'
+    +'<img src="'+t.photo_ticket+'" style="max-height:150px;max-width:100%;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:zoom-in;display:block;margin:0 auto 8px" onclick="openTransPhotoFull('+t.id+')">'
+    +'<button type="button" class="btn" onclick="openTransPhotoFull('+t.id+')" style="font-size:12px;padding:5px 12px">Voir le ticket en entier</button>'
+    +'<label style="display:inline-block;font-size:12px;color:var(--gold2);cursor:pointer;margin-left:10px">Changer<input type="file" accept="image/*" style="display:none" onchange="uploadTransPhoto(this,'+t.id+')"></label>'
+    +'</div>';
 }
+function openTransPhotoFull(tid){tid=parseInt(tid);var x=allTransactions.find(function(y){return y.id===tid;});if(!x&&typeof clientTransactions!=="undefined")x=clientTransactions[tid];if(x&&x.photo_ticket)openPhotoLightbox(x.photo_ticket);}
 function uploadTransPhoto(input,tid){
   if(!input.files||!input.files[0])return;
   resizeImageFile(input.files[0],1000).then(async function(b64){
