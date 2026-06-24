@@ -4504,6 +4504,7 @@ function exportCantinePDF(cid){
 
 <script>
 // ===== PHOTOS ARTICLES =====
+function resizeImageFull(file,maxDim){return new Promise(function(resolve){var reader=new FileReader();reader.onload=function(e){var img=new Image();img.onload=function(){var w=img.width,h=img.height;var sc=Math.min(1,maxDim/Math.max(w,h));var ow=Math.max(1,Math.round(w*sc)),oh=Math.max(1,Math.round(h*sc));var c=document.createElement('canvas');c.width=ow;c.height=oh;c.getContext('2d').drawImage(img,0,0,ow,oh);try{resolve(c.toDataURL('image/jpeg',0.85));}catch(err){resolve(null);}};img.onerror=function(){resolve(null);};img.src=e.target.result;};reader.onerror=function(){resolve(null);};reader.readAsDataURL(file);});}
 function resizeImageFile(file,maxDim){return new Promise(function(resolve){var reader=new FileReader();reader.onload=function(e){var img=new Image();img.onload=function(){var side=Math.min(img.width,img.height);var sx=Math.round((img.width-side)/2);var sy=Math.round((img.height-side)/2);var out=Math.min(maxDim,side);var c=document.createElement('canvas');c.width=out;c.height=out;c.getContext('2d').drawImage(img,sx,sy,side,side,0,0,out,out);try{resolve(c.toDataURL('image/jpeg',0.8));}catch(err){resolve(null);}};img.onerror=function(){resolve(null);};img.src=e.target.result;};reader.onerror=function(){resolve(null);};reader.readAsDataURL(file);});}
 function onCatPhotoPick(input){if(!input.files||!input.files[0]){window._catPhotoData=null;return;}resizeImageFile(input.files[0],420).then(function(b64){window._catPhotoData=b64;var prev=document.getElementById('catPhotoPreview');if(prev&&b64){prev.src=b64;prev.style.display='block';}var rb=document.getElementById('catPhotoRemoveBtn');if(rb&&b64)rb.style.display='inline-flex';});}
 (function(){var modal=document.getElementById('modalCatalogue');if(!modal)return;new MutationObserver(function(){if(modal.classList.contains('open')){window._catPhotoData=null;var pf=document.getElementById('catPhotoFile');if(pf)pf.value='';var prev=document.getElementById('catPhotoPreview');var id=(document.getElementById('catId')||{}).value;var item=id?(catalogueCache||[]).find(function(c){return String(c.id)===String(id);}):null;if(prev){if(item&&item.photo){prev.src=item.photo;prev.style.display='block';}else{prev.removeAttribute('src');prev.style.display='none';}var _rb=document.getElementById('catPhotoRemoveBtn');if(_rb)_rb.style.display=(item&&item.photo)?'inline-flex':'none';}}}).observe(modal,{attributes:true,attributeFilter:['class']});})();
@@ -4721,13 +4722,13 @@ function _ticketPhotoBlock(t){
 function openTransPhotoFull(tid){tid=parseInt(tid);var x=allTransactions.find(function(y){return y.id===tid;});if(!x&&typeof clientTransactions!=="undefined")x=clientTransactions[tid];if(x&&x.photo_ticket)openPhotoLightbox(x.photo_ticket);}
 function uploadTransPhoto(input,tid){
   if(!input.files||!input.files[0])return;
-  resizeImageFile(input.files[0],1000).then(async function(b64){
+  resizeImageFull(input.files[0],1400).then(async function(b64){
     var r=await api('/api/transactions/'+tid+'/photo-ticket',{method:'POST',body:{photo:b64}});
     if(r&&r.ok){var x=allTransactions.find(function(y){return y.id===parseInt(tid);});if(x)x.photo_ticket=b64;if(typeof clientTransactions!=='undefined'&&clientTransactions[tid])clientTransactions[tid].photo_ticket=b64;notify('Photo enregistree','success');openTransDetail(tid);}
     else notify('Erreur photo','error');
   });
 }
-function onTicketPhotoPick(input,which){if(!input.files||!input.files[0]){window['_'+which+'TicketPhoto']=null;return;}resizeImageFile(input.files[0],1000).then(function(b64){window['_'+which+'TicketPhoto']=b64;var p=document.getElementById(which+'TicketPhotoPrev');if(p&&b64){p.src=b64;p.style.display='inline-block';}});}
+function onTicketPhotoPick(input,which){if(!input.files||!input.files[0]){window['_'+which+'TicketPhoto']=null;return;}resizeImageFull(input.files[0],1400).then(function(b64){window['_'+which+'TicketPhoto']=b64;var p=document.getElementById(which+'TicketPhotoPrev');if(p&&b64){p.src=b64;p.style.display='inline-block';}});}
 function _clearTicketPhoto(which){window['_'+which+'TicketPhoto']=null;var f=document.getElementById(which+'TicketPhotoFile');if(f)f.value='';var p=document.getElementById(which+'TicketPhotoPrev');if(p){p.style.display='none';p.src='';}}
 /* auto-verification des mises a jour (apres connexion seulement) */
 (function(){
