@@ -1586,6 +1586,21 @@ def transaction_set_photo(tid):
     return ok({"id": tid})
 
 
+@app.route("/api/ocr-ticket", methods=["POST"])
+@require_auth
+def ocr_ticket_route():
+    data = request.json or {}
+    photo = data.get("photo", "")
+    if not photo:
+        return ok({"ok": False, "error": "Photo manquante"})
+    try:
+        import ocr
+        res = ocr.lire_ticket(photo)
+    except Exception as e:
+        res = {"ok": False, "error": str(e)}
+    return ok(res)
+
+
 def start(host="127.0.0.1", port=5000, debug=False):
     db.init_db()
     app.run(host=host, port=port, debug=debug, use_reloader=False)
