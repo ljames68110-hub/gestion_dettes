@@ -988,6 +988,8 @@ def _build_facture_html(trans, client, type_):
     is_vente = type_ == "vente"
     titre = "FACTURE DE VENTE" if is_vente else ("BON DE DÉPÔT" if (client and client.get("associe")) else "BON DE REMBOURSEMENT")
     couleur = "#16a34a" if is_vente else "#c9a84c"
+    _logo = db.get_setting("app_logo", "")
+    _logo_html = f'<img src="{_logo}" style="height:46px;width:auto;margin-bottom:8px;display:block">' if _logo else ""
     montant_brut = trans.get("montant_brut", 0) or 0
     frais = trans.get("frais", 0) or 0
     montant_net = trans.get("montant_net", 0) or 0
@@ -1056,7 +1058,7 @@ tr:nth-child(even) td{{background:#fafafa}}
 
 <div class="header">
   <div>
-    <div class="app-name">Gestion Perso</div>
+    {_logo_html}{_logo_html}{_logo_html}<div class="app-name">Gestion Perso</div>
     <div class="app-sub">Gestion de dettes &amp; créances</div>
   </div>
   <div class="doc-type">
@@ -1355,6 +1357,8 @@ def _build_facture_groupee_html(transs, client, type_):
     is_vente = type_ == "vente"
     titre = "FACTURE DE VENTE" if is_vente else ("BON DE DÉPÔT" if (client and client.get("associe")) else "BON DE REMBOURSEMENT")
     couleur = "#16a34a" if is_vente else "#c9a84c"
+    _logo = db.get_setting("app_logo", "")
+    _logo_html = f'<img src="{_logo}" style="height:46px;width:auto;margin-bottom:8px;display:block">' if _logo else ""
     client_nom = client.get("nom","-") if client else "-"
     client_tel = client.get("tel","") or ""
     tid0 = transs[0].get("id",0)
@@ -1398,7 +1402,7 @@ def _build_facture_groupee_html(transs, client, type_):
 table{{width:100%;border-collapse:collapse;margin-bottom:16px}}thead tr{{background:{couleur};color:white}}th{{padding:8px 10px;text-align:left;font-size:11px}}td{{padding:8px 10px;border-bottom:1px solid #f0f0f0}}
 .total-section{{background:#f5f5f5;border:1px solid #ddd;border-radius:6px;padding:16px}}.total-row.main{{font-size:16px;font-weight:bold;color:{couleur};border-top:2px solid {couleur};margin-top:8px;padding-top:8px;display:flex;justify-content:space-between}}
 .footer{{margin-top:32px;padding-top:16px;border-top:1px solid #eee;text-align:center;font-size:10px;color:#999}}</style></head><body>
-<div class="header"><div><div class="app-name">Gestion Perso</div><div class="app-sub">Gestion de dettes &amp; creances</div></div>
+<div class="header"><div>{_logo_html}{_logo_html}{_logo_html}<div class="app-name">Gestion Perso</div><div class="app-sub">Gestion de dettes &amp; creances</div></div>
 <div class="doc-type"><h1>{titre}</h1><div class="numero">{numero}</div><div class="date">Emis le {date_str}</div></div></div>
 <div class="section"><div class="section-title">Client</div><div class="info-box"><strong>{client_nom}</strong><span>{client_tel}</span></div></div>
 <div class="section"><div class="section-title">Detail ({date_fmt})</div><table><thead><tr><th>Article</th><th>Qte</th><th>P.U.</th><th>Mode</th><th style="text-align:right">Montant</th></tr></thead><tbody>{rows_html}</tbody></table></div>
@@ -1599,6 +1603,11 @@ def ocr_ticket_route():
     except Exception as e:
         res = {"ok": False, "error": str(e)}
     return ok(res)
+
+
+@app.route("/api/logo")
+def app_logo_public():
+    return ok({"logo": db.get_setting("app_logo", "")})
 
 
 def start(host="127.0.0.1", port=5000, debug=False):
