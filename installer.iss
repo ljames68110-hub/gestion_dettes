@@ -1,7 +1,7 @@
 ; installer.iss — Gestion Perso
 
 #define AppName "Gestion Perso"
-#define AppVersion "2.21"
+#define AppVersion "2.49"
 #define AppPublisher "LUTZ Yoann"
 #define AppExeName "GestionPerso.exe"
 #define AppId "{{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
@@ -17,12 +17,12 @@ DefaultGroupName={#AppName}
 AllowNoIcons=no
 OutputDir=installer_output
 OutputBaseFilename=GestionPerso_Setup
-SetupIconFile=app_icon.ico
+SetupIconFile=gp_logo.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
-UninstallDisplayIcon={app}\{#AppExeName}
+UninstallDisplayIcon={app}\gp_logo.ico
 UninstallDisplayName={#AppName}
 VersionInfoVersion={#AppVersion}
 VersionInfoCompany={#AppPublisher}
@@ -41,12 +41,12 @@ Name: "startmenuicon"; Description: "Creer un raccourci dans le menu Demarrer"; 
 
 [Files]
 Source: "dist\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "app_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "gp_logo.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\app_icon.ico"; Tasks: startmenuicon
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\gp_logo.ico"; Tasks: startmenuicon
 Name: "{group}\Desinstaller {#AppName}"; Filename: "{uninstallexe}"; Tasks: startmenuicon
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\app_icon.ico"; Tasks: desktopicon
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\gp_logo.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Lancer {#AppName}"; Flags: nowait postinstall skipifsilent
