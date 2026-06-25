@@ -654,7 +654,7 @@ select option{background:var(--bg3)}
                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);margin-top:6px;cursor:pointer">
                   <input type="checkbox" id="posRembFrais" checked onchange="updatePosTotals()" style="width:auto;margin:0"> J'absorbe les frais sur le remboursement
                 </label>
-                <div id="posFraisInfo" style="display:none;font-size:11px;color:var(--gold2);margin-top:6px;padding:6px 8px;background:var(--bg2);border-radius:6px;border:1px solid var(--gold);line-height:1.5"></div><div id="posDepotZone" style="display:none;margin-top:8px"><button class="btn primary" style="width:100%" onclick="toggleDepotForm()">💰 Depot</button><div id="posDepotForm" style="display:none;margin-top:8px;flex-direction:column;gap:6px"><input type="number" id="depMontant" step="0.5" min="0" placeholder="Montant depose" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px" oninput="majDepotInfo()"><select id="depMode" onchange="majDepotInfo();depTicketToggle()" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px"><option value="Liquide">Liquide</option><option value="PCS">PCS</option><option value="Paysafecard">Paysafecard</option><option value="Transcash">Transcash</option><option value="Virement">Virement</option><option value="WesternUnion">Western Union</option></select><div id="depTicketWrap" style="display:none;margin-top:8px"><label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Code(s) du ticket</label><div id="depTicketList"></div><button type="button" class="btn" onclick="addTicketRow('depTicketList')" style="margin-top:6px;font-size:12px;padding:5px 10px">+ Ajouter un code</button><div style="margin-top:10px"><label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Photo du ticket</label><input type="file" accept="image/*" id="depTicketPhotoFile" onchange="onTicketPhotoPick(this,'dep')" style="font-size:12px;color:var(--text3)"><img id="depTicketPhotoPrev" style="display:none;max-height:120px;max-width:100%;border-radius:8px;border:1px solid var(--border);margin-top:6px;cursor:zoom-in" onclick="openPhotoLightbox(this.src)"></div></div><div id="depInfo" style="font-size:11px;color:var(--gold2)"></div><button class="btn primary" style="width:100%" onclick="validerDepot()">Valider le depot</button></div></div><div id="posAssociePanel" style="display:none;margin-top:8px;padding:12px;background:var(--bg3);border:1px solid var(--gold);border-radius:var(--radius2)"><div style="font-size:11px;color:var(--gold2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Comptes associe</div><div style="display:flex;gap:8px;margin-bottom:10px"><div style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center"><div style="font-size:11px;color:var(--text3)">💳 Dette</div><div id="assoDette" style="font-size:16px;font-weight:600;color:var(--red)">0.00 EUR</div></div><div style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center"><div style="font-size:11px;color:var(--text3)">💰 Depot</div><div id="assoDepot" style="font-size:16px;font-weight:600;color:var(--green)">0.00 EUR</div></div></div><button class="btn" style="width:100%;margin-bottom:6px" onclick="toggleRetraitForm()">💸 Retrait (reprendre du depot)</button><div id="posRetraitForm" style="display:none;margin-bottom:6px;flex-direction:column;gap:6px"><input type="number" id="retMontant" step="0.5" min="0" placeholder="Montant retire" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px"><button class="btn primary" style="width:100%" onclick="validerRetrait()">Valider le retrait</button></div><div id="assoReglerWrap" style="display:none"><button class="btn" style="width:100%;border:1px solid var(--gold);color:var(--gold2)" onclick="reglerDetteAssocie()">✓ Regler la dette (<span id="assoReglerMontant">0</span> EUR)</button></div></div>
+                <div id="posFraisInfo" style="display:none;font-size:11px;color:var(--gold2);margin-top:6px;padding:6px 8px;background:var(--bg2);border-radius:6px;border:1px solid var(--gold);line-height:1.5"></div><div id="posDepotZone" style="display:none;margin-top:8px"><button class="btn primary" style="width:100%" onclick="toggleDepotForm()">💰 Depot</button><div id="posDepotForm" style="display:none;margin-top:8px;flex-direction:column;gap:6px"><input type="number" id="depMontant" step="0.5" min="0" placeholder="Montant depose" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px" oninput="majDepotInfo()"><select id="depMode" onchange="majDepotInfo();depTicketToggle()" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px"><option value="Liquide">Liquide</option><option value="PCS">PCS</option><option value="Paysafecard">Paysafecard</option><option value="Transcash">Transcash</option><option value="Virement">Virement</option><option value="WesternUnion">Western Union</option></select><div id="depTicketWrap" style="display:none;margin-top:8px"><label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Code(s) du ticket</label><div id="depTicketList"></div><button type="button" class="btn" onclick="addTicketRow('depTicketList')" style="margin-top:6px;font-size:12px;padding:5px 10px">+ Ajouter un code</button><div style="margin-top:10px"><label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Photo du ticket</label><input type="file" accept="image/*" multiple id="depTicketPhotoFile" onchange="onTicketPhotoPick(this,'dep')" style="font-size:12px;color:var(--text3)"><div id="depTicketPhotoList" style="margin-top:6px"></div></div></div><div id="depInfo" style="font-size:11px;color:var(--gold2)"></div><button class="btn primary" style="width:100%" onclick="validerDepot()">Valider le depot</button></div></div><div id="posAssociePanel" style="display:none;margin-top:8px;padding:12px;background:var(--bg3);border:1px solid var(--gold);border-radius:var(--radius2)"><div style="font-size:11px;color:var(--gold2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Comptes associe</div><div style="display:flex;gap:8px;margin-bottom:10px"><div style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center"><div style="font-size:11px;color:var(--text3)">💳 Dette</div><div id="assoDette" style="font-size:16px;font-weight:600;color:var(--red)">0.00 EUR</div></div><div style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center"><div style="font-size:11px;color:var(--text3)">💰 Depot</div><div id="assoDepot" style="font-size:16px;font-weight:600;color:var(--green)">0.00 EUR</div></div></div><button class="btn" style="width:100%;margin-bottom:6px" onclick="toggleRetraitForm()">💸 Retrait (reprendre du depot)</button><div id="posRetraitForm" style="display:none;margin-bottom:6px;flex-direction:column;gap:6px"><input type="number" id="retMontant" step="0.5" min="0" placeholder="Montant retire" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px"><button class="btn primary" style="width:100%" onclick="validerRetrait()">Valider le retrait</button></div><div id="assoReglerWrap" style="display:none"><button class="btn" style="width:100%;border:1px solid var(--gold);color:var(--gold2)" onclick="reglerDetteAssocie()">✓ Regler la dette (<span id="assoReglerMontant">0</span> EUR)</button></div></div>
               </div>
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
                 <span style="font-size:13px;color:var(--text3);flex:1">Reduction</span>
@@ -669,7 +669,7 @@ select option{background:var(--bg3)}
               <select class="pos-mode" id="posMode" onchange="posModeChanged();updatePosTotals();posTicketToggle()">
                 <option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS</option><option value="Paysafecard">Paysafecard</option><option value="Transcash">Transcash</option><option value="WesternUnion">Western Union</option><option value="Cantine">🍽 Cantine</option>
               </select>
-              <div id="posTicketWrap" style="display:none;margin-top:8px"><label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Code(s) du ticket</label><div id="posTicketList"></div><button type="button" class="btn" onclick="addTicketRow('posTicketList')" style="margin-top:6px;font-size:12px;padding:5px 10px">+ Ajouter un code</button><div style="margin-top:10px"><label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Photo du ticket</label><input type="file" accept="image/*" id="posTicketPhotoFile" onchange="onTicketPhotoPick(this,'pos')" style="font-size:12px;color:var(--text3)"><img id="posTicketPhotoPrev" style="display:none;max-height:120px;max-width:100%;border-radius:8px;border:1px solid var(--border);margin-top:6px;cursor:zoom-in" onclick="openPhotoLightbox(this.src)"></div><button type="button" class="btn" onclick="lireTicketOCR('pos')" style="margin-top:10px;margin-right:6px;font-size:12px;padding:5px 10px;background:var(--gold);color:#1a1a1a">Lire le ticket</button><button type="button" class="btn" onclick="clearTicketCaisse('pos','posTicketList')" style="margin-top:10px;font-size:12px;padding:5px 10px;background:var(--bg3);color:var(--red)">Supprimer le ticket</button></div><div id="posTabacQtyWrap" style="display:none;align-items:center;gap:8px;margin-top:4px">
+              <div id="posTicketWrap" style="display:none;margin-top:8px"><label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Code(s) du ticket</label><div id="posTicketList"></div><button type="button" class="btn" onclick="addTicketRow('posTicketList')" style="margin-top:6px;font-size:12px;padding:5px 10px">+ Ajouter un code</button><div style="margin-top:10px"><label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Photo du ticket</label><input type="file" accept="image/*" multiple id="posTicketPhotoFile" onchange="onTicketPhotoPick(this,'pos')" style="font-size:12px;color:var(--text3)"><div id="posTicketPhotoList" style="margin-top:6px"></div></div><button type="button" class="btn" onclick="lireTicketOCR('pos')" style="margin-top:10px;margin-right:6px;font-size:12px;padding:5px 10px;background:var(--gold);color:#1a1a1a">Lire le ticket</button><button type="button" class="btn" onclick="clearTicketCaisse('pos','posTicketList')" style="margin-top:10px;font-size:12px;padding:5px 10px;background:var(--bg3);color:var(--red)">Supprimer le ticket</button></div><div id="posTabacQtyWrap" style="display:none;align-items:center;gap:8px;margin-top:4px">
                 <span style="font-size:13px;color:var(--gold2);flex:1">Nombre de paquets</span>
                 <input type="number" id="posTabacQty" value="1" min="1" step="1" style="width:90px;text-align:right;padding:6px 8px;border-radius:8px;border:1px solid var(--gold);background:var(--bg3);color:var(--text);font-size:14px">
               </div>
@@ -3932,7 +3932,7 @@ function posRemove(id){posCart=posCart.filter(function(l){return l.id!==id;});re
 function addFreeItem(){var nom=(document.getElementById('flNom')||{}).value;nom=(nom||'').trim();if(!nom){notify('Nom requis','error');return;}var px=parseFloat(((document.getElementById('flPrix')||{}).value||'0').replace(',','.'))||0;if(px<=0){notify('Prix invalide','error');return;}var q=parseFloat(((document.getElementById('flQty')||{}).value||'1').replace(',','.'))||0;if(q<=0){notify('Quantite invalide','error');return;}if(typeof window.posLibreSeq==='undefined')window.posLibreSeq=0;window.posLibreSeq-=1;var mtf=((document.getElementById('flMotif')||{}).value||'').trim();posCart.push({id:window.posLibreSeq,nom:nom,prixVente:px,prixAchat:px,prix:px,qty:q,unite:'piece',libre:true,motif:mtf});renderPosCart();toggleFreeItem();notify('Article libre ajoute');}
 function majDepotInfo(){var m=parseFloat(((document.getElementById('depMontant')||{}).value||'0').replace(',','.'))||0;var md=(document.getElementById('depMode')||{}).value||'Liquide';var rt=(typeof FEES!=='undefined'&&FEES[md])?FEES[md]:0;var inf=document.getElementById('depInfo');if(!inf)return;if(m>0&&rt>0){var fr=Math.round(m*rt*100)/100;inf.innerHTML='Frais '+md+' ('+(rt*100).toFixed(0)+'%) = '+fr.toFixed(2)+' EUR, net '+(m-fr).toFixed(2)+' EUR';}else if(m>0){inf.innerHTML='Aucun frais sur '+md;}else{inf.innerHTML='';}}
 function toggleDepotForm(){var f=document.getElementById('posDepotForm');if(!f)return;var show=(f.style.display==='none'||!f.style.display);f.style.display=show?'flex':'none';if(show){var dm=document.getElementById('depMontant');if(dm){dm.value='';dm.focus();}majDepotInfo();}}
-async function validerDepot(){var cid=parseInt((document.getElementById('posClient')||{}).value);if(!cid){notify('Choisis un associe','error');return;}var m=parseFloat(((document.getElementById('depMontant')||{}).value||'0').replace(',','.'))||0;if(m<=0){notify('Montant invalide','error');return;}var md=(document.getElementById('depMode')||{}).value||'Liquide';var _depTicket='';if(_isVoucher(md)){var _dkr=_collectTickets('depTicketList');if(_dkr.error){notify(_dkr.error,'error');return;}_depTicket=_dkr.codes;}var _depTicketTag=_depTicket?(' [TICKET code='+_depTicket+']'):'';var body={client_id:cid,type:'credit',motif:'Depot',quantite:1,unite:'piece',prix_unitaire:m,mode_paiement:md,notes:'[CAISSE] Depot associe'+_depTicketTag,frais_deduits:1,compte:'euro'};var _d=(document.getElementById('posDate')||{}).value;if(_d)body.date=_d;try{var r=await api('/api/transactions',{method:'POST',body:body});if(r&&r.ok){notify('Depot enregistre');if(window._depTicketPhoto&&r.data&&r.data.id){var _dph=window._depTicketPhoto;api('/api/transactions/'+r.data.id+'/photo-ticket',{method:'POST',body:{photo:_dph}}).catch(function(){});_clearTicketPhoto('dep');}var df=document.getElementById('posDepotForm');if(df)df.style.display='none';onPosClientChange();}else{notify('Echec du depot','error');}}catch(e){notify('Erreur depot','error');}}
+async function validerDepot(){var cid=parseInt((document.getElementById('posClient')||{}).value);if(!cid){notify('Choisis un associe','error');return;}var m=parseFloat(((document.getElementById('depMontant')||{}).value||'0').replace(',','.'))||0;if(m<=0){notify('Montant invalide','error');return;}var md=(document.getElementById('depMode')||{}).value||'Liquide';var _depTicket='';if(_isVoucher(md)){var _dkr=_collectTickets('depTicketList');if(_dkr.error){notify(_dkr.error,'error');return;}_depTicket=_dkr.codes;}var _depTicketTag=_depTicket?(' [TICKET code='+_depTicket+']'):'';var body={client_id:cid,type:'credit',motif:'Depot',quantite:1,unite:'piece',prix_unitaire:m,mode_paiement:md,notes:'[CAISSE] Depot associe'+_depTicketTag,frais_deduits:1,compte:'euro'};var _d=(document.getElementById('posDate')||{}).value;if(_d)body.date=_d;try{var r=await api('/api/transactions',{method:'POST',body:body});if(r&&r.ok){notify('Depot enregistre');if(window._depTicketPhotos&&window._depTicketPhotos.length&&r.data&&r.data.id){var _dph=JSON.stringify(window._depTicketPhotos);api('/api/transactions/'+r.data.id+'/photo-ticket',{method:'POST',body:{photo:_dph}}).catch(function(){});_clearTicketPhoto('dep');}var df=document.getElementById('posDepotForm');if(df)df.style.display='none';onPosClientChange();}else{notify('Echec du depot','error');}}catch(e){notify('Erreur depot','error');}}
 function renderPosCart(){var body=document.getElementById('posCartBody');if(!body)return;if(!posCart.length){body.innerHTML='<div class="pos-empty">Cliquez sur des articles pour les ajouter</div>';document.getElementById('posTotal').textContent='0.00 EUR';document.getElementById('posCashout').disabled=true;return;}body.innerHTML='';var total=0;posCart.forEach(function(l){var sub=(l.gratuit?0:l.prix)*l.qty;total+=sub;var row=document.createElement('div');row.className='pos-line';row.innerHTML='<div class="lname">'+l.nom+'<br><span style="font-size:11px;color:var(--text3)">'+(l.gratuit?'Gratuit':l.prix.toFixed(2)+' EUR')+'</span></div><div class="lqty"><button onclick="posChangeQty('+l.id+',-1)">-</button><input type="number" value="'+l.qty+'" min="0" step="1" onchange="posSetQty('+l.id+',this.value)"><button onclick="posChangeQty('+l.id+',1)">+</button></div><div class="lsub">'+sub.toFixed(2)+'</div>'+'<button onclick="posToggleGratuit('+l.id+')" style="border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;margin-right:4px;background:transparent;color:'+(l.gratuit?'var(--gold2)':'var(--text3)')+'">'+(l.gratuit?'Gratuit':'Offrir')+'</button>'+'<button class="ldel" onclick="posRemove('+l.id+')">x</button>';body.appendChild(row);});document.getElementById('posTotal').textContent=total.toFixed(2)+' EUR';document.getElementById('posCashout').disabled=false;}
 
 // ===== CATEGORIES =====
@@ -4035,7 +4035,7 @@ async function posEncaisser(){
     var msg=[];
     if(venteTotal>0)msg.push('vente '+venteTotal.toFixed(2)+' EUR');
     if(remb>0)msg.push('remboursement '+remb.toFixed(2)+' EUR');
-    notify('Encaisse : '+msg.join(' + '));if(venteTids.length){api('/api/factures/groupee',{method:'POST',body:{client_id:cid,transaction_ids:venteTids,type:'vente'}}).catch(function(){});}if(window._posTicketPhoto&&venteTids.length){var _ph=window._posTicketPhoto;venteTids.forEach(function(_tid){api('/api/transactions/'+_tid+'/photo-ticket',{method:'POST',body:{photo:_ph}}).catch(function(){});});_clearTicketPhoto('pos');}
+    notify('Encaisse : '+msg.join(' + '));if(venteTids.length){api('/api/factures/groupee',{method:'POST',body:{client_id:cid,transaction_ids:venteTids,type:'vente'}}).catch(function(){});}if(window._posTicketPhotos&&window._posTicketPhotos.length&&venteTids.length){var _ph=JSON.stringify(window._posTicketPhotos);venteTids.forEach(function(_tid){api('/api/transactions/'+_tid+'/photo-ticket',{method:'POST',body:{photo:_ph}}).catch(function(){});});_clearTicketPhoto('pos');}
     posCart.forEach(function(l){if(l.libre)return;api('/api/catalogue/'+l.id+'/adjust-stock',{method:'POST',body:{delta:-l.qty}}).catch(function(){});});
     posCart=[];var _cpx=document.getElementById('posConsoPerso');if(_cpx)_cpx.checked=false;var _pr=document.getElementById('posReduc');if(_pr)_pr.value='0';renderPosCart();
     var ri=document.getElementById('posRemb');if(ri)ri.value='0';
@@ -4716,25 +4716,107 @@ function _ticketEnsure(listId){var box=document.getElementById(listId);if(box&&!
 function _ticketClear(listId){var box=document.getElementById(listId);if(box)box.innerHTML='';}
 function _collectTickets(listId){var box=document.getElementById(listId);var out=[];if(!box)return {codes:'',error:null};var rows=box.querySelectorAll('.tkrow');for(var i=0;i<rows.length;i++){var c=((rows[i].querySelector('.tkc')||{}).value||'').trim();var a=((rows[i].querySelector('.tka')||{}).value||'').trim();if(!c&&!a)continue;if(c&&!a)return {codes:'',error:'Montant manquant pour le code "'+c+'"'};if(a&&!c)return {codes:'',error:'Code manquant pour le montant '+a};out.push(c+':'+a);}return {codes:out.join('|'),error:null};}
 function _fmtTickets(raw){return (raw||'').split('|').map(function(p){var i=p.lastIndexOf(':');if(i<0)return p;var c=p.slice(0,i),a=p.slice(i+1);return a?(c+' ('+a+' \u20ac)'):c;}).join(', ');}
-function _ticketPhotoBlock(t){
-  if(!t.photo_ticket){return '<div style="margin-top:6px"><label style="display:inline-block;font-size:12px;color:var(--gold2);cursor:pointer">+ Ajouter une photo ticket<input type="file" accept="image/*" style="display:none" onchange="uploadTransPhoto(this,'+t.id+')"></label></div>';}
-  return '<div style="padding:10px 0;text-align:center">'
-    +'<img src="'+t.photo_ticket+'" style="max-height:150px;max-width:100%;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:zoom-in;display:block;margin:0 auto 8px" onclick="openTransPhotoFull('+t.id+')">'
-    +'<button type="button" class="btn" onclick="openTransPhotoFull('+t.id+')" style="font-size:12px;padding:5px 12px">Voir le ticket en entier</button>'
-    +'<label style="display:inline-block;font-size:12px;color:var(--gold2);cursor:pointer;margin-left:10px">Changer<input type="file" accept="image/*" style="display:none" onchange="uploadTransPhoto(this,'+t.id+')"></label>'
-    +'</div>';
+
+
+
+function _ticketPhotos(raw){
+  if(!raw)return [];
+  raw=(''+raw).trim();
+  if(raw.charAt(0)==='['){try{var a=JSON.parse(raw);return Array.isArray(a)?a.filter(Boolean):[];}catch(e){return [raw];}}
+  return [raw];
 }
-function openTransPhotoFull(tid){tid=parseInt(tid);var x=allTransactions.find(function(y){return y.id===tid;});if(!x&&typeof clientTransactions!=="undefined")x=clientTransactions[tid];if(x&&x.photo_ticket)openPhotoLightbox(x.photo_ticket);}
-function uploadTransPhoto(input,tid){
-  if(!input.files||!input.files[0])return;
-  resizeImageFull(input.files[0],1400).then(async function(b64){
-    var r=await api('/api/transactions/'+tid+'/photo-ticket',{method:'POST',body:{photo:b64}});
-    if(r&&r.ok){var x=allTransactions.find(function(y){return y.id===parseInt(tid);});if(x)x.photo_ticket=b64;if(typeof clientTransactions!=='undefined'&&clientTransactions[tid])clientTransactions[tid].photo_ticket=b64;notify('Photo enregistree','success');openTransDetail(tid);}
-    else notify('Erreur photo','error');
+function onTicketPhotoPick(input,which){
+  var key='_'+which+'TicketPhotos';
+  if(!Array.isArray(window[key]))window[key]=[];
+  if(!input.files||!input.files.length)return;
+  var files=Array.prototype.slice.call(input.files);
+  var done=0;
+  files.forEach(function(f){
+    resizeImageFull(f,1400).then(function(b64){
+      if(b64)window[key].push(b64);
+      done++;
+      if(done===files.length){_renderTicketPhotos(which);input.value='';}
+    });
   });
 }
-function onTicketPhotoPick(input,which){if(!input.files||!input.files[0]){window['_'+which+'TicketPhoto']=null;return;}resizeImageFull(input.files[0],1400).then(function(b64){window['_'+which+'TicketPhoto']=b64;var p=document.getElementById(which+'TicketPhotoPrev');if(p&&b64){p.src=b64;p.style.display='inline-block';}});}
-function _clearTicketPhoto(which){window['_'+which+'TicketPhoto']=null;var f=document.getElementById(which+'TicketPhotoFile');if(f)f.value='';var p=document.getElementById(which+'TicketPhotoPrev');if(p){p.style.display='none';p.src='';}}
+function _renderTicketPhotos(which){
+  var key='_'+which+'TicketPhotos';
+  var arr=Array.isArray(window[key])?window[key]:[];
+  var box=document.getElementById(which+'TicketPhotoList');
+  if(!box)return;
+  box.innerHTML='';
+  arr.forEach(function(src,i){
+    var w=document.createElement('div');
+    w.style.cssText='position:relative;display:inline-block;margin:4px 6px 0 0';
+    var im=document.createElement('img');
+    im.src=src;
+    im.style.cssText='max-height:90px;max-width:120px;border-radius:6px;border:1px solid var(--border);cursor:zoom-in';
+    im.onclick=function(){openPhotoLightbox(src);};
+    var bt=document.createElement('button');
+    bt.type='button';bt.innerHTML='&times;';
+    bt.style.cssText='position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:12px;line-height:1';
+    bt.onclick=function(){_removeTicketPhoto(which,i);};
+    w.appendChild(im);w.appendChild(bt);box.appendChild(w);
+  });
+}
+function _removeTicketPhoto(which,idx){
+  var key='_'+which+'TicketPhotos';
+  if(Array.isArray(window[key])){window[key].splice(idx,1);_renderTicketPhotos(which);}
+}
+function _clearTicketPhoto(which){
+  window['_'+which+'TicketPhotos']=[];
+  var f=document.getElementById(which+'TicketPhotoFile');if(f)f.value='';
+  var box=document.getElementById(which+'TicketPhotoList');if(box)box.innerHTML='';
+}
+function _ticketPhotoBlock(t){
+  var arr=_ticketPhotos(t.photo_ticket);
+  var add='<label style="display:inline-block;font-size:12px;color:var(--gold2);cursor:pointer;margin-top:6px">+ Ajouter une photo<input type="file" accept="image/*" multiple style="display:none" onchange="uploadTransPhoto(this,'+t.id+')"></label>';
+  if(!arr.length){return '<div style="margin-top:6px">'+add+'</div>';}
+  var imgs='';
+  arr.forEach(function(src,i){
+    imgs+='<div style="position:relative;display:inline-block;margin:4px 8px 0 0">'
+      +'<img src="'+src+'" style="max-height:130px;max-width:150px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:zoom-in;display:block" onclick="openTransPhotoFull('+t.id+','+i+')">'
+      +'<button type="button" onclick="removeTransPhoto('+t.id+','+i+')" style="position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:13px;line-height:1">&times;</button>'
+      +'</div>';
+  });
+  return '<div style="padding:10px 0;text-align:center">'+imgs
+    +'<div style="margin-top:8px"><button type="button" class="btn" onclick="openTransPhotoFull('+t.id+',0)" style="font-size:12px;padding:5px 12px">Voir en entier</button>'+add+'</div></div>';
+}
+function openTransPhotoFull(tid,idx){
+  tid=parseInt(tid);idx=idx||0;
+  var x=allTransactions.find(function(y){return y.id===tid;});
+  if(!x&&typeof clientTransactions!=='undefined')x=clientTransactions[tid];
+  if(!x)return;
+  var arr=_ticketPhotos(x.photo_ticket);
+  if(arr.length)openPhotoLightbox(arr[idx]||arr[0]);
+}
+function _saveTransPhotos(tid,arr){
+  var raw=JSON.stringify(arr);
+  api('/api/transactions/'+tid+'/photo-ticket',{method:'POST',body:{photo:raw}}).then(function(r){
+    if(r&&r.ok){
+      var x=allTransactions.find(function(y){return y.id===parseInt(tid);});
+      if(x)x.photo_ticket=raw;
+      if(typeof clientTransactions!=='undefined'&&clientTransactions[tid])clientTransactions[tid].photo_ticket=raw;
+      notify('Photos enregistrees','success');openTransDetail(tid);
+    }else notify('Erreur photo','error');
+  });
+}
+function uploadTransPhoto(input,tid){
+  if(!input.files||!input.files.length)return;
+  var x=allTransactions.find(function(y){return y.id===parseInt(tid);});
+  if(!x&&typeof clientTransactions!=='undefined')x=clientTransactions[tid];
+  var arr=_ticketPhotos(x?x.photo_ticket:'');
+  var files=Array.prototype.slice.call(input.files);var done=0;
+  files.forEach(function(f){resizeImageFull(f,1400).then(function(b64){if(b64)arr.push(b64);done++;if(done===files.length)_saveTransPhotos(tid,arr);});});
+}
+function removeTransPhoto(tid,idx){
+  var x=allTransactions.find(function(y){return y.id===parseInt(tid);});
+  if(!x&&typeof clientTransactions!=='undefined')x=clientTransactions[tid];
+  var arr=_ticketPhotos(x?x.photo_ticket:'');
+  arr.splice(idx,1);_saveTransPhotos(tid,arr);
+}
+
+
 /* auto-verification des mises a jour (apres connexion seulement) */
 (function(){
   var done=false, finished=false, attempts=0;
