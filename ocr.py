@@ -68,9 +68,22 @@ def lire_ticket(photo, lang="fra"):
     lines = up.splitlines()
 
     montant = ""
-    m = re.search(r'CR[E\u00c9]DIT\s*[:\-]?\s*([0-9]+(?:[.,][0-9]{1,2})?)', up)
+    m = re.search(r'CR[E\u00c9]DIT\s*[:\-]?\s*([0-9O]+(?:[.,][0-9O]{1,2})?)', up)
     if m:
-        montant = m.group(1).replace(",", ".")
+        montant = m.group(1).replace("O", "0").replace(",", ".")
+    if not montant:
+        _SKIPM = ("POURCENT","COMMISSION","DELA","199","200","MIN","0811","TARIF","CGV")
+        for ln in lines:
+            if any(b in ln for b in _SKIPM):
+                continue
+            mm = re.search(r'([0-9]{1,4}(?:[.,][0-9]{1,2})?)\s*(?:EUROS|EUR|\u20ac)', ln)
+            if mm:
+                val = mm.group(1).replace(",", ".")
+                try:
+                    if float(val) >= 1:
+                        montant = val; break
+                except Exception:
+                    pass
 
     serie = ""
     m = re.search(r'(?:N[O0]\.?\s*S[E\u00c9]RIE)\s*[:\-]?\s*([0-9][0-9 ]{6,})', up)
