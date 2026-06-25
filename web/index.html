@@ -250,7 +250,7 @@ select option{background:var(--bg3)}
 <!-- APP -->
 <div id="app">
   <div class="sidebar">
-    <div class="sidebar-logo"><h2>Gestion Perso</h2><span>Premium</span></div>
+    <div class="sidebar-logo"><img id="sidebarLogoImg" style="display:none;max-width:120px;max-height:54px;object-fit:contain;margin:0 auto 6px"><h2>Gestion Perso</h2><span>Premium</span></div>
     <div class="nav-section">Navigation</div>
     <div class="nav-item" onclick="goPage('caisse',this)"><span class="nav-icon">🛒</span> Caisse</div>
     <div class="nav-item active" onclick="goPage('dashboard',this)"><span class="nav-icon">◈</span> Tableau de bord</div>
@@ -364,7 +364,7 @@ select option{background:var(--bg3)}
 
       <!-- PARAMÈTRES -->
       <div class="page" id="pg-settings">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px"><div class="card" style="grid-column:1/-1"><div class="card-title">🤝 Frais des associés</div><label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;color:var(--text2)"><input type="checkbox" id="setAssocieFraisAuto" onchange="saveAssocieFraisAuto()" style="width:auto;margin:0"> Mode automatique : l'associé paie toujours ses frais (sans me demander)</label><div style="font-size:12px;color:var(--text3);margin-top:8px">Si décoché, la caisse te demandera à chaque fois (case « j'absorbe ? ») pour les associés.</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px"><div class="card" style="grid-column:1/-1"><div class="card-title">Logo du menu</div><p style="font-size:13px;color:var(--text3)">Affiche en haut du menu lateral. (Pour l'icone du raccourci .exe, voir la note plus bas / la doc.)</p><img id="appLogoPrev" style="display:none;max-width:140px;max-height:80px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:var(--bg3);margin:8px 0"><div style="display:flex;gap:8px;align-items:center;margin-top:8px"><label class="btn" style="cursor:pointer">Choisir une image<input type="file" accept="image/*" style="display:none" onchange="onAppLogoPick(this)"></label><button type="button" class="btn" style="background:var(--bg3);color:var(--red)" onclick="removeAppLogo()">Retirer</button></div></div><div class="card" style="grid-column:1/-1"><div class="card-title">🤝 Frais des associés</div><label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;color:var(--text2)"><input type="checkbox" id="setAssocieFraisAuto" onchange="saveAssocieFraisAuto()" style="width:auto;margin:0"> Mode automatique : l'associé paie toujours ses frais (sans me demander)</label><div style="font-size:12px;color:var(--text3);margin-top:8px">Si décoché, la caisse te demandera à chaque fois (case « j'absorbe ? ») pour les associés.</div></div>
           <div class="card" style="grid-column:1/-1">
             <div class="card-title">🔐 Méthode de connexion</div>
             <div style="display:flex;gap:12px;margin-bottom:20px">
@@ -2227,6 +2227,7 @@ function applyPalette(name){
   document.querySelectorAll('.palette-card').forEach(c=>c.classList.toggle('active',c.dataset.palette===name));
   store.set('palette',name);notify('Thème appliqué');
 }
+function applyAppLogo(){var src=store.get('appLogo');var img=document.getElementById('sidebarLogoImg');if(img){if(src){img.src=src;img.style.display='block';}else{img.style.display='none';}}var prev=document.getElementById('appLogoPrev');if(prev){if(src){prev.src=src;prev.style.display='block';}else{prev.style.display='none';}}}function onAppLogoPick(input){if(!input.files||!input.files[0])return;resizeImageFull(input.files[0],256).then(function(b){if(b){store.set('appLogo',b);applyAppLogo();notify('Logo mis a jour');}});}function removeAppLogo(){store.set('appLogo',null);applyAppLogo();notify('Logo retire');}
 function loadSavedPalette(){
   const saved=store.get('palette');
   if(saved&&PALETTES[saved])applyPalette(saved);
@@ -2384,7 +2385,7 @@ async function checkRappelsBadge(){
 
 // ── INIT ──
 function initApp(){
-  loadDashboard();loadSavedPalette();loadEntrees();loadMotifs();loadTarifs();
+  loadDashboard();loadSavedPalette();applyAppLogo();loadEntrees();loadMotifs();loadTarifs();
   setTimeout(checkRappelsBadge,2000);
   initRaccourcis(); // FIX : raccourcis clavier N/C/Échap
   autoBackup();     // FIX : backup auto quotidien
