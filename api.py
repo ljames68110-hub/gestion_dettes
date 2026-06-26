@@ -423,7 +423,7 @@ def dettes_ouvertes(cid):
             SELECT id, date, motif, montant_net, mode_paiement, notes,
                    quantite, COALESCE(unite,'piece') as unite
             FROM transactions
-            WHERE client_id=? AND type='debit'
+            WHERE client_id=? AND type='debit' AND (notes IS NULL OR notes NOT LIKE '%[CAISSE PAYE]%')
             ORDER BY date DESC
         """, (cid,)).fetchall()
 
