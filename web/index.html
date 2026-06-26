@@ -1945,7 +1945,7 @@ function calcModal(){
   document.getElementById('cNet').style.color = type==='debit' ? 'var(--green)' : 'var(--red)';
 }
 async function saveTrans(){
-  const btn=document.getElementById('btnSaveTrans');btn.textContent='...';btn.disabled=true;
+  const btn=document.getElementById('btnSaveTrans');btn.textContent='...';btn.disabled=true;var _etD=document.getElementById('etDate');var _etT=document.getElementById('etTime');var _etDate=(_etD&&_etD.value)?(_etD.value+((_etT&&_etT.value)?(' '+_etT.value):'')):undefined;
   const debtSel=document.getElementById('mDetteSelect');
   const linked_debit_id=debtSel&&debtSel.value?parseInt(debtSel.value):null;
   const entreeSel=document.getElementById('mEntreeSelect');
@@ -1964,7 +1964,7 @@ async function saveTrans(){
     var bodyAchat = {client_id:parseInt(document.getElementById('mClient').value),
       type:'credit', motif:motif, quantite:qty, unite:unite,
       prix_unitaire:prix_unitaire, mode_paiement:mode_paiement,
-      notes:notesAchat.trim(), frais_deduits:0, compte:compte_val||'euro'};
+      notes:notesAchat.trim(), frais_deduits:0, compte:compte_val||'euro',date:_etDate};
     var resAchat = await api('/api/transactions', {method:'POST', body:bodyAchat});
     if(resAchat&&resAchat.ok){
       closeModal('trans');
@@ -2017,7 +2017,7 @@ async function saveTrans(){
   var compte_val = type==='debit'
     ? (document.getElementById('mCompte') ? document.getElementById('mCompte').value : 'euro')
     : (document.getElementById('mCompteRemb') ? document.getElementById('mCompteRemb').value : 'euro');
-  const body={client_id:parseInt(document.getElementById('mClient').value),type:type,motif:motif,quantite:qty,unite:unite,prix_unitaire:prix_unitaire,mode_paiement:mode_paiement,notes:notesVal,linked_debit_id,entree_id,frais_deduits:_fraisDeduits?1:0,compte:compte_val};
+  const body={client_id:parseInt(document.getElementById('mClient').value),type:type,motif:motif,quantite:qty,unite:unite,prix_unitaire:prix_unitaire,mode_paiement:mode_paiement,notes:notesVal,linked_debit_id,entree_id,frais_deduits:_fraisDeduits?1:0,compte:compte_val,date:_etDate};
   const res=await api('/api/transactions',{method:'POST',body});
   btn.textContent='Enregistrer';btn.disabled=false;
   if(res&&res.ok){closeModal('trans');notify('Transaction enregistrée');document.getElementById('mQty').value='1';document.getElementById('mPrix').value='0';document.getElementById('mNotes').value='';loadDashboard();if(document.getElementById('pg-transactions').classList.contains('active'))loadTransactions();}
