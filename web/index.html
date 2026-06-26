@@ -4086,7 +4086,7 @@ async function posEncaisser(){
     if(venteTotal>0)msg.push('vente '+venteTotal.toFixed(2)+' EUR');
     if(remb>0)msg.push('remboursement '+remb.toFixed(2)+' EUR');
     notify('Encaisse : '+msg.join(' + '));if(venteTids.length){api('/api/factures/groupee',{method:'POST',body:{client_id:cid,transaction_ids:venteTids,type:'vente'}}).catch(function(){});}if(window._posTicketPhotos&&window._posTicketPhotos.length&&venteTids.length){var _ph=JSON.stringify(window._posTicketPhotos);venteTids.forEach(function(_tid){api('/api/transactions/'+_tid+'/photo-ticket',{method:'POST',body:{photo:_ph}}).catch(function(){});});_clearTicketPhoto('pos');}
-    posCart.forEach(function(l){if(l.libre)return;api('/api/catalogue/'+l.id+'/adjust-stock',{method:'POST',body:{delta:-(l.qty*(l.grammesPiece>0?l.grammesPiece:1))}}).catch(function(){});});
+    posCart.forEach(function(l){if(l.libre)return;api('/api/catalogue/'+l.id+'/adjust-stock',{method:'POST',body:{delta:-(l.qty*((l.unite==='piece'&&l.grammesPiece>0)?l.grammesPiece:1))}}).catch(function(){});});
     posCart=[];var _cpx=document.getElementById('posConsoPerso');if(_cpx)_cpx.checked=false;var _pr=document.getElementById('posReduc');if(_pr)_pr.value='0';renderPosCart();
     var ri=document.getElementById('posRemb');if(ri)ri.value='0';
     onPosClientChange(); // recharge la dette a jour
@@ -4289,7 +4289,7 @@ async function posEncaisserTabac(cid,mode){
   var ok=true;
   try{var r=await api('/api/transactions',{method:'POST',body:body});if(!r||!r.ok)ok=false;}catch(e){ok=false;}
   // Les articles du panier sortent de leur stock
-  posCart.forEach(function(l){if(l.libre)return;api('/api/catalogue/'+l.id+'/adjust-stock',{method:'POST',body:{delta:-(l.qty*(l.grammesPiece>0?l.grammesPiece:1))}}).catch(function(){});});
+  posCart.forEach(function(l){if(l.libre)return;api('/api/catalogue/'+l.id+'/adjust-stock',{method:'POST',body:{delta:-(l.qty*((l.unite==='piece'&&l.grammesPiece>0)?l.grammesPiece:1))}}).catch(function(){});});
   // Comptant : le tabac rentre dans le stock
   if(comptant && ok){
     var nouveauStock=(parseFloat(t.stock)||0)+packs;

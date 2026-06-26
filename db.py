@@ -342,7 +342,7 @@ def get_stats_client(client_id: int):
         # On rajoute uniquement les frais encore EN ATTENTE (ni payes ni factures).
         # Un frais paye/facture reste sur la transaction (trace) mais ne compte plus
         # dans le solde -> evite le double comptage avec le debit de frais reportes.
-        debit_brut  = q("SELECT COALESCE(SUM(montant_brut),0) FROM transactions WHERE client_id=? AND type='debit'", client_id)
+        debit_brut  = q("SELECT COALESCE(SUM(montant_brut),0) FROM transactions WHERE client_id=? AND type='debit' AND (notes IS NULL OR notes NOT LIKE '%[CAISSE PAYE]%')", client_id)
         credit_brut = q("SELECT COALESCE(SUM(montant_brut),0) FROM transactions WHERE client_id=? AND type='credit'", client_id)
         try:
             frais_pending = q("SELECT COALESCE(SUM(frais),0) FROM transactions WHERE client_id=? AND type='credit' AND frais>0 AND id NOT IN (SELECT transaction_id FROM frais_dus WHERE statut IN ('paye','facture') AND transaction_id IS NOT NULL)", client_id)
