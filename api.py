@@ -938,6 +938,7 @@ def catalogue_create():
         unite        = data.get("unite", "piece"),
         stock_min    = float(data.get("stock_min", 0)),
         stock        = float(data.get("stock", 0)),
+        grammes_piece = float(data.get("grammes_piece", 0) or 0),
     )
     return ok(db.get_catalogue_item(iid)), 201
 
@@ -958,6 +959,7 @@ def catalogue_update(iid):
         unite        = data.get("unite", "piece"),
         stock_min    = float(data.get("stock_min", 0)),
         stock        = (float(data["stock"]) if "stock" in data and data["stock"] is not None else None),
+        grammes_piece = (float(data["grammes_piece"]) if "grammes_piece" in data and data["grammes_piece"] is not None else None),
     )
     return ok(db.get_catalogue_item(iid))
 
