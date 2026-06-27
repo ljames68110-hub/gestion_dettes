@@ -471,6 +471,14 @@ select option{background:var(--bg3)}
           </div>
 
           <div class="card">
+            <div class="card-title">Pochettes (clients)</div>
+            <div class="form-group" style="max-width:460px">
+              <label>Tailles de pochettes (en g, séparées par des virgules)</label>
+              <input type="text" id="pochetteSizes" value="1,2,4,8" placeholder="1,2,4,8" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px" onchange="savePochetteSizes()">
+            </div>
+          </div>
+
+          <div class="card">
             <div class="card-title">💱 Devise &amp; Alertes</div>
             <div class="form-grid" style="max-width:400px">
               <div class="form-group full">
@@ -2258,6 +2266,7 @@ function applyPalette(name){
   store.set('palette',name);notify('Thème appliqué');
 }
 function applyAppLogo(src){if(src===undefined)src=window._appLogo||'';var sb=document.getElementById('sidebarLogoImg');if(sb){if(src){sb.src=src;sb.style.display='block';}else{sb.style.display='none';}}var pv=document.getElementById('appLogoPrev');if(pv){if(src){pv.src=src;pv.style.display='block';}else{pv.style.display='none';}}var lg=document.getElementById('loginLogoImg');if(lg&&src){lg.src=src;}}async function loadAppLogo(){try{var r=await api('/api/logo');var lg=(r&&r.ok&&r.data)?r.data.logo:'';window._appLogo=lg||'';applyAppLogo(window._appLogo);}catch(e){}}function onAppLogoPick(input){if(!input.files||!input.files[0])return;resizeImageFull(input.files[0],256).then(function(b){if(!b)return;window._appLogo=b;applyAppLogo(b);api('/api/settings',{method:'POST',body:{app_logo:b}}).then(function(){notify('Logo enregistre');});});}function removeAppLogo(){window._appLogo='';applyAppLogo('');api('/api/settings',{method:'POST',body:{app_logo:''}}).then(function(){notify('Logo retire');});}if(document.readyState!=='loading '.trim()){loadAppLogo();}else{document.addEventListener('DOMContentLoaded',loadAppLogo);}
+if(document.readyState!=='loading'){loadPochetteSizes();}else{document.addEventListener('DOMContentLoaded',loadPochetteSizes);}
 function loadSavedPalette(){
   const saved=store.get('palette');
   if(saved&&PALETTES[saved])applyPalette(saved);
@@ -3997,6 +4006,49 @@ function _entreeCannabis(it){
     renderPosCart();
   });
 }
+function _pochetteSizes(){
+  var s=(window._pochetteSizesStr||'1,2,4,8');
+  return s.split(',').map(function(x){return parseFloat((''+x).trim());}).filter(function(x){return x>0;});
+}
+function loadPochetteSizes(){
+  try{
+    api('/api/settings').then(function(r){
+      if(r&&r.ok&&r.data&&r.data.pochette_sizes){window._pochetteSizesStr=r.data.pochette_sizes;}
+      var inp=document.getElementById('pochetteSizes');
+      if(inp)inp.value=window._pochetteSizesStr||'1,2,4,8';
+    });
+  }catch(e){}
+}
+function savePochetteSizes(){
+  var inp=document.getElementById('pochetteSizes');if(!inp)return;
+  var v=(inp.value||'').trim()||'1,2,4,8';
+  window._pochetteSizesStr=v;
+  api('/api/settings',{method:'POST',body:{pochette_sizes:v}}).then(function(){if(typeof notify==='function')notify('Tailles de pochettes enregistr\u00e9es');});
+}
+function askDetailOuPochette(nom){return new Promise(function(resolve){
+  var sizes=_pochetteSizes();
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100000;padding:16px';
+  var box=document.createElement('div');
+  box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:340px;max-width:92vw';
+  var btns=sizes.map(function(s){return '<button type="button" class="btn _poSize" data-s="'+s+'" style="background:var(--bg3)">'+s+'g</button>';}).join('');
+  box.innerHTML='<div style="font-weight:600;margin-bottom:6px">Vente</div>'
+    +'<div style="font-size:13px;color:var(--text3);margin-bottom:12px"><b>'+(nom||'')+'</b> : au d\u00e9tail ou en pochette ?</div>'
+    +'<button type="button" class="btn" id="_poDetail" style="width:100%;margin-bottom:14px">Au d\u00e9tail (au gramme)</button>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:6px">En pochette \u2014 quantit\u00e9 :</div>'
+    +'<input type="number" id="_poQty" value="1" min="1" step="1" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);margin-bottom:10px;font-size:16px">'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'+btns+'</div>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  function done(v){if(ov.parentNode)ov.parentNode.removeChild(ov);resolve(v);}
+  box.querySelector('#_poDetail').onclick=function(){done({mode:'detail'});};
+  Array.prototype.forEach.call(box.querySelectorAll('._poSize'),function(b){
+    b.onclick=function(){
+      var qi=box.querySelector('#_poQty');
+      var q=parseInt((qi&&qi.value)||'1')||1;if(q<1)q=1;
+      done({mode:'pochette',taille:parseFloat(b.getAttribute('data-s')),qty:q});
+    };
+  });
+});}
 function addToCart(it){
   var line=posCart.find(function(l){return l.id===it.id;});
   if(line){line.qty+=1;renderPosCart();_entreeCannabis(it);return;}
@@ -4005,12 +4057,19 @@ function addToCart(it){
   posCart.push(nl);renderPosCart();
   if(posIsAssocie && it.unite==='gramme' && gp>0){
     askPieceOuGramme(it.nom).then(function(choice){
-      if(choice==='piece'){
+      if(choice==='piece'){nl.unite='piece';nl.prix=Math.round(gp*nl.prix*100)/100;renderPosCart();}
+      _entreeCannabis(it);
+    });
+  } else if(!posIsAssocie && it.unite==='gramme'){
+    askDetailOuPochette(it.nom).then(function(res){
+      if(res && res.mode==='pochette' && res.taille>0){
         nl.unite='piece';
-        nl.prix=Math.round(gp*nl.prix*100)/100;
+        nl.grammesPiece=res.taille;
+        nl.qty=(res.qty>0?res.qty:1);
+        nl.nom=it.nom+' '+res.taille+'g';
+        nl.prix=Math.round(res.taille*pv*100)/100;
         renderPosCart();
       }
-      _entreeCannabis(it);
     });
   } else {
     _entreeCannabis(it);
