@@ -195,6 +195,7 @@ def client_stats_comptes(cid):
         paye = {}
         for _pr in paye_rows:
             paye[_pr["compte"]] = _pr["paye"]
+        _assoc = conn.execute("SELECT COALESCE(associe,0) FROM clients WHERE id=?", (cid,)).fetchone()[0] or 0
     
     result = {"euro":{"debit":0,"credit":0,"frais":0}, 
               "cantine":{"debit":0,"credit":0,"frais":0},
@@ -210,7 +211,7 @@ def client_stats_comptes(cid):
     
     # Calculer les soldes
     for c in result:
-        result[c]["solde"] = round(result[c]["debit"] - paye.get(c, 0) - result[c]["credit"], 2)
+        result[c]["solde"] = round(result[c]["debit"] - (0 if _assoc else paye.get(c, 0)) - result[c]["credit"], 2)
         result[c]["debit"] = round(result[c]["debit"], 2)
         result[c]["credit"] = round(result[c]["credit"], 2)
     
@@ -429,13 +430,12 @@ def dettes_ouvertes(cid):
     """Retourne les débits non totalement remboursés d'un client."""
     with db.get_conn() as conn:
         # Récupérer tous les débits du client
-        debits = conn.execute("""
-            SELECT id, date, motif, montant_net, mode_paiement, notes,
-                   quantite, COALESCE(unite,'piece') as unite
-            FROM transactions
-            WHERE client_id=? AND type='debit' AND (notes IS NULL OR notes NOT LIKE '%[CAISSE PAYE]%')
-            ORDER BY date DESC
-        """, (cid,)).fetchall()
+        _assoc = conn.execute("SELECT COALESCE(associe,0) FROM clients WHERE id=?", (cid,)).fetchone()[0] or 0
+        _excl = "" if _assoc else " AND (notes IS NULL OR notes NOT LIKE '%[CAISSE PAYE]%')"
+        debits = conn.execute(
+            "SELECT id, date, motif, montant_net, mode_paiement, notes, quantite, COALESCE(unite,'piece') as unite "
+            "FROM transactions WHERE client_id=? AND type='debit'" + _excl + " ORDER BY date DESC",
+            (cid,)).fetchall()
 
         result = []
         for d in debits:
