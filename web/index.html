@@ -3972,24 +3972,48 @@ function askEntreePrice(nom){return new Promise(function(resolve){
   box.querySelector('#_entSkip').onclick=function(){done('__CANCEL__');};
   inp.addEventListener('keydown',function(e){if(e.key==='Enter'){done(inp.value||null);}else if(e.key==='Escape'){done('__CANCEL__');}});
 });}
+function askPieceOuGramme(nom){return new Promise(function(resolve){
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100000;padding:16px';
+  var box=document.createElement('div');
+  box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:320px;max-width:92vw';
+  box.innerHTML='<div style="font-weight:600;margin-bottom:6px">Mode de vente</div>'
+    +'<div style="font-size:13px;color:var(--text3);margin-bottom:14px"><b>'+(nom||'')+'</b> : \u00e0 la pi\u00e8ce ou au gramme ?</div>'
+    +'<div style="display:flex;gap:8px"><button type="button" class="btn" id="_pgPiece" style="flex:1">\u00c0 la pi\u00e8ce</button>'
+    +'<button type="button" class="btn" id="_pgGram" style="flex:1;background:var(--bg3)">Au gramme</button></div>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  function done(v){if(ov.parentNode)ov.parentNode.removeChild(ov);resolve(v);}
+  box.querySelector('#_pgPiece').onclick=function(){done('piece');};
+  box.querySelector('#_pgGram').onclick=function(){done('gramme');};
+});}
+function _entreeCannabis(it){
+  if(!(posIsAssocie && it.categorie && String(it.categorie).toLowerCase().indexOf('cannabis')>=0))return;
+  askEntreePrice(it.nom).then(function(v){
+    if(v==='__CANCEL__'||v===null||v==='')return;
+    var px=parseFloat(v)||0;if(px<=0)return;
+    if(typeof window.posLibreSeq==='undefined')window.posLibreSeq=0;
+    window.posLibreSeq-=1;
+    posCart.push({id:window.posLibreSeq,nom:'Entr\u00e9e '+it.nom,prixVente:px,prixAchat:px,prix:px,qty:1,unite:'piece',libre:true,motif:''});
+    renderPosCart();
+  });
+}
 function addToCart(it){
   var line=posCart.find(function(l){return l.id===it.id;});
-  if(line){line.qty+=1;}
-  else{
-    var pv=parseFloat(it.prix_vente)||0;var pa=parseFloat(it.prix_achat)||0;
-    posCart.push({id:it.id,nom:it.nom,prixVente:pv,prixAchat:pa,prix:(posIsAssocie?pa:pv),qty:1,unite:it.unite||'piece',grammesPiece:parseFloat(it.grammes_piece)||0});
-  }
-  renderPosCart();
-  if(posIsAssocie && it.categorie && String(it.categorie).toLowerCase().indexOf('cannabis')>=0){
-    askEntreePrice(it.nom).then(function(v){
-      if(v==='__CANCEL__'||v===null||v==='')return;
-      var px=parseFloat(v)||0;
-      if(px<=0)return;
-      if(typeof window.posLibreSeq==='undefined')window.posLibreSeq=0;
-      window.posLibreSeq-=1;
-      posCart.push({id:window.posLibreSeq,nom:'Entr\u00e9e '+it.nom,prixVente:px,prixAchat:px,prix:px,qty:1,unite:'piece',libre:true,motif:''});
-      renderPosCart();
+  if(line){line.qty+=1;renderPosCart();_entreeCannabis(it);return;}
+  var pv=parseFloat(it.prix_vente)||0;var pa=parseFloat(it.prix_achat)||0;var gp=parseFloat(it.grammes_piece)||0;
+  var nl={id:it.id,nom:it.nom,prixVente:pv,prixAchat:pa,prix:(posIsAssocie?pa:pv),qty:1,unite:it.unite||'piece',grammesPiece:gp};
+  posCart.push(nl);renderPosCart();
+  if(posIsAssocie && it.unite==='gramme' && gp>0){
+    askPieceOuGramme(it.nom).then(function(choice){
+      if(choice==='piece'){
+        nl.unite='piece';
+        nl.prix=Math.round(gp*nl.prix*100)/100;
+        renderPosCart();
+      }
+      _entreeCannabis(it);
     });
+  } else {
+    _entreeCannabis(it);
   }
 }
 function posChangeQty(id,delta){var line=posCart.find(function(l){return l.id===id;});if(!line)return;line.qty=Math.max(0,Math.round((line.qty+delta)*100)/100);if(line.qty<=0){posCart=posCart.filter(function(l){return l.id!==id;});}renderPosCart();}
