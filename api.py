@@ -433,7 +433,7 @@ def dettes_ouvertes(cid):
         excl_paye = (not _assoc)
         rows = conn.execute(
             "SELECT id, date, type, COALESCE(montant_net,0), COALESCE(montant_brut,0), linked_debit_id, "
-            "motif, mode_paiement, notes, quantite, COALESCE(unite,'piece') "
+            "motif, mode_paiement, notes, quantite, COALESCE(unite,'piece'), COALESCE(compte,'euro'), COALESCE(prix_unitaire,0) "
             "FROM transactions WHERE client_id=? AND type IN ('debit','credit') "
             "ORDER BY date ASC, id ASC", (cid,)).fetchall()
         rem = {}
@@ -473,6 +473,8 @@ def dettes_ouvertes(cid):
                     "notes": d[8] or "",
                     "quantite": d[9],
                     "unite": d[10],
+                    "compte": d[11],
+                    "prix_unitaire": d[12],
                     "total_credite": round(montant_net - restant, 2),
                     "restant": round(restant, 2)
                 })

@@ -4160,37 +4160,72 @@ function askMontant(titre, defVal){return new Promise(function(resolve){
   box.querySelector('#_amNo').onclick=function(){done(null);};
   inp.addEventListener('keydown',function(e){if(e.key==='Enter')done(inp.value);else if(e.key==='Escape')done(null);});
 });}
+function _uniteLabel(u,n){
+  n=(n==null?1:Math.abs(n));
+  if(u==='paquet')return (n>1?'paquets':'paquet');
+  if(u==='gramme')return 'g';
+  if(u==='litre')return 'L';
+  return (n>1?'pcs':'pc');
+}
+function _fmtQte(n){
+  n=Math.round((parseFloat(n)||0)*100)/100;
+  return (n===Math.round(n))?(''+Math.round(n)):(''+n);
+}
 function posLoadDettesOuvertes(cid){
   var box=document.getElementById('posDettesList');if(!box)return;
-  box.innerHTML='';
+  box.innerHTML='';window._posDettes={};
   if(!cid||posIsAssocie)return;
   api('/api/clients/'+cid+'/dettes-ouvertes').then(function(res){
     if(!res||!res.ok||!res.data||!res.data.length){box.innerHTML='';return;}
     var html='<div style="color:var(--text3);font-size:11px;margin:8px 0 4px">Dettes ouvertes \u2014 encaisser un remboursement :</div>';
     res.data.forEach(function(d){
+      window._posDettes[d.id]=d;
       var rest=parseFloat(d.restant)||0;
+      var pu=parseFloat(d.prix_unitaire)||0;
+      var isUnit=(d.compte==='tabac'||d.compte==='cantine')&&pu>0;
+      var resteTxt=isUnit?(_fmtQte(rest/pu)+' '+_uniteLabel(d.unite,rest/pu)):fmt(rest);
       html+='<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:4px">'
-        +'<span style="font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(d.motif||'Dette')+' \u2014 reste '+fmt(rest)+'</span>'
-        +'<button type="button" class="btn" style="padding:4px 10px;font-size:12px;flex:none" onclick="posRembourserDette('+d.id+','+rest+')">Rembourser</button>'
+        +'<span style="font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(d.motif||'Dette')+' \u2014 reste '+resteTxt+'</span>'
+        +'<button type="button" class="btn" style="padding:4px 10px;font-size:12px;flex:none" onclick="posRembourserDette('+d.id+')">Rembourser</button>'
         +'</div>';
     });
     box.innerHTML=html;
   });
 }
-function posRembourserDette(debitId, restant){
+function posRembourserDette(debitId){
   var cid=parseInt(document.getElementById('posClient').value);if(!cid)return;
-  askMontant('Remboursement (reste '+fmt(restant||0)+')', (restant||0).toFixed(2)).then(function(v){
-    if(v===null||v==='')return;
-    var m=parseFloat((''+v).replace(',','.'))||0;
-    if(m<=0){if(typeof notify==='function')notify('Montant invalide');return;}
-    var body={client_id:cid,type:'credit',motif:'Remboursement',quantite:1,unite:'piece',
-      prix_unitaire:m,mode_paiement:'cash',notes:'[CAISSE] Remboursement dette',
-      frais_deduits:0,compte:'euro',linked_debit_id:debitId};
-    api('/api/transactions',{method:'POST',body:body}).then(function(res){
-      if(res&&res.ok){if(typeof notify==='function')notify('Remboursement enregistre : '+fmt(m));onPosClientChange();}
-      else{if(typeof notify==='function')notify('Erreur remboursement');}
+  var d=(window._posDettes||{})[debitId];if(!d)return;
+  var rest=parseFloat(d.restant)||0;
+  var pu=parseFloat(d.prix_unitaire)||0;
+  var isUnit=(d.compte==='tabac'||d.compte==='cantine')&&pu>0;
+  if(isUnit){
+    var qReste=rest/pu;
+    askMontant('Remboursement en '+_uniteLabel(d.unite,2)+' (reste '+_fmtQte(qReste)+')', _fmtQte(qReste)).then(function(v){
+      if(v===null||v==='')return;
+      var q=parseFloat((''+v).replace(',','.'))||0;
+      if(q<=0){if(typeof notify==='function')notify('Quantite invalide');return;}
+      var body={client_id:cid,type:'credit',motif:'Remboursement',quantite:q,unite:(d.unite||'paquet'),
+        prix_unitaire:pu,mode_paiement:'cash',notes:'[CAISSE] Remboursement dette',
+        frais_deduits:0,compte:d.compte,linked_debit_id:debitId};
+      api('/api/transactions',{method:'POST',body:body}).then(function(res){
+        if(res&&res.ok){if(typeof notify==='function')notify('Remboursement : '+_fmtQte(q)+' '+_uniteLabel(d.unite,q));onPosClientChange();}
+        else{if(typeof notify==='function')notify('Erreur remboursement');}
+      });
     });
-  });
+  }else{
+    askMontant('Remboursement (reste '+fmt(rest)+')', rest.toFixed(2)).then(function(v){
+      if(v===null||v==='')return;
+      var m=parseFloat((''+v).replace(',','.'))||0;
+      if(m<=0){if(typeof notify==='function')notify('Montant invalide');return;}
+      var body={client_id:cid,type:'credit',motif:'Remboursement',quantite:1,unite:'piece',
+        prix_unitaire:m,mode_paiement:'cash',notes:'[CAISSE] Remboursement dette',
+        frais_deduits:0,compte:'euro',linked_debit_id:debitId};
+      api('/api/transactions',{method:'POST',body:body}).then(function(res){
+        if(res&&res.ok){if(typeof notify==='function')notify('Remboursement enregistre : '+fmt(m));onPosClientChange();}
+        else{if(typeof notify==='function')notify('Erreur remboursement');}
+      });
+    });
+  }
 }
 function onPosClientChange(){
   var cid=parseInt(document.getElementById('posClient').value);
