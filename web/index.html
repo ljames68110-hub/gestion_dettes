@@ -4100,18 +4100,7 @@ function updatePosTotals(){
 // surcharger renderPosCart pour recalculer les totaux ensuite
 var _oldRenderCart = (typeof renderPosCart==='function')?renderPosCart:null;
 renderPosCart=function(){
-  var body=document.getElementById('posCartBody');
-  if(!body)return;
-  if(!posCart.length){ body.innerHTML='<div class="pos-empty">Cliquez sur des articles pour les ajouter</div>'; }
-  else{
-    body.innerHTML='';
-    posCart.forEach(function(l){
-      var sub=(l.gratuit?0:l.prix)*l.qty;
-      var row=document.createElement('div');row.className='pos-line';
-      row.innerHTML='<div class="lname">'+l.nom+'<br><span style="font-size:11px;color:var(--text3)">'+(l.gratuit?'Gratuit':l.prix.toFixed(2)+' EUR')+'</span></div><div class="lqty"><button onclick="posChangeQty('+l.id+',-1)">-</button><input type="number" value="'+l.qty+'" min="0" step="1" onchange="posSetQty('+l.id+',this.value)"><button onclick="posChangeQty('+l.id+',1)">+</button></div><div class="lsub">'+sub.toFixed(2)+'</div>'+'<button onclick="posToggleGratuit('+l.id+')" style="border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;margin-right:4px;background:transparent;color:'+(l.gratuit?'var(--gold2)':'var(--text3)')+'">'+(l.gratuit?'Gratuit':'Offrir')+'</button>'+'<button class="ldel" onclick="posRemove('+l.id+')">x</button>';
-      body.appendChild(row);
-    });
-  }
+  if(_oldRenderCart) _oldRenderCart();
   updatePosTotals();
 };
 async function posEncaisser(){
