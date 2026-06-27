@@ -185,6 +185,16 @@ def client_stats_comptes(cid):
             WHERE client_id=?
             GROUP BY COALESCE(compte,'euro'), type
         """, (cid,)).fetchall()
+
+        paye_rows = conn.execute("""
+            SELECT COALESCE(compte,'euro') as compte, COALESCE(SUM(montant_net),0) as paye
+            FROM transactions
+            WHERE client_id=? AND type='debit' AND notes LIKE '%[CAISSE PAYE]%'
+            GROUP BY COALESCE(compte,'euro')
+        """, (cid,)).fetchall()
+        paye = {}
+        for _pr in paye_rows:
+            paye[_pr["compte"]] = _pr["paye"]
     
     result = {"euro":{"debit":0,"credit":0,"frais":0}, 
               "cantine":{"debit":0,"credit":0,"frais":0},
@@ -200,7 +210,7 @@ def client_stats_comptes(cid):
     
     # Calculer les soldes
     for c in result:
-        result[c]["solde"] = round(result[c]["debit"] - result[c]["credit"], 2)
+        result[c]["solde"] = round(result[c]["debit"] - paye.get(c, 0) - result[c]["credit"], 2)
         result[c]["debit"] = round(result[c]["debit"], 2)
         result[c]["credit"] = round(result[c]["credit"], 2)
     
@@ -988,6 +998,7 @@ def _build_facture_html(trans, client, type_):
     date_trans = trans.get("date","")[:10].split("-")
     date_fmt = "/".join(reversed(date_trans)) if len(date_trans)==3 else trans.get("date","")
     is_vente = type_ == "vente"
+    _paye = is_vente and ("[CAISSE PAYE]" in (trans.get("notes") or ""))
     titre = "FACTURE DE VENTE" if is_vente else ("BON DE DÉPÔT" if (client and client.get("associe")) else "BON DE REMBOURSEMENT")
     couleur = "#16a34a" if is_vente else "#c9a84c"
     _logo = db.get_setting("app_logo", "")
@@ -1106,7 +1117,7 @@ tr:nth-child(even) td{{background:#fafafa}}
   <div class="total-row"><span>Montant brut</span><span>{float(montant_brut):.2f} €</span></div>
   {"<div class='total-row'><span>Frais (" + mode + ")</span><span style='color:#dc2626'>- " + f"{float(frais):.2f}" + " €</span></div>" if frais > 0 else ""}
   <div class="total-row main">
-    <span>{"Total dû" if is_vente else ("Montant déposé" if (client and client.get("associe")) else "Montant remboursé")}</span>
+    <span>{("Total payé" if _paye else "Total dû") if is_vente else ("Montant déposé" if (client and client.get("associe")) else "Montant remboursé")}</span>
     <span>{float(montant_net):.2f} €</span>
   </div>
 </div>
@@ -1393,7 +1404,8 @@ def _build_facture_groupee_html(transs, client, type_):
         _pimg = f'<img src="{_ph}" style="width:34px;height:34px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:6px">' if _ph else ""
         rows_html += f"<tr><td>{_pimg}<strong>{motif}</strong></td><td>{float(qty):.1f} {ulabel}</td><td>{float(pu):.2f} EUR</td><td>{mode}</td><td style='text-align:right;font-weight:600'>{float(mb):.2f} EUR</td></tr>"
     total = round(total,2)
-    total_label = "Total du" if is_vente else ("Montant déposé" if (client and client.get("associe")) else "Montant rembourse")
+    _paye = is_vente and bool(transs) and all(("[CAISSE PAYE]" in (t.get("notes") or "")) for t in transs)
+    total_label = ("Total payé" if _paye else "Total du") if is_vente else ("Montant déposé" if (client and client.get("associe")) else "Montant rembourse")
     html = f"""<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>{titre} {numero}</title>
 <style>*{{margin:0;padding:0;box-sizing:border-box}}body{{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:32px;max-width:600px;margin:auto}}
 .header{{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:16px;border-bottom:3px solid {couleur}}}
