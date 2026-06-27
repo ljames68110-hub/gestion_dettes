@@ -429,36 +429,51 @@ def update_apply():
 def dettes_ouvertes(cid):
     """Retourne les débits non totalement remboursés d'un client."""
     with db.get_conn() as conn:
-        # Récupérer tous les débits du client
         _assoc = conn.execute("SELECT COALESCE(associe,0) FROM clients WHERE id=?", (cid,)).fetchone()[0] or 0
-        _excl = "" if _assoc else " AND (notes IS NULL OR notes NOT LIKE '%[CAISSE PAYE]%')"
-        debits = conn.execute(
-            "SELECT id, date, motif, montant_net, mode_paiement, notes, quantite, COALESCE(unite,'piece') as unite "
-            "FROM transactions WHERE client_id=? AND type='debit'" + _excl + " ORDER BY date DESC",
-            (cid,)).fetchall()
-
+        excl_paye = (not _assoc)
+        rows = conn.execute(
+            "SELECT id, date, type, COALESCE(montant_net,0), COALESCE(montant_brut,0), linked_debit_id, "
+            "motif, mode_paiement, notes, quantite, COALESCE(unite,'piece') "
+            "FROM transactions WHERE client_id=? AND type IN ('debit','credit') "
+            "ORDER BY date ASC, id ASC", (cid,)).fetchall()
+        rem = {}
+        opened = []
+        info = {}
+        for r in rows:
+            rid, rtype, mnet, mbrut, linked = r[0], r[2], r[3], r[4], r[5]
+            notes = r[8] or ""
+            if rtype == 'debit':
+                if excl_paye and ('[CAISSE PAYE]' in notes):
+                    continue
+                rem[rid] = mnet
+                opened.append(rid)
+                info[rid] = r
+            else:
+                amt = mbrut
+                if linked and (linked in rem) and rem[linked] > 0:
+                    take = min(rem[linked], amt); rem[linked] -= take; amt -= take
+                if amt > 0:
+                    for did in reversed(opened):
+                        if amt <= 0:
+                            break
+                        if rem.get(did, 0) > 0:
+                            take = min(rem[did], amt); rem[did] -= take; amt -= take
         result = []
-        for d in debits:
-            did = d[0]
-            # Total crédité lié à ce débit
-            row = conn.execute("""
-                SELECT COALESCE(SUM(montant_brut), 0)
-                FROM transactions
-                WHERE linked_debit_id=? AND type='credit'
-            """, (did,)).fetchone()
-            total_credite = row[0] if row else 0
-            restant = d[3] - total_credite
-            if restant > 0.01:  # dette pas encore totalement remboursée
+        for did in reversed(opened):
+            restant = rem.get(did, 0)
+            if restant > 0.01:
+                d = info[did]
+                montant_net = d[3]
                 result.append({
                     "id": did,
                     "date": d[1],
-                    "motif": d[2],
-                    "montant_net": d[3],
-                    "mode_paiement": d[4],
-                    "notes": d[5] or "",
-                    "quantite": d[6],
-                    "unite": d[7],
-                    "total_credite": round(total_credite, 2),
+                    "motif": d[6],
+                    "montant_net": montant_net,
+                    "mode_paiement": d[7],
+                    "notes": d[8] or "",
+                    "quantite": d[9],
+                    "unite": d[10],
+                    "total_credite": round(montant_net - restant, 2),
                     "restant": round(restant, 2)
                 })
     return ok(result)
