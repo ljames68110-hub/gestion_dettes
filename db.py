@@ -434,6 +434,8 @@ def update_transaction(trans_id, data):
         mode       = data.get("mode_paiement", row["mode_paiement"])
         notes      = data.get("notes",         row["notes"] or "")
         date       = data.get("date",          row["date"])
+        compte     = data.get("compte",        row["compte"] if "compte" in row.keys() else "euro")
+        unite      = data.get("unite",         row["unite"] if "unite" in row.keys() else "piece")
         brut       = round(quantite * prix_u, 2)
         frais_deduits = int(data.get("frais_deduits", row["frais_deduits"] if "frais_deduits" in row.keys() else 1))
         if type_ == "credit" and frais_deduits:
@@ -444,9 +446,10 @@ def update_transaction(trans_id, data):
         conn.execute("""
             UPDATE transactions SET
               type=?, motif=?, quantite=?, prix_unitaire=?,
-              montant_brut=?, mode_paiement=?, frais=?, montant_net=?, notes=?, date=?, frais_deduits=?
+              montant_brut=?, mode_paiement=?, frais=?, montant_net=?, notes=?, date=?, frais_deduits=?,
+              compte=?, unite=?
             WHERE id=?""",
-            (type_, motif, quantite, prix_u, brut, mode, frais, net, notes, date, frais_deduits, trans_id)
+            (type_, motif, quantite, prix_u, brut, mode, frais, net, notes, date, frais_deduits, compte, unite, trans_id)
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM transactions WHERE id=?", (trans_id,)).fetchone()
