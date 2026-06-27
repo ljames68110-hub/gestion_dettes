@@ -311,6 +311,7 @@ select option{background:var(--bg3)}
       <div class="topbar-title" id="topbarTitle">Tableau de bord</div>
       <div class="topbar-actions">
         <input class="search-input" placeholder="🔍 Rechercher..." oninput="doSearch(this.value)" id="searchInput">
+        <button onclick="quitApp()" title="Fermer Gestion Perso" style="margin-left:8px;padding:9px 16px;border-radius:var(--radius2);border:1px solid rgba(220,90,90,.45);background:rgba(220,90,90,.12);color:#e07a7a;font-size:13px;font-weight:600;cursor:pointer;font-family:Outfit,sans-serif">Quitter</button>
         
       </div>
     </div>
@@ -2289,6 +2290,7 @@ function applyPalette(name){
   document.querySelectorAll('.palette-card').forEach(c=>c.classList.toggle('active',c.dataset.palette===name));
   store.set('palette',name);notify('Thème appliqué');
 }
+function quitApp(){if(window.pywebview&&window.pywebview.api&&window.pywebview.api.quit){window.pywebview.api.quit();}else{try{window.close();}catch(e){}}}
 function applyAppLogo(src){if(src===undefined)src=window._appLogo||'';var sb=document.getElementById('sidebarLogoImg');if(sb){if(src){sb.src=src;sb.style.display='block';}else{sb.style.display='none';}}var pv=document.getElementById('appLogoPrev');if(pv){if(src){pv.src=src;pv.style.display='block';}else{pv.style.display='none';}}var lg=document.getElementById('loginLogoImg');if(lg&&src){lg.src=src;}}async function loadAppLogo(){try{var r=await api('/api/logo');var lg=(r&&r.ok&&r.data)?r.data.logo:'';window._appLogo=lg||'';applyAppLogo(window._appLogo);}catch(e){}}function onAppLogoPick(input){if(!input.files||!input.files[0])return;resizeImageFull(input.files[0],256).then(function(b){if(!b)return;window._appLogo=b;applyAppLogo(b);api('/api/settings',{method:'POST',body:{app_logo:b}}).then(function(){notify('Logo enregistre');});});}function removeAppLogo(){window._appLogo='';applyAppLogo('');api('/api/settings',{method:'POST',body:{app_logo:''}}).then(function(){notify('Logo retire');});}if(document.readyState!=='loading '.trim()){loadAppLogo();}else{document.addEventListener('DOMContentLoaded',loadAppLogo);}
 if(document.readyState!=='loading'){loadPochetteSizes();}else{document.addEventListener('DOMContentLoaded',loadPochetteSizes);}
 function loadSavedPalette(){

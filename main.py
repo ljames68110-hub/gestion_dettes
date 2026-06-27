@@ -191,6 +191,19 @@ def _save_backup_on_exit():
     except Exception as e:
         print(f"[Gestion Perso] Echec sauvegarde fermeture : {e}")
 
+class _GpApi:
+    def quit(self):
+        try:
+            import webview as _wv
+            for w in list(getattr(_wv, "windows", []) or []):
+                try:
+                    w.destroy()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+
 def main():
     atexit.register(_save_backup_on_exit)
     print(f"[Gestion Perso] Demarrage {URL}")
@@ -234,6 +247,7 @@ def main():
             resizable        = True,
             maximized        = True,
             background_color = "#0a0a0f",
+            js_api           = _GpApi(),
         )
         webview.start(debug=False, icon=icon, gui="edgechromium")
         _save_backup_on_exit()  # apres fermeture fenetre
