@@ -376,10 +376,13 @@ def get_stats_global():
 
         # Clients avec solde négatif (dettes)
         rows_soldes = conn.execute("""
-            SELECT client_id,
-                   SUM(CASE WHEN type='credit' THEN montant_net ELSE 0 END) -
-                   SUM(CASE WHEN type='debit'  THEN montant_net ELSE 0 END) AS solde
-            FROM transactions GROUP BY client_id
+            SELECT t.client_id,
+                   SUM(CASE WHEN t.type='credit' THEN t.montant_net ELSE 0 END) -
+                   SUM(CASE WHEN t.type='debit'
+                            AND NOT (COALESCE(c.associe,0)=0 AND t.notes LIKE '%[CAISSE PAYE]%')
+                            THEN t.montant_net ELSE 0 END) AS solde
+            FROM transactions t LEFT JOIN clients c ON c.id=t.client_id
+            GROUP BY t.client_id
         """).fetchall()
         nb_debiteurs = sum(1 for r in rows_soldes if (r["solde"] or 0) < 0)  # debit < credit → tu leur dois
 

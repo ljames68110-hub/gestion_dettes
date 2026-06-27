@@ -78,6 +78,17 @@ def _ask_password(msg):
         except Exception:
             return None
 
+def _info_box(msg):
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+        root = tk.Tk(); root.withdraw()
+        messagebox.showwarning("Gestion Perso", msg)
+        root.destroy()
+    except Exception:
+        print("[Gestion Perso]", msg)
+
+
 def _unlock_db():
     """Si la base est chiffree, demande le mot de passe et la dechiffre."""
     global DB_PASSWORD, _SALT
@@ -85,12 +96,17 @@ def _unlock_db():
         return
     import crypto_db
     try:
+        from cryptography.fernet import InvalidToken
+    except Exception:
+        InvalidToken = ()
+    try:
         with open(SALT_PATH, "rb") as f:
             _SALT = f.read()
     except Exception:
         print("[Gestion Perso] Sel introuvable, base illisible."); sys.exit(1)
+    _msg = "Entrez votre mot de passe :"
     for _ in range(5):
-        pwd = _ask_password("Entrez votre mot de passe :")
+        pwd = _ask_password(_msg)
         if not pwd:
             sys.exit(0)
         try:
@@ -98,8 +114,15 @@ def _unlock_db():
             DB_PASSWORD = pwd
             print("[Gestion Perso] Base dechiffree.")
             return
-        except Exception:
+        except InvalidToken:
+            _msg = "Mot de passe incorrect, reessayez :"
             print("[Gestion Perso] Mot de passe incorrect.")
+        except (PermissionError, OSError):
+            _info_box("Gestion Perso est deja ouvert.\n\nFerme l'autre fenetre (ou termine GestionPerso.exe dans le Gestionnaire des taches), puis relance.")
+            print("[Gestion Perso] Base verrouillee : instance deja ouverte."); sys.exit(1)
+        except Exception:
+            _msg = "Mot de passe incorrect, reessayez :"
+            print("[Gestion Perso] Erreur de dechiffrement.")
     print("[Gestion Perso] Trop d'essais, arret."); sys.exit(1)
 
 def _lock_db_on_exit():
