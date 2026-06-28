@@ -2225,7 +2225,7 @@ function doSearch(v){
             return '<div style="padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px" onclick="openTransDetail('+t.id+')">'
               + '<span style="color:var(--text)">'+(t.client_nom||'?')+'</span>'
               + ' · <span style="color:var(--text3)">'+t.motif+'</span>'
-              + ' · <span style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+fmt(t.montant_net)+'</span>'
+              + ' · <span style="color:'+(t.type==='debit'?'var(--green)':'var(--red)')+'">'+fmt(t.montant_brut)+'</span>'
               + ' <span style="font-size:11px;color:var(--text3)">'+fmtDate(t.date)+'</span></div>';
           }).join('');
       } else {
@@ -2697,8 +2697,8 @@ async function loadRecap() {
   if (categorie) transactions = transactions.filter(t => t.type === categorie);
   const ventes = transactions.filter(t => t.type === 'debit');
   const remboursements = transactions.filter(t => t.type === 'credit');
-  const totalVentes = ventes.reduce((s,t) => s + t.montant_net, 0);
-  const totalRembours = remboursements.reduce((s,t) => s + t.montant_net, 0);
+  const totalVentes = ventes.reduce((s,t) => s + t.montant_brut, 0);
+  const totalRembours = remboursements.reduce((s,t) => s + t.montant_brut, 0);
   const totalFrais = transactions.reduce((s,t) => s + (t.frais || 0), 0);
   document.getElementById('recapTotalVentes').textContent = fmt(totalVentes);
   document.getElementById('recapTotalRembours').textContent = fmt(totalRembours);
@@ -2722,7 +2722,7 @@ async function loadRecap() {
         + '<td style="color:var(--gold2);font-size:12px">' + (t.entree_desc ? '📦 ' + t.entree_desc : '—') + '</td>'
         + '<td style="color:var(--blue);font-size:12px">' + (t.linked_debit_id ? '🔗 #' + t.linked_debit_id : '—') + '</td>'
         + '<td style="text-align:right" class="mono">' + (t.frais > 0 ? '<span style="color:var(--red)">-' + fmt(t.frais) + '</span>' : '—') + '</td>'
-        + '<td style="text-align:right"><span class="mono" style="color:' + col + '">' + (isVente?'+':'-') + fmt(t.montant_net) + '</span></td>';
+        + '<td style="text-align:right"><span class="mono" style="color:' + col + '">' + (isVente?'+':'-') + fmt(t.montant_brut) + '</span></td>';
       tbody.appendChild(tr);
     });
   }
