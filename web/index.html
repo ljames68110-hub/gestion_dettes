@@ -4505,6 +4505,14 @@ async function posEncaisserTabac(cid,mode){
   if(comptant && ok){
     var nouveauStock=(parseFloat(t.stock)||0)+packs;
     try{await api('/api/types-tabac/'+tid,{method:'PUT',body:{stock:nouveauStock}});}catch(e){}
+    try{
+      var _rc=await api('/api/catalogue');
+      if(_rc&&_rc.ok&&_rc.data){
+        var _cn=(t.nom||'').trim().toLowerCase();
+        var _cible=_rc.data.find(function(a){return (a.nom||'').trim().toLowerCase()===_cn;});
+        if(_cible){await api('/api/catalogue/'+_cible.id+'/adjust-stock',{method:'POST',body:{delta:packs}});}
+      }
+    }catch(e){}
   }
   btn.disabled=false;btn.textContent='Encaisser';
   if(ok){
