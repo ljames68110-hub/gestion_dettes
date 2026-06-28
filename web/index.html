@@ -12,7 +12,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Gestion Perso</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="chart.umd.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -4212,39 +4212,14 @@ function posConvertTabac(debitId){
   });
 }
 function posRembourserDette(debitId){
-  var cid=parseInt(document.getElementById('posClient').value);if(!cid)return;
   var d=(window._posDettes||{})[debitId];if(!d)return;
   var rest=parseFloat(d.restant)||0;
-  var pu=parseFloat(d.prix_unitaire)||0;
-  var isUnit=(d.compte==='tabac'||d.compte==='cantine')&&pu>0;
-  if(isUnit){
-    var qReste=rest/pu;
-    askMontant('Remboursement en '+_uniteLabel(d.unite,2)+' (reste '+_fmtQte(qReste)+')', _fmtQte(qReste)).then(function(v){
-      if(v===null||v==='')return;
-      var q=parseFloat((''+v).replace(',','.'))||0;
-      if(q<=0){if(typeof notify==='function')notify('Quantite invalide');return;}
-      var body={client_id:cid,type:'credit',motif:'Remboursement',quantite:q,unite:(d.unite||'paquet'),
-        prix_unitaire:pu,mode_paiement:'cash',notes:'[CAISSE] Remboursement dette',
-        frais_deduits:0,compte:d.compte,linked_debit_id:debitId};
-      api('/api/transactions',{method:'POST',body:body}).then(function(res){
-        if(res&&res.ok){if(typeof notify==='function')notify('Remboursement : '+_fmtQte(q)+' '+_uniteLabel(d.unite,q));onPosClientChange();}
-        else{if(typeof notify==='function')notify('Erreur remboursement');}
-      });
-    });
-  }else{
-    askMontant('Remboursement (reste '+fmt(rest)+')', rest.toFixed(2)).then(function(v){
-      if(v===null||v==='')return;
-      var m=parseFloat((''+v).replace(',','.'))||0;
-      if(m<=0){if(typeof notify==='function')notify('Montant invalide');return;}
-      var body={client_id:cid,type:'credit',motif:'Remboursement',quantite:1,unite:'piece',
-        prix_unitaire:m,mode_paiement:'cash',notes:'[CAISSE] Remboursement dette',
-        frais_deduits:0,compte:'euro',linked_debit_id:debitId};
-      api('/api/transactions',{method:'POST',body:body}).then(function(res){
-        if(res&&res.ok){if(typeof notify==='function')notify('Remboursement enregistre : '+fmt(m));onPosClientChange();}
-        else{if(typeof notify==='function')notify('Erreur remboursement');}
-      });
-    });
-  }
+  var inp=document.getElementById('posRemb');
+  if(!inp){if(typeof notify==='function')notify('Champ remboursement introuvable','error');return;}
+  inp.value=rest.toFixed(2);
+  if(typeof updatePosTotals==='function')updatePosTotals();
+  try{inp.scrollIntoView({block:'center',behavior:'smooth'});inp.focus();inp.select();}catch(e){}
+  if(typeof notify==='function')notify('Montant pr\u00e9-rempli \u2014 choisis le mode puis Encaisser','success');
 }
 function onPosClientChange(){
   var cid=parseInt(document.getElementById('posClient').value);
