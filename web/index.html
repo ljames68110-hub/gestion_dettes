@@ -4503,8 +4503,6 @@ async function posEncaisserTabac(cid,mode){
   posCart.forEach(function(l){if(l.libre)return;api('/api/catalogue/'+l.id+'/adjust-stock',{method:'POST',body:{delta:-(l.qty*((l.unite==='piece'&&l.grammesPiece>0)?l.grammesPiece:1))}}).catch(function(){});});
   // Comptant : le tabac rentre dans le stock
   if(comptant && ok){
-    var nouveauStock=(parseFloat(t.stock)||0)+packs;
-    try{await api('/api/types-tabac/'+tid,{method:'PUT',body:{stock:nouveauStock}});}catch(e){}
     try{
       var _rc=await api('/api/catalogue');
       if(_rc&&_rc.ok&&_rc.data){
