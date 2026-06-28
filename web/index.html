@@ -4300,7 +4300,7 @@ async function posEncaisser(){
   var _conso=!!((document.getElementById('posConsoPerso')||{}).checked);if(_conso){cid=await getConsoPersoClient();if(!cid){notify('Erreur client Conso perso','error');return;}}
   if(!cid){notify('Choisis un client','error');return;}
   var _tmode=document.getElementById('posMode').value;
-  var _pc=document.getElementById('posPretChk');if(_pc&&_pc.checked){return posCreerPret(cid);}if(_tmode&&_tmode.indexOf('tabac:')===0){return posEncaisserTabac(cid,_tmode);}
+  var _pc=document.getElementById('posPretChk');if(_pc&&_pc.checked){return posCreerPret(cid);}if(_tmode&&_tmode.indexOf('tabac:')===0){if(getRemb()>0)return posRembourserTabac(cid,_tmode);return posEncaisserTabac(cid,_tmode);}
   var venteBrutEnc=getCartTotal();var reducEnc=getReduc();var venteTotal=venteBrutEnc-reducEnc;if(venteTotal<0)venteTotal=0;
   var facteurReduc=(venteBrutEnc>0)?(venteTotal/venteBrutEnc):1;
   var remb=getRemb();
@@ -4510,6 +4510,45 @@ function posModeChanged(){
   if(!sel||!wrap)return;
   var isTabac=sel.value && sel.value.indexOf('tabac:')===0;
   wrap.style.display=isTabac?'flex':'none';var pz=document.getElementById('posPretZone');if(pz)pz.style.display='block';
+}
+async function posRembourserTabac(cid,mode){
+  var tid=parseInt(mode.split(':')[1]);
+  var t=(typesTabacCache||[]).find(function(x){return x.id===tid;});
+  if(!t){notify('Type de tabac introuvable','error');return;}
+  var packs=parseFloat(document.getElementById('posTabacQty').value)||0;
+  if(packs<=0){notify('Indique le nombre de paquets recus','error');return;}
+  var remb=getRemb();
+  if(remb<=0){notify('Indique le montant a solder (champ remboursement)','error');return;}
+  var _posDate=(document.getElementById('posDate')&&document.getElementById('posDate').value)?document.getElementById('posDate').value:undefined;
+  var btn=document.getElementById('posCashout');if(btn){btn.disabled=true;btn.textContent='Encaissement...';}
+  var jAbsorbe=document.getElementById('posRembFrais')?document.getElementById('posRembFrais').checked:true;
+  var catId=null;
+  try{
+    var _rc=await api('/api/catalogue');
+    if(_rc&&_rc.ok&&_rc.data){
+      var _cn=(t.nom||'').trim().toLowerCase();
+      var _c=_rc.data.find(function(a){return (a.nom||'').trim().toLowerCase()===_cn;});
+      if(_c)catId=_c.id;
+    }
+  }catch(e){}
+  var stk=(catId?(' [STK '+catId+':+'+packs+']'):'');
+  var body={client_id:cid,type:'credit',motif:(posIsAssocie?'Depot':'Remboursement'),quantite:1,unite:'piece',
+    prix_unitaire:remb,mode_paiement:t.nom,
+    notes:(posIsAssocie?'[CAISSE] Depot associe':'[CAISSE] Remboursement dette')+' (paye en '+packs+' x '+t.nom+')'+stk,
+    frais_deduits:(jAbsorbe?0:1),compte:'euro',date:_posDate};
+  var ok=true;
+  try{var r=await api('/api/transactions',{method:'POST',body:body});if(!r||!r.ok)ok=false;}catch(e){ok=false;}
+  if(ok && catId){try{await api('/api/catalogue/'+catId+'/adjust-stock',{method:'POST',body:{delta:packs}});}catch(e){}}
+  if(btn){btn.disabled=false;btn.textContent='Encaisser';}
+  if(ok){
+    notify('Dette r\u00e9duite de '+remb.toFixed(2)+' EUR \u2014 '+packs+' '+t.nom+(catId?' \u2192 stock':''),'success');
+    var _pr=document.getElementById('posRemb');if(_pr)_pr.value='0';
+    var _tq=document.getElementById('posTabacQty');if(_tq)_tq.value='1';
+    if(typeof updatePosTotals==='function')updatePosTotals();
+    onPosClientChange();
+    if(typeof loadDashboard==='function')loadDashboard();
+    if(typeof loadTransactions==='function')loadTransactions();
+  }else{notify('Erreur remboursement tabac','error');}
 }
 async function posEncaisserTabac(cid,mode){
   var tid=parseInt(mode.split(':')[1]);
