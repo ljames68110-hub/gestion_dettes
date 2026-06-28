@@ -4211,15 +4211,45 @@ function posConvertTabac(debitId){
     });
   });
 }
-function posRembourserDette(debitId){
+async function posRembourserDette(debitId){
   var d=(window._posDettes||{})[debitId];if(!d)return;
   var rest=parseFloat(d.restant)||0;
-  var inp=document.getElementById('posRemb');
-  if(!inp){if(typeof notify==='function')notify('Champ remboursement introuvable','error');return;}
-  inp.value=rest.toFixed(2);
-  if(typeof updatePosTotals==='function')updatePosTotals();
-  try{inp.scrollIntoView({block:'center',behavior:'smooth'});inp.focus();inp.select();}catch(e){}
-  if(typeof notify==='function')notify('Montant pr\u00e9-rempli \u2014 choisis le mode puis Encaisser','success');
+  var pu=parseFloat(d.prix_unitaire)||0;
+  var isUnit=(d.compte==='tabac'||d.compte==='cantine')&&pu>0;
+  if(isUnit){
+    var qReste=rest/pu;
+    var v=await askMontant('Combien de '+_uniteLabel(d.unite,2)+' rembourse ? (reste '+_fmtQte(qReste)+')',_fmtQte(qReste));
+    if(v===null||v==='')return;
+    var q=parseFloat((''+v).replace(',','.'))||0;
+    if(q<=0){if(typeof notify==='function')notify('Quantite invalide','error');return;}
+    var cid=parseInt(document.getElementById('posClient').value);if(!cid)return;
+    var catId=null;
+    try{
+      var _rc=await api('/api/catalogue');
+      if(_rc&&_rc.ok&&_rc.data){
+        var _mn=(d.mode_paiement||'').trim().toLowerCase();
+        var _c=_rc.data.find(function(a){return (a.nom||'').trim().toLowerCase()===_mn;});
+        if(_c)catId=_c.id;
+      }
+    }catch(e){}
+    var stk=(catId?(' [STK '+catId+':+'+q+']'):'');
+    var body={client_id:cid,type:'credit',motif:'Remboursement',quantite:q,unite:(d.unite||'paquet'),
+      prix_unitaire:pu,mode_paiement:(d.mode_paiement||'Tabac'),notes:'[CAISSE] Remboursement dette tabac'+stk,
+      frais_deduits:0,compte:d.compte,linked_debit_id:debitId};
+    var res=await api('/api/transactions',{method:'POST',body:body});
+    if(res&&res.ok){
+      if(catId){try{await api('/api/catalogue/'+catId+'/adjust-stock',{method:'POST',body:{delta:q}});}catch(e){}}
+      if(typeof notify==='function')notify(_fmtQte(q)+' '+_uniteLabel(d.unite,q)+' rembourse(s)'+(catId?' + ajoute(s) au stock':''),'success');
+      onPosClientChange();
+    }else{if(typeof notify==='function')notify('Erreur remboursement','error');}
+  }else{
+    var inp=document.getElementById('posRemb');
+    if(!inp){if(typeof notify==='function')notify('Champ remboursement introuvable','error');return;}
+    inp.value=rest.toFixed(2);
+    if(typeof updatePosTotals==='function')updatePosTotals();
+    try{inp.scrollIntoView({block:'center',behavior:'smooth'});inp.focus();inp.select();}catch(e){}
+    if(typeof notify==='function')notify('Montant pr\u00e9-rempli \u2014 choisis le mode puis Encaisser','success');
+  }
 }
 function onPosClientChange(){
   var cid=parseInt(document.getElementById('posClient').value);
@@ -4493,24 +4523,28 @@ async function posEncaisserTabac(cid,mode){
   var btn=document.getElementById('posCashout');btn.disabled=true;btn.textContent='Encaissement...';
   var motif=(posCart.length?posCart.map(function(l){return l.nom;}).join(', '):'Paiement tabac');
   var comptant=(posPayMode==='cash');
+  var tabacCatId=null;
+  try{
+    var _rc=await api('/api/catalogue');
+    if(_rc&&_rc.ok&&_rc.data){
+      var _cn=(t.nom||'').trim().toLowerCase();
+      var _c=_rc.data.find(function(a){return (a.nom||'').trim().toLowerCase()===_cn;});
+      if(_c)tabacCatId=_c.id;
+    }
+  }catch(e){}
+  var stkParts=[];
+  posCart.forEach(function(l){if(l.libre)return;var dq=l.qty*((l.unite==='piece'&&l.grammesPiece>0)?l.grammesPiece:1);stkParts.push(l.id+':-'+dq);});
+  if(comptant && tabacCatId){stkParts.push(tabacCatId+':+'+packs);}
+  var stkTag=stkParts.length?(' [STK '+stkParts.join(';')+']'):'';
   var body={client_id:cid,type:'debit',motif:motif,quantite:packs,unite:'paquet',
     prix_unitaire:prix,mode_paiement:t.nom,
-    notes:(comptant?'[CAISSE PAYE] ':'[CAISSE CREDIT] ')+'Tabac: '+packs+' x '+t.nom,
+    notes:(comptant?'[CAISSE PAYE] ':'[CAISSE CREDIT] ')+'Tabac: '+packs+' x '+t.nom+stkTag,
     frais_deduits:0,compte:'tabac',date:_posDate};
   var ok=true;
   try{var r=await api('/api/transactions',{method:'POST',body:body});if(!r||!r.ok)ok=false;}catch(e){ok=false;}
-  // Les articles du panier sortent de leur stock
   posCart.forEach(function(l){if(l.libre)return;api('/api/catalogue/'+l.id+'/adjust-stock',{method:'POST',body:{delta:-(l.qty*((l.unite==='piece'&&l.grammesPiece>0)?l.grammesPiece:1))}}).catch(function(){});});
-  // Comptant : le tabac rentre dans le stock
-  if(comptant && ok){
-    try{
-      var _rc=await api('/api/catalogue');
-      if(_rc&&_rc.ok&&_rc.data){
-        var _cn=(t.nom||'').trim().toLowerCase();
-        var _cible=_rc.data.find(function(a){return (a.nom||'').trim().toLowerCase()===_cn;});
-        if(_cible){await api('/api/catalogue/'+_cible.id+'/adjust-stock',{method:'POST',body:{delta:packs}});}
-      }
-    }catch(e){}
+  if(comptant && ok && tabacCatId){
+    try{await api('/api/catalogue/'+tabacCatId+'/adjust-stock',{method:'POST',body:{delta:packs}});}catch(e){}
   }
   btn.disabled=false;btn.textContent='Encaisser';
   if(ok){

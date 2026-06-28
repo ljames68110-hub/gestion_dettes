@@ -309,10 +309,23 @@ def get_all_transactions(limit=200):
 
 
 def delete_transaction(trans_id: int):
+    import re as _re
     _ensure_sim_table()
     with get_conn() as conn:
         row = conn.execute("SELECT motif,quantite,type,COALESCE(notes,'') AS notes FROM transactions WHERE id=?", (trans_id,)).fetchone()
-        if row and row["type"] == "debit" and "[CAISSE" in (row["notes"] or ""):
+        notes = row["notes"] if row else ""
+        m = _re.search(r"\[STK ([^\]]*)\]", notes) if row else None
+        if m:
+            for part in m.group(1).split(";"):
+                part = part.strip()
+                if ":" in part:
+                    cid_s, delta_s = part.split(":", 1)
+                    try:
+                        cat_id = int(cid_s); delta = float(delta_s)
+                        conn.execute("UPDATE catalogue SET stock=COALESCE(stock,0)+? WHERE id=?", (-delta, cat_id))
+                    except Exception:
+                        pass
+        elif row and row["type"] == "debit" and "[CAISSE" in notes:
             cat = conn.execute("SELECT id FROM catalogue WHERE nom=? AND actif=1", (row["motif"],)).fetchone()
             if cat:
                 is_sim = conn.execute("SELECT COUNT(*) FROM sim_cards WHERE catalogue_id=?", (cat["id"],)).fetchone()[0] > 0
@@ -323,9 +336,6 @@ def delete_transaction(trans_id: int):
             _sync_sim_stock(conn, s["catalogue_id"])
         conn.execute("DELETE FROM transactions WHERE id=?", (trans_id,))
         conn.commit()
-
-# ── STATISTIQUES ──────────────────────────────────────────────────────────────
-
 def get_stats_client(client_id: int):
     with get_conn() as conn:
         def q(sql, *a):
