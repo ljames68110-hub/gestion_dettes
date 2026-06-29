@@ -1,6 +1,6 @@
-# main.py — Point d'entrée Gestion Perso
+# main.py - Point d'entree Gestion Perso
 """
-Lance Flask en arrière-plan puis ouvre une fenêtre native via PyWebView.
+Lance Flask en arriere-plan puis ouvre une fenetre native via PyWebView.
 Si PyWebView n'est pas disponible, fallback sur le navigateur.
 Compatible PyInstaller --onefile et installateur Inno Setup.
 """
@@ -18,14 +18,12 @@ def base_dir():
 
 def data_dir():
     if getattr(sys, "frozen", False):
-        # Stockage dans Documents\GestionPerso (toutes versions de l exe)
         home = os.path.expanduser("~")
         docs = os.path.join(home, "Documents")
         if not os.path.isdir(docs):
             docs = home
         d = os.path.join(docs, "GestionPerso")
         os.makedirs(d, exist_ok=True)
-        # Migration unique depuis l ancien emplacement AppData
         try:
             new_db = os.path.join(d, "dettes.db")
             if not os.path.exists(new_db):
@@ -54,13 +52,13 @@ import api
 
 db.DB_FILE = DB_PATH
 
-# -- Chiffrement de la base (actif seulement si dettes.db.enc existe) ----------
 ENC_PATH  = os.path.join(DATA_DIR, "dettes.db.enc")
 SALT_PATH = os.path.join(DATA_DIR, "dettes.salt")
 ENCRYPTION_ON = os.path.exists(ENC_PATH)
 DB_PASSWORD = None
 _SALT = None
 _LOCKED_DONE = False
+_BOOTED = False
 
 def _ask_password(msg):
     try:
@@ -90,7 +88,7 @@ def _info_box(msg):
 
 
 def _unlock_db():
-    """Si la base est chiffree, demande le mot de passe et la dechiffre."""
+    """Repli : si la base est chiffree, demande le mot de passe (prompt natif) et la dechiffre."""
     global DB_PASSWORD, _SALT
     if not ENCRYPTION_ON:
         return
@@ -99,11 +97,12 @@ def _unlock_db():
         from cryptography.fernet import InvalidToken
     except Exception:
         InvalidToken = ()
-    try:
-        with open(SALT_PATH, "rb") as f:
-            _SALT = f.read()
-    except Exception:
-        print("[Gestion Perso] Sel introuvable, base illisible."); sys.exit(1)
+    if _SALT is None:
+        try:
+            with open(SALT_PATH, "rb") as f:
+                _SALT = f.read()
+        except Exception:
+            print("[Gestion Perso] Sel introuvable, base illisible."); sys.exit(1)
     _msg = "Entrez votre mot de passe :"
     for _ in range(5):
         pwd = _ask_password(_msg)
@@ -126,7 +125,6 @@ def _unlock_db():
     print("[Gestion Perso] Trop d'essais, arret."); sys.exit(1)
 
 def _lock_db_on_exit():
-    """Rechiffre la base et efface la version en clair (fiabilise)."""
     global _LOCKED_DONE
     if _LOCKED_DONE:
         return
@@ -150,7 +148,6 @@ def _lock_db_on_exit():
         print("[Gestion Perso] Echec rechiffrement:", e)
 
 
-# Chiffrement desactive
 HOST = "127.0.0.1"
 PORT = 5000
 URL  = f"http://{HOST}:{PORT}"
@@ -179,7 +176,6 @@ def start_flask():
 
 
 def _save_backup_on_exit():
-    """Copie de secours unique de la base, ecrasee a chaque fermeture."""
     if ENCRYPTION_ON and DB_PASSWORD is not None:
         _lock_db_on_exit(); return
     try:
@@ -191,7 +187,41 @@ def _save_backup_on_exit():
     except Exception as e:
         print(f"[Gestion Perso] Echec sauvegarde fermeture : {e}")
 
+
+def _boot_app_after_unlock():
+    """Init DB + PIN + updater + Flask (une seule fois)."""
+    global _BOOTED
+    if _BOOTED:
+        return
+    _BOOTED = True
+    db.init_db()
+    if not db.has_pin():
+        db.set_pin("1234")
+        print("[Gestion Perso] PIN par defaut cree : 1234")
+    try:
+        import updater
+        updater.check_in_background(
+            notify_flask_fn=lambda r: print(f"[Gestion Perso] MAJ : {r.get('version')}")
+        )
+    except ImportError:
+        pass
+    t = threading.Thread(target=start_flask, daemon=True)
+    t.start()
+    print("[Gestion Perso] Attente Flask...")
+    wait_for_flask()
+    print("[Gestion Perso] Flask OK !")
+
+
+def _login_html_url():
+    p = os.path.join(base_dir(), "web", "login.html")
+    if not os.path.exists(p):
+        return None
+    return "file:///" + p.replace("\\", "/").lstrip("/")
+
+
 class _GpApi:
+    def __init__(self):
+        self.window = None
     def quit(self):
         try:
             import webview as _wv
@@ -202,43 +232,40 @@ class _GpApi:
                     pass
         except Exception:
             pass
+    def try_unlock(self, pwd):
+        """Appele depuis l'ecran HTML de connexion : dechiffre puis navigue vers l'app."""
+        global DB_PASSWORD
+        if not pwd:
+            return {"ok": False, "error": "Mot de passe vide"}
+        import crypto_db
+        try:
+            from cryptography.fernet import InvalidToken
+        except Exception:
+            InvalidToken = ()
+        try:
+            crypto_db.decrypt_file(ENC_PATH, DB_PATH, pwd, _SALT)
+            DB_PASSWORD = pwd
+        except InvalidToken:
+            return {"ok": False, "error": "Mot de passe incorrect"}
+        except (PermissionError, OSError):
+            return {"ok": False, "error": "Gestion Perso est deja ouvert. Ferme l'autre fenetre puis relance."}
+        except Exception:
+            return {"ok": False, "error": "Mot de passe incorrect"}
+        try:
+            _boot_app_after_unlock()
+            if self.window is not None:
+                self.window.load_url(URL)
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": "Erreur demarrage: " + str(e)}
 
 
-def main():
-    atexit.register(_save_backup_on_exit)
-    print(f"[Gestion Perso] Demarrage {URL}")
-    print(f"[Gestion Perso] DB : {DB_PATH}")
-
-    # Chiffrement désactivé temporairement — base SQLite standard
-    _unlock_db()
-    db.init_db()
-    if not db.has_pin():
-        db.set_pin("1234")
-        print("[Gestion Perso] PIN par defaut cree : 1234")
-
-    try:
-        import updater
-        updater.check_in_background(
-            notify_flask_fn=lambda r: print(f"[Gestion Perso] MAJ : {r.get('version')}")
-        )
-    except ImportError: pass
-
-    flask_thread = threading.Thread(target=start_flask, daemon=True)
-    flask_thread.start()
-
-    print("[Gestion Perso] Attente Flask...")
-    if not wait_for_flask():
-        print("[Gestion Perso] Timeout — fallback navigateur")
-        import webbrowser; webbrowser.open(URL)
-        flask_thread.join(); return
-
-    print("[Gestion Perso] Flask OK !")
-
+def _open_main_window():
     try:
         import webview
         icon = get_icon_path()
-        print("[Gestion Perso] PyWebView — fenetre native")
-        window = webview.create_window(
+        print("[Gestion Perso] PyWebView - fenetre native")
+        webview.create_window(
             title            = "Gestion Perso",
             url              = URL,
             width            = 1280,
@@ -250,11 +277,77 @@ def main():
             js_api           = _GpApi(),
         )
         webview.start(debug=False, icon=icon, gui="edgechromium")
-        _save_backup_on_exit()  # apres fermeture fenetre
+        _save_backup_on_exit()
     except ImportError:
-        print("[Gestion Perso] PyWebView absent — navigateur")
+        print("[Gestion Perso] PyWebView absent - navigateur")
         import webbrowser; webbrowser.open(URL)
-        flask_thread.join()
+
+
+def main():
+    global _SALT
+    atexit.register(_save_backup_on_exit)
+    print(f"[Gestion Perso] Demarrage {URL}")
+    print(f"[Gestion Perso] DB : {DB_PATH}")
+
+    # --- Base chiffree : ecran de connexion HTML, repli tkinter si souci ---
+    if ENCRYPTION_ON:
+        try:
+            with open(SALT_PATH, "rb") as f:
+                _SALT = f.read()
+        except Exception:
+            _info_box("Sel introuvable, base illisible.")
+            sys.exit(1)
+        login_url = _login_html_url()
+        if login_url:
+            try:
+                import webview
+                icon = get_icon_path()
+                api_obj = _GpApi()
+                win = webview.create_window(
+                    title            = "Gestion Perso",
+                    url              = login_url,
+                    width            = 1280,
+                    height           = 800,
+                    min_size         = (900, 600),
+                    resizable        = True,
+                    maximized        = True,
+                    background_color = "#0a0a0f",
+                    js_api           = api_obj,
+                )
+                api_obj.window = win
+                webview.start(debug=False, icon=icon, gui="edgechromium")
+                _save_backup_on_exit()
+                return
+            except Exception as e:
+                print("[Gestion Perso] Ecran HTML indisponible, repli classique:", e)
+        # Repli ultime : prompt natif (toujours fonctionnel)
+        _unlock_db()
+        _boot_app_after_unlock()
+        _open_main_window()
+        return
+
+    # --- Base non chiffree : flux normal ---
+    db.init_db()
+    if not db.has_pin():
+        db.set_pin("1234")
+        print("[Gestion Perso] PIN par defaut cree : 1234")
+    try:
+        import updater
+        updater.check_in_background(
+            notify_flask_fn=lambda r: print(f"[Gestion Perso] MAJ : {r.get('version')}")
+        )
+    except ImportError:
+        pass
+    flask_thread = threading.Thread(target=start_flask, daemon=True)
+    flask_thread.start()
+    print("[Gestion Perso] Attente Flask...")
+    if not wait_for_flask():
+        print("[Gestion Perso] Timeout - fallback navigateur")
+        import webbrowser; webbrowser.open(URL)
+        flask_thread.join(); return
+    print("[Gestion Perso] Flask OK !")
+    _open_main_window()
+
 
 if __name__ == "__main__":
     main()
