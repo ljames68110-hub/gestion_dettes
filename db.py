@@ -717,6 +717,9 @@ def _ensure_catalogue_table():
         if "grammes_piece" not in cols:
             conn.execute("ALTER TABLE catalogue ADD COLUMN grammes_piece REAL DEFAULT 0")
             conn.commit()
+        if "code_barre" not in cols:
+            conn.execute("ALTER TABLE catalogue ADD COLUMN code_barre TEXT DEFAULT ''")
+            conn.commit()
 
 def get_catalogue():
     _ensure_catalogue_table()
@@ -732,24 +735,24 @@ def get_catalogue_item(item_id):
         row = conn.execute("SELECT * FROM catalogue WHERE id=?", (item_id,)).fetchone()
     return dict(row) if row else None
 
-def add_catalogue_item(nom, categorie, description, prix_vente, prix_achat, unite, stock_min, stock=0, grammes_piece=0):
+def add_catalogue_item(nom, categorie, description, prix_vente, prix_achat, unite, stock_min, stock=0, grammes_piece=0, code_barre=''):
     _ensure_catalogue_table()
     with get_conn() as conn:
         cur = conn.execute(
-            """INSERT INTO catalogue (nom,categorie,description,prix_vente,prix_achat,unite,stock_min,stock,grammes_piece)
-               VALUES (?,?,?,?,?,?,?,?,?)""",
-            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, stock, grammes_piece)
+            """INSERT INTO catalogue (nom,categorie,description,prix_vente,prix_achat,unite,stock_min,stock,grammes_piece,code_barre)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, stock, grammes_piece, code_barre)
         )
         conn.commit()
         return cur.lastrowid
 
-def update_catalogue_item(item_id, nom, categorie, description, prix_vente, prix_achat, unite, stock_min, stock=None, grammes_piece=None):
+def update_catalogue_item(item_id, nom, categorie, description, prix_vente, prix_achat, unite, stock_min, stock=None, grammes_piece=None, code_barre=None):
     _ensure_catalogue_table()
     with get_conn() as conn:
         conn.execute(
             """UPDATE catalogue SET nom=?,categorie=?,description=?,prix_vente=?,
-               prix_achat=?,unite=?,stock_min=?, stock=COALESCE(?,stock), grammes_piece=COALESCE(?,grammes_piece) WHERE id=?""",
-            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, stock, grammes_piece, item_id)
+               prix_achat=?,unite=?,stock_min=?, stock=COALESCE(?,stock), grammes_piece=COALESCE(?,grammes_piece), code_barre=COALESCE(?,code_barre) WHERE id=?""",
+            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, stock, grammes_piece, code_barre, item_id)
         )
         conn.commit()
 
