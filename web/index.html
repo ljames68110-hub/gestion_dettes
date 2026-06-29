@@ -719,7 +719,7 @@ select option{background:var(--bg3)}
 
       <div class="page" id="pg-catalogue">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
-          <button class="btn primary" onclick="openAddCatalogue()">+ Nouvel article</button><button class="btn" onclick="generateBarcodes()" title="Attribue un code-barres aux articles qui n'en ont pas">Generer codes-barres</button><button class="btn" onclick="printLabels()" title="Imprimer les etiquettes a coller">Imprimer etiquettes</button>
+          <button class="btn primary" onclick="openAddCatalogue()">+ Nouvel article</button><button class="btn" onclick="openPochettes()" title="Creer des pochettes pre-pesees avec code-barres">Creer des pochettes</button><button class="btn" onclick="generateBarcodes()" title="Attribue un code-barres aux articles qui n'en ont pas">Generer codes-barres</button><button class="btn" onclick="printLabels()" title="Imprimer les etiquettes a coller">Imprimer etiquettes</button>
           <input class="catalogue-search" placeholder="Rechercher..." oninput="searchCatalogue(this.value)">
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px" id="catalogueGrid"><div class="loading"><div class="spinner"></div> Chargement...</div></div>
@@ -3964,6 +3964,50 @@ function printLabels(){
   });
   setTimeout(function(){window.print();},350);
 }
+// --- Pochettes pre-pesees (articles + codes-barres) ---
+function openPochettes(){
+  var prods=(catalogueCache||[]).filter(function(x){return x.unite==='gramme';});
+  if(!prods.length){if(typeof notify==='function')notify('Aucun produit vendu au gramme.','error');return;}
+  var sel=document.getElementById('pochProduit');sel.innerHTML='';
+  prods.forEach(function(it){var o=document.createElement('option');o.value=it.id;o.textContent=it.nom+' ('+parseFloat(it.prix_vente||0).toFixed(2)+' EUR/g)';sel.appendChild(o);});
+  document.getElementById('pochRows').innerHTML='';
+  pochAddRow();pochAddRow();pochAddRow();
+  document.getElementById('pochetteModal').style.display='flex';
+}
+function pochAddRow(){
+  var c=document.getElementById('pochRows');if(!c)return;
+  var r=document.createElement('div');r.className='poch-row';r.style.cssText='display:flex;gap:8px;margin-bottom:8px;align-items:center';
+  r.innerHTML='<input type="number" step="0.1" min="0" placeholder="Poids (g)" class="poch-poids" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text)" oninput="pochAutoPrix(this)"><input type="number" step="0.5" min="0" placeholder="Prix (EUR)" class="poch-prix" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text)"><button class="btn" style="padding:6px 11px" onclick="this.parentNode.remove()">X</button>';
+  c.appendChild(r);
+}
+function pochAutoPrix(inp){
+  var row=inp.parentNode;var prix=row.querySelector('.poch-prix');if(prix.value)return;
+  var sel=document.getElementById('pochProduit');var it=(catalogueCache||[]).find(function(x){return String(x.id)===String(sel.value);});
+  if(it){var p=(parseFloat(inp.value)||0)*parseFloat(it.prix_vente||0);if(p>0)prix.value=p.toFixed(2);}
+}
+function pochRecalc(){
+  var sel=document.getElementById('pochProduit');var it=(catalogueCache||[]).find(function(x){return String(x.id)===String(sel.value);});if(!it)return;
+  Array.prototype.slice.call(document.querySelectorAll('#pochRows .poch-row')).forEach(function(r){var prix=r.querySelector('.poch-prix');if(prix.value)return;var poids=parseFloat(r.querySelector('.poch-poids').value)||0;var p=poids*parseFloat(it.prix_vente||0);if(p>0)prix.value=p.toFixed(2);});
+}
+function closePochettes(){var m=document.getElementById('pochetteModal');if(m)m.style.display='none';}
+async function creerPochettes(){
+  var sel=document.getElementById('pochProduit');var it=(catalogueCache||[]).find(function(x){return String(x.id)===String(sel.value);});
+  if(!it){if(typeof notify==='function')notify('Choisis un produit','error');return;}
+  var rows=Array.prototype.slice.call(document.querySelectorAll('#pochRows .poch-row'));var jobs=[];
+  rows.forEach(function(r){var poids=parseFloat(r.querySelector('.poch-poids').value)||0;var prix=parseFloat(r.querySelector('.poch-prix').value)||0;if(poids>0&&prix>0)jobs.push({poids:poids,prix:prix});});
+  if(!jobs.length){if(typeof notify==='function')notify('Ajoute au moins une pochette (poids + prix)','error');return;}
+  var btn=document.getElementById('pochCreerBtn');if(btn){btn.disabled=true;btn.textContent='Creation...';}
+  for(var i=0;i<jobs.length;i++){var j=jobs[i];
+    var nom='Pochette '+it.nom+' '+j.poids+'g';
+    var pa=Math.round((j.poids*parseFloat(it.prix_achat||0))*100)/100;
+    await api('/api/catalogue',{method:'POST',body:{nom:nom,categorie:it.categorie||'General',description:j.poids+'g de '+it.nom,prix_vente:j.prix,prix_achat:pa,unite:'piece',stock_min:0}});
+  }
+  await api('/api/catalogue/generate-barcodes',{method:'POST'});
+  await loadCatalogue();
+  if(btn){btn.disabled=false;btn.textContent='Creer + generer les codes';}
+  closePochettes();
+  if(typeof notify==='function')notify(jobs.length+' pochette(s) creee(s) avec code-barres','success');
+}
 async function loadCatalogue(){var res=await api('/api/catalogue');if(!res||!res.ok)return;catalogueCache=res.data;renderCatalogue();}
 function renderCatalogue(){var grid=document.getElementById('catalogueGrid');if(!grid)return;grid.innerHTML='';if(!catalogueCache.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:40px">Aucun article. Cliquez sur <strong style="color:var(--gold2)">+ Nouvel article</strong>.</div>';return;}
 var cats={};catalogueCache.forEach(function(it){var c=it.categorie||'General';if(!cats[c])cats[c]=[];cats[c].push(it);});
@@ -5325,5 +5369,19 @@ tbody tr:hover{background:rgba(255,255,255,.025);}
 }
 </style>
 <div id="labelsPrint"></div>
+<div id="pochetteModal" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.78);align-items:center;justify-content:center" onclick="if(event.target===this)closePochettes()">
+  <div style="background:var(--bg2);border:1px solid var(--gold);border-radius:16px;padding:24px;max-width:460px;width:92%;max-height:85vh;overflow:auto">
+    <div style="font-size:18px;font-weight:700;color:var(--gold2);margin-bottom:4px">Creer des pochettes</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Choisis un produit, ajoute les poids et prix. Chaque pochette devient un article scannable avec son code-barres.</div>
+    <label style="font-size:12px;color:var(--text3)">Produit de base</label>
+    <select id="pochProduit" onchange="pochRecalc()" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);margin:6px 0 14px"></select>
+    <div id="pochRows"></div>
+    <button class="btn" onclick="pochAddRow()" style="font-size:12px;padding:6px 12px;margin-top:4px">+ Ajouter une pochette</button>
+    <div style="display:flex;gap:8px;margin-top:18px">
+      <button class="btn primary" id="pochCreerBtn" onclick="creerPochettes()" style="flex:1">Creer + generer les codes</button>
+      <button class="btn" onclick="closePochettes()">Annuler</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
