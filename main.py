@@ -59,6 +59,7 @@ DB_PASSWORD = None
 _SALT = None
 _LOCKED_DONE = False
 _BOOTED = False
+_FLASK_STARTED = False
 
 def _ask_password(msg):
     try:
@@ -171,8 +172,26 @@ def wait_for_flask():
         except: continue
     return False
 
+def _wait_url(path):
+    """Attend qu'une URL statique reponde (sans toucher a la base)."""
+    import urllib.request
+    for _ in range(40):
+        time.sleep(0.25)
+        try:
+            urllib.request.urlopen(f"{URL}{path}", timeout=1)
+            return True
+        except: continue
+    return False
+
 def start_flask():
     api.start(host=HOST, port=PORT, debug=False)
+
+def _ensure_flask_started():
+    global _FLASK_STARTED
+    if _FLASK_STARTED:
+        return
+    _FLASK_STARTED = True
+    threading.Thread(target=start_flask, daemon=True).start()
 
 
 def _save_backup_on_exit():
@@ -205,18 +224,10 @@ def _boot_app_after_unlock():
         )
     except ImportError:
         pass
-    t = threading.Thread(target=start_flask, daemon=True)
-    t.start()
+    _ensure_flask_started()
     print("[Gestion Perso] Attente Flask...")
     wait_for_flask()
     print("[Gestion Perso] Flask OK !")
-
-
-def _login_html_url():
-    p = os.path.join(base_dir(), "web", "login.html")
-    if not os.path.exists(p):
-        return None
-    return "file:///" + p.replace("\\", "/").lstrip("/")
 
 
 class _GpApi:
@@ -289,7 +300,7 @@ def main():
     print(f"[Gestion Perso] Demarrage {URL}")
     print(f"[Gestion Perso] DB : {DB_PATH}")
 
-    # --- Base chiffree : ecran de connexion HTML, repli tkinter si souci ---
+    # --- Base chiffree : ecran de connexion HTML servi par Flask (http://) ---
     if ENCRYPTION_ON:
         try:
             with open(SALT_PATH, "rb") as f:
@@ -297,29 +308,36 @@ def main():
         except Exception:
             _info_box("Sel introuvable, base illisible.")
             sys.exit(1)
-        login_url = _login_html_url()
-        if login_url:
+
+        login_file = os.path.join(base_dir(), "web", "login.html")
+        if os.path.exists(login_file):
             try:
-                import webview
-                icon = get_icon_path()
-                api_obj = _GpApi()
-                win = webview.create_window(
-                    title            = "Gestion Perso",
-                    url              = login_url,
-                    width            = 1280,
-                    height           = 800,
-                    min_size         = (900, 600),
-                    resizable        = True,
-                    maximized        = True,
-                    background_color = "#0a0a0f",
-                    js_api           = api_obj,
-                )
-                api_obj.window = win
-                webview.start(debug=False, icon=icon, gui="edgechromium")
-                _save_backup_on_exit()
-                return
+                _ensure_flask_started()
+                print("[Gestion Perso] Attente ecran de connexion...")
+                if _wait_url("/login.html"):
+                    import webview
+                    icon = get_icon_path()
+                    api_obj = _GpApi()
+                    win = webview.create_window(
+                        title            = "Gestion Perso",
+                        url              = URL + "/login.html",
+                        width            = 1280,
+                        height           = 800,
+                        min_size         = (900, 600),
+                        resizable        = True,
+                        maximized        = True,
+                        background_color = "#0a0a0f",
+                        js_api           = api_obj,
+                    )
+                    api_obj.window = win
+                    webview.start(debug=False, icon=icon, gui="edgechromium")
+                    _save_backup_on_exit()
+                    return
+                else:
+                    print("[Gestion Perso] /login.html injoignable, repli classique.")
             except Exception as e:
                 print("[Gestion Perso] Ecran HTML indisponible, repli classique:", e)
+
         # Repli ultime : prompt natif (toujours fonctionnel)
         _unlock_db()
         _boot_app_after_unlock()
@@ -338,13 +356,12 @@ def main():
         )
     except ImportError:
         pass
-    flask_thread = threading.Thread(target=start_flask, daemon=True)
-    flask_thread.start()
+    _ensure_flask_started()
     print("[Gestion Perso] Attente Flask...")
     if not wait_for_flask():
         print("[Gestion Perso] Timeout - fallback navigateur")
         import webbrowser; webbrowser.open(URL)
-        flask_thread.join(); return
+        return
     print("[Gestion Perso] Flask OK !")
     _open_main_window()
 
