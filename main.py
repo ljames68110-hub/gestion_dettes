@@ -60,6 +60,9 @@ _SALT = None
 _LOCKED_DONE = False
 _BOOTED = False
 _FLASK_STARTED = False
+PHONE_CERT = os.path.join(DATA_DIR, "phone.crt")
+PHONE_KEY  = os.path.join(DATA_DIR, "phone.key")
+_PHONE_STARTED = False
 
 def _ask_password(msg):
     try:
@@ -186,12 +189,62 @@ def _wait_url(path):
 def start_flask():
     api.start(host=HOST, port=PORT, debug=False)
 
+def _ensure_phone_cert():
+    if os.path.exists(PHONE_CERT) and os.path.exists(PHONE_KEY):
+        return True
+    try:
+        import datetime
+        from cryptography import x509
+        from cryptography.x509.oid import NameOID
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, u"GestionPerso")])
+        san = x509.SubjectAlternativeName([x509.DNSName(u"localhost")])
+        now = datetime.datetime.now(datetime.timezone.utc)
+        cert = (x509.CertificateBuilder()
+            .subject_name(name).issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - datetime.timedelta(days=1))
+            .not_valid_after(now + datetime.timedelta(days=3650))
+            .add_extension(san, critical=False)
+            .sign(key, hashes.SHA256()))
+        with open(PHONE_KEY, "wb") as f:
+            f.write(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()))
+        with open(PHONE_CERT, "wb") as f:
+            f.write(cert.public_bytes(serialization.Encoding.PEM))
+        return True
+    except Exception as e:
+        print("[Gestion Perso] Certificat scan KO:", e)
+        return False
+
+def _start_phone_server():
+    """Serveur HTTPS sur le reseau local pour le scan telephone (best-effort)."""
+    global _PHONE_STARTED
+    if _PHONE_STARTED:
+        return
+    if not _ensure_phone_cert():
+        return
+    _PHONE_STARTED = True
+    def _run():
+        try:
+            api.start_phone_https(PHONE_CERT, PHONE_KEY)
+        except Exception as e:
+            print("[Gestion Perso] Serveur scan telephone KO:", e)
+    threading.Thread(target=_run, daemon=True).start()
+    print("[Gestion Perso] Serveur scan telephone (HTTPS) demarre.")
+
 def _ensure_flask_started():
     global _FLASK_STARTED
     if _FLASK_STARTED:
         return
     _FLASK_STARTED = True
     threading.Thread(target=start_flask, daemon=True).start()
+    try:
+        _start_phone_server()
+    except Exception as e:
+        print("[Gestion Perso] Scan telephone non demarre:", e)
 
 
 def _save_backup_on_exit():

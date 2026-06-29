@@ -1502,6 +1502,54 @@ def api_unlock():
         res = {"ok": False, "error": str(e)}
     return jsonify(res)
 
+# -- Relais scan telephone -----------------------------------------------------
+import threading as _scan_th
+_SCAN_QUEUE = []
+_SCAN_LOCK = _scan_th.Lock()
+PHONE_PORT = 5443
+
+def _lan_ip():
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80)); ip = s.getsockname()[0]
+    except Exception:
+        ip = "127.0.0.1"
+    finally:
+        s.close()
+    return ip
+
+@app.route("/api/scan-push", methods=["POST"])
+def scan_push():
+    data = request.json or {}
+    code = str(data.get("code", "")).strip()
+    if code:
+        with _SCAN_LOCK:
+            _SCAN_QUEUE.append(code)
+            if len(_SCAN_QUEUE) > 50:
+                del _SCAN_QUEUE[:-50]
+    return jsonify({"ok": True})
+
+@app.route("/api/scan-pull")
+def scan_pull():
+    with _SCAN_LOCK:
+        items = _SCAN_QUEUE[:]
+        _SCAN_QUEUE.clear()
+    return jsonify({"ok": True, "codes": items})
+
+@app.route("/api/scan-info")
+def scan_info():
+    return jsonify({"ok": True, "ip": _lan_ip(), "port": PHONE_PORT})
+
+def start_phone_https(certfile, keyfile, host="0.0.0.0", port=None):
+    import ssl
+    from werkzeug.serving import make_server
+    port = port or PHONE_PORT
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(certfile, keyfile)
+    srv = make_server(host, port, app, ssl_context=ctx, threaded=True)
+    srv.serve_forever()
+
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_frontend(path):

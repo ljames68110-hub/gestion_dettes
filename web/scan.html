@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Scan - Gestion Perso</title>
+<script src="/html5-qrcode.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#0a0a0f;color:#e8e6f0;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:16px;}
+  h1{font-size:18px;font-weight:700;margin:6px 0 2px;}
+  h1 span{color:#e8c97e;}
+  .sub{font-size:12px;color:#6b6985;margin-bottom:14px;}
+  #reader{width:100%;max-width:420px;border-radius:14px;overflow:hidden;border:1px solid #2a2a3a;background:#000;}
+  button{margin-top:16px;padding:14px 22px;border:none;border-radius:12px;font-size:16px;font-weight:600;color:#1a1408;background:linear-gradient(180deg,#e8c97e,#c9a84c);cursor:pointer;}
+  button.sec{background:#16161f;color:#e8e6f0;border:1px solid #2a2a3a;}
+  .hit{margin-top:16px;min-height:54px;width:100%;max-width:420px;text-align:center;}
+  .code{font-family:'DM Mono',monospace;font-size:20px;font-weight:700;color:#7ee0a0;}
+  .err{color:#ff6f5e;font-size:13px;margin-top:10px;text-align:center;}
+  .count{font-size:12px;color:#e8c97e;margin-top:4px;}
+</style>
+</head>
+<body>
+  <h1>Gestion <span>Perso</span> - Scan</h1>
+  <div class="sub">Vise un code-barres, il part direct dans la caisse du PC.</div>
+  <div id="reader"></div>
+  <button id="startBtn">Demarrer la camera</button>
+  <button id="stopBtn" class="sec" style="display:none">Arreter</button>
+  <div class="hit" id="hit"></div>
+  <div class="err" id="err"></div>
+<script>
+  var reader=null, running=false, lastCode='', lastT=0, total=0;
+  var hit=document.getElementById('hit'), errEl=document.getElementById('err');
+  var startBtn=document.getElementById('startBtn'), stopBtn=document.getElementById('stopBtn');
+  function fmts(){
+    var F=window.Html5QrcodeSupportedFormats||{};
+    return [F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.CODE_128,F.CODE_39].filter(function(x){return x!==undefined;});
+  }
+  function onScan(text){
+    var now=Date.now();
+    if(text===lastCode && now-lastT<2500) return;
+    lastCode=text; lastT=now; total++;
+    try{
+      fetch('/api/scan-push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:text})});
+    }catch(e){}
+    hit.innerHTML='<div class="code">'+text+'</div><div class="count">Envoye ('+total+' au total)</div>';
+    if(navigator.vibrate)try{navigator.vibrate(80);}catch(e){}
+  }
+  function start(){
+    errEl.textContent='';
+    if(!window.Html5Qrcode){errEl.textContent='Librairie non chargee.';return;}
+    reader=new Html5Qrcode("reader",{formatsToSupport:fmts()});
+    reader.start({facingMode:"environment"},{fps:10,qrbox:{width:260,height:170}},onScan,function(){})
+      .then(function(){running=true;startBtn.style.display='none';stopBtn.style.display='inline-block';})
+      .catch(function(e){errEl.textContent='Camera impossible: '+e+' (verifie l autorisation camera et le certificat).';});
+  }
+  function stop(){
+    if(reader&&running){reader.stop().then(function(){reader.clear();running=false;startBtn.style.display='inline-block';stopBtn.style.display='none';}).catch(function(){});}
+  }
+  startBtn.addEventListener('click',start);
+  stopBtn.addEventListener('click',stop);
+</script>
+</body>
+</html>
