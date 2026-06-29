@@ -208,7 +208,7 @@ def _save_backup_on_exit():
 
 
 def _boot_app_after_unlock():
-    """Init DB + PIN + updater + Flask (une seule fois)."""
+    """Repli tkinter : Init DB + PIN + updater + Flask (une seule fois)."""
     global _BOOTED
     if _BOOTED:
         return
@@ -231,8 +231,6 @@ def _boot_app_after_unlock():
 
 
 class _GpApi:
-    def __init__(self):
-        self.window = None
     def quit(self):
         try:
             import webview as _wv
@@ -243,32 +241,45 @@ class _GpApi:
                     pass
         except Exception:
             pass
-    def try_unlock(self, pwd):
-        """Appele depuis l'ecran HTML de connexion : dechiffre puis navigue vers l'app."""
-        global DB_PASSWORD
-        if not pwd:
-            return {"ok": False, "error": "Mot de passe vide"}
-        import crypto_db
+
+
+def _do_unlock(pwd):
+    """Handler appele par Flask (/api/unlock) depuis l'ecran HTML. Dechiffre + prepare l'app."""
+    global DB_PASSWORD
+    if DB_PASSWORD is not None:
+        return {"ok": True}
+    if not pwd:
+        return {"ok": False, "error": "Mot de passe vide"}
+    import crypto_db
+    try:
+        from cryptography.fernet import InvalidToken
+    except Exception:
+        InvalidToken = ()
+    try:
+        crypto_db.decrypt_file(ENC_PATH, DB_PATH, pwd, _SALT)
+        DB_PASSWORD = pwd
+    except InvalidToken:
+        return {"ok": False, "error": "Mot de passe incorrect"}
+    except (PermissionError, OSError):
+        return {"ok": False, "error": "Gestion Perso est deja ouvert. Ferme l'autre fenetre puis relance."}
+    except Exception:
+        return {"ok": False, "error": "Mot de passe incorrect"}
+    try:
+        db.init_db()
+        if not db.has_pin():
+            db.set_pin("1234")
+            print("[Gestion Perso] PIN par defaut cree : 1234")
         try:
-            from cryptography.fernet import InvalidToken
-        except Exception:
-            InvalidToken = ()
-        try:
-            crypto_db.decrypt_file(ENC_PATH, DB_PATH, pwd, _SALT)
-            DB_PASSWORD = pwd
-        except InvalidToken:
-            return {"ok": False, "error": "Mot de passe incorrect"}
-        except (PermissionError, OSError):
-            return {"ok": False, "error": "Gestion Perso est deja ouvert. Ferme l'autre fenetre puis relance."}
-        except Exception:
-            return {"ok": False, "error": "Mot de passe incorrect"}
-        try:
-            _boot_app_after_unlock()
-            if self.window is not None:
-                self.window.load_url(URL)
-            return {"ok": True}
-        except Exception as e:
-            return {"ok": False, "error": "Erreur demarrage: " + str(e)}
+            import updater
+            updater.check_in_background(
+                notify_flask_fn=lambda r: print(f"[Gestion Perso] MAJ : {r.get('version')}")
+            )
+        except ImportError:
+            pass
+        print("[Gestion Perso] Base dechiffree (ecran HTML).")
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": "Erreur demarrage: " + str(e)}
 
 
 def _open_main_window():
@@ -300,7 +311,7 @@ def main():
     print(f"[Gestion Perso] Demarrage {URL}")
     print(f"[Gestion Perso] DB : {DB_PATH}")
 
-    # --- Base chiffree : ecran de connexion HTML servi par Flask (http://) ---
+    # --- Base chiffree : ecran de connexion HTML servi par Flask (http://, via /api/unlock) ---
     if ENCRYPTION_ON:
         try:
             with open(SALT_PATH, "rb") as f:
@@ -312,13 +323,13 @@ def main():
         login_file = os.path.join(base_dir(), "web", "login.html")
         if os.path.exists(login_file):
             try:
+                api.set_unlock_handler(_do_unlock)   # /api/unlock -> dechiffrement
                 _ensure_flask_started()
                 print("[Gestion Perso] Attente ecran de connexion...")
                 if _wait_url("/login.html"):
                     import webview
                     icon = get_icon_path()
-                    api_obj = _GpApi()
-                    win = webview.create_window(
+                    webview.create_window(
                         title            = "Gestion Perso",
                         url              = URL + "/login.html",
                         width            = 1280,
@@ -327,9 +338,8 @@ def main():
                         resizable        = True,
                         maximized        = True,
                         background_color = "#0a0a0f",
-                        js_api           = api_obj,
+                        js_api           = _GpApi(),
                     )
-                    api_obj.window = win
                     webview.start(debug=False, icon=icon, gui="edgechromium")
                     _save_backup_on_exit()
                     return

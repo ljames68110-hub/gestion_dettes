@@ -1485,6 +1485,23 @@ def _catalogue_photo_map():
         pass
     return m
 
+_UNLOCK_HANDLER = None
+def set_unlock_handler(fn):
+    global _UNLOCK_HANDLER
+    _UNLOCK_HANDLER = fn
+
+@app.route("/api/unlock", methods=["POST"])
+def api_unlock():
+    data = request.json or {}
+    pwd = str(data.get("password", ""))
+    if _UNLOCK_HANDLER is None:
+        return jsonify({"ok": True})
+    try:
+        res = _UNLOCK_HANDLER(pwd) or {}
+    except Exception as e:
+        res = {"ok": False, "error": str(e)}
+    return jsonify(res)
+
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_frontend(path):

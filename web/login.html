@@ -38,23 +38,20 @@
 <script>
   var btn=document.getElementById('btn'),pwd=document.getElementById('pwd'),err=document.getElementById('err');
   var busy=false;
-  function gpapi(){return (window.pywebview&&window.pywebview.api)?window.pywebview.api:null;}
   async function submit(){
     if(busy)return;
     var p=pwd.value;
     if(!p){err.textContent='Entre ton mot de passe';return;}
-    var a=gpapi();
-    if(!a){err.textContent='Initialisation... reessaie dans une seconde';return;}
     busy=true;btn.disabled=true;btn.textContent='Deverrouillage...';err.textContent='';
     try{
-      var r=await a.try_unlock(p);
-      if(r&&r.ok){btn.textContent='Ouverture...';}
+      var resp=await fetch('/api/unlock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})});
+      var r=await resp.json();
+      if(r&&r.ok){btn.textContent='Ouverture...';window.location.replace('/');}
       else{err.textContent=(r&&r.error)||'Mot de passe incorrect';busy=false;btn.disabled=false;btn.textContent='Deverrouiller';try{pwd.select();}catch(e){}}
     }catch(e){err.textContent='Erreur: '+e;busy=false;btn.disabled=false;btn.textContent='Deverrouiller';}
   }
   btn.addEventListener('click',submit);
   pwd.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
-  window.addEventListener('pywebviewready',function(){try{pwd.focus();}catch(e){}});
   setTimeout(function(){try{pwd.focus();}catch(e){}},200);
 </script>
 </body>
