@@ -13,6 +13,7 @@
 <title>Gestion Perso</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="chart.umd.js"></script>
+<script src="jsbarcode.min.js"></script>
 <script src="qrcode.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -718,7 +719,7 @@ select option{background:var(--bg3)}
 
       <div class="page" id="pg-catalogue">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
-          <button class="btn primary" onclick="openAddCatalogue()">+ Nouvel article</button>
+          <button class="btn primary" onclick="openAddCatalogue()">+ Nouvel article</button><button class="btn" onclick="generateBarcodes()" title="Attribue un code-barres aux articles qui n'en ont pas">Generer codes-barres</button><button class="btn" onclick="printLabels()" title="Imprimer les etiquettes a coller">Imprimer etiquettes</button>
           <input class="catalogue-search" placeholder="Rechercher..." oninput="searchCatalogue(this.value)">
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px" id="catalogueGrid"><div class="loading"><div class="spinner"></div> Chargement...</div></div>
@@ -3939,6 +3940,30 @@ function initRaccourcis(){
 <script>
 // ===== CATALOGUE =====
 var catalogueCache = [];
+// --- Codes-barres : generation + impression etiquettes ---
+async function generateBarcodes(){
+  var res=await api('/api/catalogue/generate-barcodes',{method:'POST'});
+  if(res&&res.ok){await loadCatalogue();if(typeof notify==='function')notify((res.data.count||0)+' code(s)-barres genere(s)','success');}
+  else if(typeof notify==='function')notify((res&&res.error)||'Erreur','error');
+}
+function printLabels(){
+  if(!catalogueCache||!catalogueCache.length){if(typeof notify==='function')notify('Catalogue vide','error');return;}
+  var arr=catalogueCache.filter(function(x){return ((x&&x.code_barre)||'').trim()!=='';});
+  if(!arr.length){if(typeof notify==='function')notify('Aucun code-barres. Clique d abord sur Generer codes-barres.','error');return;}
+  var cont=document.getElementById('labelsPrint');if(!cont)return;
+  cont.innerHTML='';
+  arr.forEach(function(it){
+    var d=document.createElement('div');d.className='gp-label';
+    var nm=document.createElement('div');nm.className='gp-lname';nm.textContent=it.nom;
+    var pr=document.createElement('div');pr.className='gp-lprice';pr.textContent=parseFloat(it.prix_vente||0).toFixed(2)+' EUR';
+    var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    d.appendChild(nm);d.appendChild(pr);d.appendChild(svg);cont.appendChild(d);
+    var code=((it.code_barre||'')+'').trim();
+    try{JsBarcode(svg,code,{format:'EAN13',width:1.6,height:46,fontSize:13,margin:4});}
+    catch(e){try{JsBarcode(svg,code,{format:'CODE128',width:1.4,height:46,fontSize:12,margin:4});}catch(e2){}}
+  });
+  setTimeout(function(){window.print();},350);
+}
 async function loadCatalogue(){var res=await api('/api/catalogue');if(!res||!res.ok)return;catalogueCache=res.data;renderCatalogue();}
 function renderCatalogue(){var grid=document.getElementById('catalogueGrid');if(!grid)return;grid.innerHTML='';if(!catalogueCache.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--text3);padding:40px">Aucun article. Cliquez sur <strong style="color:var(--gold2)">+ Nouvel article</strong>.</div>';return;}
 var cats={};catalogueCache.forEach(function(it){var c=it.categorie||'General';if(!cats[c])cats[c]=[];cats[c].push(it);});
@@ -5289,5 +5314,16 @@ tbody tr:hover{background:rgba(255,255,255,.025);}
     <button class="btn" style="margin-top:16px" onclick="closeScanPhone()">Fermer</button>
   </div>
 </div>
+<style id="gpLabelsCss">
+#labelsPrint{display:none;}
+@media print{
+  body>*:not(#labelsPrint){display:none !important;}
+  #labelsPrint{display:flex !important;flex-wrap:wrap;gap:10px;padding:10px;background:#fff;color:#000;}
+  .gp-label{border:1px solid #000;border-radius:6px;padding:8px 10px;width:200px;text-align:center;page-break-inside:avoid;}
+  .gp-lname{font-size:13px;font-weight:700;margin-bottom:2px;}
+  .gp-lprice{font-size:12px;margin-bottom:4px;}
+}
+</style>
+<div id="labelsPrint"></div>
 </body>
 </html>

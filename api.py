@@ -1550,6 +1550,30 @@ def start_phone_https(certfile, keyfile, host="0.0.0.0", port=None):
     srv = make_server(host, port, app, ssl_context=ctx, threaded=True)
     srv.serve_forever()
 
+# -- Generation codes-barres EAN-13 -------------------------------------------
+def _ean13(n):
+    base = "200" + str(int(n)).zfill(9)
+    s = sum((1 if i % 2 == 0 else 3) * int(d) for i, d in enumerate(base))
+    chk = (10 - (s % 10)) % 10
+    return base + str(chk)
+
+@app.route("/api/catalogue/generate-barcodes", methods=["POST"])
+@require_auth
+def catalogue_generate_barcodes():
+    items = db.get_catalogue()
+    done = []
+    for it in items:
+        if str(it.get("code_barre") or "").strip():
+            continue
+        code = _ean13(it["id"])
+        db.update_catalogue_item(
+            it["id"], it.get("nom",""), it.get("categorie",""), it.get("description",""),
+            it.get("prix_vente",0), it.get("prix_achat",0), it.get("unite","piece"),
+            it.get("stock_min",0), code_barre=code,
+        )
+        done.append({"id": it["id"], "nom": it.get("nom",""), "code": code})
+    return ok({"count": len(done), "items": done})
+
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_frontend(path):
