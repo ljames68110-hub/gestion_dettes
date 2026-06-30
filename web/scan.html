@@ -4,33 +4,40 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Scan - Gestion Perso</title>
-<script src="/html5-qrcode.min.js"></script>
+<script src="/quagga.min.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:#0a0a0f;color:#e8e6f0;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:14px;}
   h1{font-size:18px;font-weight:700;margin:4px 0 2px;}
   h1 span{color:#e8c97e;}
   .sub{font-size:12px;color:#6b6985;margin-bottom:12px;text-align:center;}
-  #reader{width:100%;max-width:440px;border-radius:14px;overflow:hidden;border:1px solid #2a2a3a;background:#000;}
-  button{margin-top:14px;padding:13px 20px;border:none;border-radius:12px;font-size:15px;font-weight:600;color:#1a1408;background:linear-gradient(180deg,#e8c97e,#c9a84c);cursor:pointer;}
+  .camwrap{position:relative;width:100%;max-width:440px;border-radius:14px;overflow:hidden;border:1px solid #2a2a3a;background:#000;}
+  video{width:100%;display:block;}
+  .aim{position:absolute;left:8%;right:8%;top:42%;height:16%;border:2px solid rgba(232,201,126,.85);border-radius:8px;pointer-events:none;}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+  button{margin-top:14px;padding:13px 18px;border:none;border-radius:12px;font-size:15px;font-weight:600;color:#1a1408;background:linear-gradient(180deg,#e8c97e,#c9a84c);cursor:pointer;}
   button.sec{background:#16161f;color:#e8e6f0;border:1px solid #2a2a3a;}
-  .hit{margin-top:14px;min-height:48px;width:100%;max-width:440px;text-align:center;}
-  .code{font-family:'DM Mono',monospace;font-size:20px;font-weight:700;color:#7ee0a0;}
+  .hit{margin-top:14px;min-height:50px;width:100%;max-width:440px;text-align:center;}
+  .code{font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:#7ee0a0;}
   .ok{font-size:12px;color:#7ee0a0;margin-top:2px;}
   .err2{font-size:12px;color:#ff6f5e;margin-top:2px;}
+  .info{font-size:12px;color:#e8c97e;margin-top:2px;}
   .err{color:#ff6f5e;font-size:13px;margin-top:10px;text-align:center;max-width:440px;}
   .manual{margin-top:18px;width:100%;max-width:440px;display:flex;gap:8px;}
   .manual input{flex:1;padding:12px;border-radius:10px;border:1px solid #2a2a3a;background:#0f0f17;color:#e8e6f0;font-size:16px;}
   .manual button{margin-top:0;}
-  .count{font-size:11px;color:#e8c97e;margin-top:4px;}
 </style>
 </head>
 <body>
   <h1>Gestion <span>Perso</span> - Scan</h1>
-  <div class="sub">Vise un code-barres : il part dans la caisse du PC.</div>
-  <div id="reader"></div>
-  <button id="startBtn">Demarrer la camera</button>
-  <button id="stopBtn" class="sec" style="display:none">Arreter</button>
+  <div class="sub">Place le code-barres dans le cadre, puis touche "Lire le code".</div>
+  <div class="camwrap"><video id="cam" autoplay playsinline muted></video><div class="aim"></div></div>
+  <canvas id="snap" style="display:none"></canvas>
+  <div class="btns">
+    <button id="startBtn">Demarrer la camera</button>
+    <button id="readNow" style="display:none" onclick="decodeNow(true)">Lire le code</button>
+    <button id="stopBtn" class="sec" style="display:none" onclick="stop()">Arreter</button>
+  </div>
   <div class="hit" id="hit"></div>
   <div class="err" id="err"></div>
   <div class="manual">
@@ -38,44 +45,64 @@
     <button onclick="sendManual()">Envoyer</button>
   </div>
 <script>
-  var reader=null, running=false, lastCode='', lastT=0, total=0;
+  var stream=null, running=false, busy=false, autoTimer=null, lastCode='', lastT=0, total=0;
   var hit=document.getElementById('hit'), errEl=document.getElementById('err');
-  var startBtn=document.getElementById('startBtn'), stopBtn=document.getElementById('stopBtn');
+  var startBtn=document.getElementById('startBtn'), stopBtn=document.getElementById('stopBtn'), readNow=document.getElementById('readNow');
+  function readers(){return ['ean_reader','ean_8_reader','upc_reader','upc_e_reader','code_128_reader','code_39_reader'];}
   async function send(code){
     code=(code||'').trim(); if(!code)return;
     total++;
     try{
       var r=await fetch('/api/scan-push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code})});
       var d=await r.json();
-      hit.innerHTML='<div class="code">'+code+'</div><div class="ok">Recu par le PC'+(d&&d.ok?' OK':'')+'</div><div class="count">'+total+' envoi(s)</div>';
+      hit.innerHTML='<div class="code">'+code+'</div><div class="ok">Recu par le PC'+(d&&d.ok?' OK':'')+'</div><div class="info">'+total+' envoi(s)</div>';
     }catch(e){
       hit.innerHTML='<div class="code">'+code+'</div><div class="err2">Echec envoi: '+e+'</div>';
     }
-    if(navigator.vibrate)try{navigator.vibrate(80);}catch(e){}
+    if(navigator.vibrate)try{navigator.vibrate(90);}catch(e){}
   }
-  function onScan(text){
+  function onCode(code){
     var now=Date.now();
-    if(text===lastCode && now-lastT<2500) return;
-    lastCode=text; lastT=now;
-    send(text);
+    if(code===lastCode && now-lastT<2500) return;
+    lastCode=code; lastT=now; send(code);
+  }
+  function decodeNow(manual){
+    if(busy||!running){if(manual)hit.innerHTML='<div class="info">Camera pas prete</div>';return;}
+    var v=document.getElementById('cam');
+    if(!v.videoWidth){if(manual)hit.innerHTML='<div class="info">Camera pas prete, attends 1s</div>';return;}
+    busy=true;
+    var c=document.getElementById('snap'); c.width=v.videoWidth; c.height=v.videoHeight;
+    c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+    var data=c.toDataURL('image/jpeg',0.9);
+    if(!window.Quagga){busy=false;if(manual)errEl.textContent='Lecteur non charge.';return;}
+    Quagga.decodeSingle({src:data,locate:true,numOfWorkers:0,decoder:{readers:readers()}}, function(result){
+      busy=false;
+      if(result && result.codeResult && result.codeResult.code){onCode(result.codeResult.code);}
+      else if(manual){hit.innerHTML='<div class="err2">Aucun code lu. Rapproche-toi, stabilise, et garde le code bien dans le cadre.</div>';}
+    });
   }
   function sendManual(){
     var el=document.getElementById('manualCode');
     if(el&&el.value.trim()){send(el.value.trim());el.value='';}
   }
-  function start(){
+  async function start(){
     errEl.textContent='';
-    if(!window.Html5Qrcode){errEl.textContent='Librairie non chargee.';return;}
-    reader=new Html5Qrcode("reader",{useBarCodeDetectorIfSupported:true});
-    reader.start({facingMode:"environment"},{fps:10},onScan,function(){})
-      .then(function(){running=true;startBtn.style.display='none';stopBtn.style.display='inline-block';})
-      .catch(function(e){errEl.textContent='Camera impossible: '+e+' (autorise la camera et accepte le certificat). Tu peux saisir le code a la main ci-dessous.';});
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+      var v=document.getElementById('cam'); v.srcObject=stream; await v.play();
+      running=true; startBtn.style.display='none'; stopBtn.style.display='inline-block'; readNow.style.display='inline-block';
+      autoTimer=setInterval(function(){decodeNow(false);},700);
+    }catch(e){
+      errEl.textContent='Camera impossible: '+e+' (autorise la camera et accepte le certificat). Tu peux saisir le code a la main ci-dessous.';
+    }
   }
   function stop(){
-    if(reader&&running){reader.stop().then(function(){reader.clear();running=false;startBtn.style.display='inline-block';stopBtn.style.display='none';}).catch(function(){});}
+    running=false;
+    if(autoTimer){clearInterval(autoTimer);autoTimer=null;}
+    if(stream){stream.getTracks().forEach(function(t){t.stop();});stream=null;}
+    startBtn.style.display='inline-block'; stopBtn.style.display='none'; readNow.style.display='none';
   }
   startBtn.addEventListener('click',start);
-  stopBtn.addEventListener('click',stop);
   document.getElementById('manualCode').addEventListener('keydown',function(e){if(e.key==='Enter')sendManual();});
 </script>
 </body>
