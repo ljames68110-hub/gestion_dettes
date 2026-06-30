@@ -1351,15 +1351,24 @@ async function checkPwd(){
   else{document.getElementById('lockErrorPwd').textContent='Mot de passe incorrect';document.getElementById('pwdInput').value='';}
 }
 async function tryAutoLogin(){
+  var dbg='';
   try{
     var st=await fetch('/api/auth/can-skip').then(function(r){return r.json();});
+    dbg='can-skip='+JSON.stringify(st&&st.data);
     if(st&&st.data&&st.data.auth_disabled){
+      window._autoTried=true;
       var al=await fetch('/api/auth/auto-login',{method:'POST'}).then(function(r){return r.json();});
-      if(al&&al.ok&&al.data&&al.data.token){TOKEN=al.data.token;showApp();return true;}
+      dbg+=' | auto-login='+JSON.stringify(al);
+      if(al&&al.ok&&al.data&&al.data.token){TOKEN=al.data.token;_diagBox(dbg+' | OK showApp');showApp();return true;}
     }
-  }catch(e){}
+  }catch(e){dbg+=' | ERR='+e;}
+  _diagBox(dbg);
   return false;
 }
+function _diagBox(msg){
+  try{if(!msg)return;var d=document.getElementById('_diagBox');if(!d){d=document.createElement('div');d.id='_diagBox';d.style.cssText='position:fixed;left:0;right:0;bottom:0;padding:10px;font-size:11px;color:#ffd97a;background:rgba(0,0,0,.8);text-align:center;z-index:999999;word-break:break-all';document.body.appendChild(d);}d.textContent='DIAG: '+msg;}catch(e){}
+}
+
 function saveNoAuth(){
   var on=document.getElementById('setNoAuth').checked;
   api('/api/auth/set-skip',{method:'POST',body:{enabled:on?'1':'0'}}).then(function(){fetch('/api/auth/can-skip').then(function(r){return r.json();}).then(function(d){var saved=!!(d&&d.data&&d.data.auth_disabled);if(typeof notify==='function')notify(saved?'2eme mot de passe DESACTIVE - effet au prochain lancement':'2eme mot de passe reactive','success');});});
@@ -1373,6 +1382,7 @@ function showApp(){
   setTimeout(()=>{ls.style.display='none';document.getElementById('app').style.display='flex';initApp();},400);
 }
 async function lockApp(){
+  try{if(window._autoTried)_diagBox('RE-LOCK apres auto-login : token rejete par le serveur');}catch(e){}
   try{await api('/api/auth/logout',{method:'POST'});}catch(e){}
   TOKEN='';pin='';
   document.getElementById('lockError').textContent='';
