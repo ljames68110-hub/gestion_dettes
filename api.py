@@ -1574,6 +1574,35 @@ def catalogue_generate_barcodes():
         done.append({"id": it["id"], "nom": it.get("nom",""), "code": code})
     return ok({"count": len(done), "items": done})
 
+# -- Desactivation du 2eme mot de passe (PIN) ---------------------------------
+def _auth_disabled():
+    try:
+        return str(db.get_setting("auth_disabled", "0")) == "1"
+    except Exception:
+        return False
+
+@app.route("/api/auth/can-skip")
+def auth_can_skip():
+    return jsonify({"ok": True, "data": {"auth_disabled": _auth_disabled()}})
+
+@app.route("/api/auth/auto-login", methods=["POST"])
+def auth_auto_login():
+    global SESSION_TOKEN
+    if request.remote_addr not in ("127.0.0.1", "::1", "localhost"):
+        return jsonify({"ok": False, "error": "interdit"}), 403
+    if not _auth_disabled():
+        return jsonify({"ok": False, "error": "desactive"})
+    SESSION_TOKEN = secrets.token_hex(32)
+    return jsonify({"ok": True, "data": {"token": SESSION_TOKEN}})
+
+@app.route("/api/auth/set-skip", methods=["POST"])
+@require_auth
+def auth_set_skip():
+    data = request.json or {}
+    val = "1" if str(data.get("enabled")) in ("1", "true", "True") else "0"
+    db.set_setting("auth_disabled", val)
+    return ok({"auth_disabled": val == "1"})
+
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_frontend(path):

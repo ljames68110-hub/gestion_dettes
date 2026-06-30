@@ -393,7 +393,7 @@ select option{background:var(--bg3)}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px"><div class="card" style="grid-column:1/-1"><div class="card-title">Logo du menu</div><p style="font-size:13px;color:var(--text3)">Affiche en haut du menu lateral. (Pour l'icone du raccourci .exe, voir la note plus bas / la doc.)</p><img id="appLogoPrev" style="display:none;max-width:140px;max-height:80px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:var(--bg3);margin:8px 0"><div style="display:flex;gap:8px;align-items:center;margin-top:8px"><label class="btn" style="cursor:pointer">Choisir une image<input type="file" accept="image/*" style="display:none" onchange="onAppLogoPick(this)"></label><button type="button" class="btn" style="background:var(--bg3);color:var(--red)" onclick="removeAppLogo()">Retirer</button></div></div><div class="card" style="grid-column:1/-1"><div class="card-title">🤝 Frais des associés</div><label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;color:var(--text2)"><input type="checkbox" id="setAssocieFraisAuto" onchange="saveAssocieFraisAuto()" style="width:auto;margin:0"> Mode automatique : l'associé paie toujours ses frais (sans me demander)</label><div style="font-size:12px;color:var(--text3);margin-top:8px">Si décoché, la caisse te demandera à chaque fois (case « j'absorbe ? ») pour les associés.</div></div>
           <div class="card" style="grid-column:1/-1">
             <div class="card-title">🔐 Méthode de connexion</div>
-            <div style="display:flex;gap:12px;margin-bottom:20px">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;color:var(--text2);margin-bottom:16px;padding:12px;border:1px solid var(--border);border-radius:10px"><input type="checkbox" id="setNoAuth" onchange="saveNoAuth()" style="width:auto;margin:0"> Desactiver le 2eme mot de passe (ne plus demander de code apres le mot de passe d'ouverture)</label><div style="display:flex;gap:12px;margin-bottom:20px">
               <div id="methodPIN" onclick="selectMethod('pin')" style="flex:1;padding:16px;border-radius:var(--radius2);border:2px solid var(--gold);background:rgba(201,168,76,.08);cursor:pointer;text-align:center">
                 <div style="font-size:24px;margin-bottom:6px">🔢</div>
                 <div style="font-size:14px;font-weight:500;color:var(--gold2)">Code PIN</div>
@@ -1349,6 +1349,23 @@ async function checkPwd(){
   const res=await api('/api/auth/login',{method:'POST',body:{pin:pwd}});
   if(res&&res.ok){TOKEN=res.data.token;document.getElementById('pwdInput').value='';showApp();}
   else{document.getElementById('lockErrorPwd').textContent='Mot de passe incorrect';document.getElementById('pwdInput').value='';}
+}
+async function tryAutoLogin(){
+  try{
+    var st=await fetch('/api/auth/can-skip').then(function(r){return r.json();});
+    if(st&&st.data&&st.data.auth_disabled){
+      var al=await fetch('/api/auth/auto-login',{method:'POST'}).then(function(r){return r.json();});
+      if(al&&al.ok&&al.data&&al.data.token){TOKEN=al.data.token;showApp();return true;}
+    }
+  }catch(e){}
+  return false;
+}
+function saveNoAuth(){
+  var on=document.getElementById('setNoAuth').checked;
+  api('/api/auth/set-skip',{method:'POST',body:{enabled:on?'1':'0'}}).then(function(){if(typeof notify==='function')notify(on?'2eme mot de passe desactive':'2eme mot de passe reactive','success');});
+}
+function loadNoAuth(){
+  fetch('/api/auth/can-skip').then(function(r){return r.json();}).then(function(d){var c=document.getElementById('setNoAuth');if(c&&d&&d.data)c.checked=!!d.data.auth_disabled;}).catch(function(){});
 }
 function showApp(){
   const ls=document.getElementById('lockScreen');
@@ -2452,6 +2469,7 @@ async function checkRappelsBadge(){
 
 // ── INIT ──
 function initApp(){
+  loadNoAuth();
   loadDashboard();loadSavedPalette();loadAppLogo();loadEntrees();loadMotifs();loadTarifs();
   setTimeout(checkRappelsBadge,2000);
   initRaccourcis(); // FIX : raccourcis clavier N/C/Échap
@@ -2459,6 +2477,7 @@ function initApp(){
   loadAppSettings(); // FIX : charger frais/devise au démarrage
 }
 (async()=>{
+  if(await tryAutoLogin())return;
   await detectPinLength();
   document.querySelector('.lock-hint').innerHTML='Code par défaut : <strong style="color:var(--gold2)">1234</strong>';
 })();
