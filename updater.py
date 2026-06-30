@@ -17,7 +17,7 @@ from pathlib import Path
 LATEST_URL = "https://raw.githubusercontent.com/ljames68110-hub/gestion_dettes/main/latest.json"
 CHECK_INTERVAL = 3600  # vérifier toutes les heures
 
-APP_VERSION = "2.88"  # version courante - incremente a chaque MAJ
+APP_VERSION = "2.89"  # version courante - incremente a chaque MAJ
 
 def get_current_exe():
     """Retourne le chemin de l'exe en cours d'exécution."""

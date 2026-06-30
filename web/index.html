@@ -1362,7 +1362,7 @@ async function tryAutoLogin(){
 }
 function saveNoAuth(){
   var on=document.getElementById('setNoAuth').checked;
-  api('/api/auth/set-skip',{method:'POST',body:{enabled:on?'1':'0'}}).then(function(){if(typeof notify==='function')notify(on?'2eme mot de passe desactive':'2eme mot de passe reactive','success');});
+  api('/api/auth/set-skip',{method:'POST',body:{enabled:on?'1':'0'}}).then(function(){fetch('/api/auth/can-skip').then(function(r){return r.json();}).then(function(d){var saved=!!(d&&d.data&&d.data.auth_disabled);if(typeof notify==='function')notify(saved?'2eme mot de passe DESACTIVE - effet au prochain lancement':'2eme mot de passe reactive','success');});});
 }
 function loadNoAuth(){
   fetch('/api/auth/can-skip').then(function(r){return r.json();}).then(function(d){var c=document.getElementById('setNoAuth');if(c&&d&&d.data)c.checked=!!d.data.auth_disabled;}).catch(function(){});

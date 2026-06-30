@@ -1575,6 +1575,12 @@ def catalogue_generate_barcodes():
     return ok({"count": len(done), "items": done})
 
 # -- Desactivation du 2eme mot de passe (PIN) ---------------------------------
+def _is_local_request():
+    ra = (request.remote_addr or "")
+    host = (request.host or "")
+    return (host.startswith("127.0.0.1") or host.startswith("localhost")
+            or ra in ("127.0.0.1", "::1", "localhost") or ra.startswith("127."))
+
 def _auth_disabled():
     try:
         return str(db.get_setting("auth_disabled", "0")) == "1"
@@ -1588,7 +1594,7 @@ def auth_can_skip():
 @app.route("/api/auth/auto-login", methods=["POST"])
 def auth_auto_login():
     global SESSION_TOKEN
-    if request.remote_addr not in ("127.0.0.1", "::1", "localhost"):
+    if not _is_local_request():
         return jsonify({"ok": False, "error": "interdit"}), 403
     if not _auth_disabled():
         return jsonify({"ok": False, "error": "desactive"})
