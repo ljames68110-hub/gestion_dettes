@@ -46,7 +46,7 @@
     try{
       var resp=await fetch('/api/unlock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})});
       var r=await resp.json();
-      if(r&&r.ok){btn.textContent='Ouverture...';window.location.replace('/');}
+      if(r&&r.ok){btn.textContent='Ouverture...';window.location.replace('/?t='+Date.now());}
       else{err.textContent=(r&&r.error)||'Mot de passe incorrect';busy=false;btn.disabled=false;btn.textContent='Deverrouiller';try{pwd.select();}catch(e){}}
     }catch(e){err.textContent='Erreur: '+e;busy=false;btn.disabled=false;btn.textContent='Deverrouiller';}
   }

@@ -1609,6 +1609,19 @@ def auth_set_skip():
     db.set_setting("auth_disabled", val)
     return ok({"auth_disabled": val == "1"})
 
+# -- Anti-cache (WebView2 gardait des pages en cache -> MAJ pas appliquees) ----
+@app.after_request
+def _no_cache(resp):
+    try:
+        ct = resp.headers.get("Content-Type", "")
+        if ("text/html" in ct) or ("javascript" in ct) or ("text/css" in ct):
+            resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            resp.headers["Pragma"] = "no-cache"
+            resp.headers["Expires"] = "0"
+    except Exception:
+        pass
+    return resp
+
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_frontend(path):
