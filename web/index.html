@@ -1351,22 +1351,14 @@ async function checkPwd(){
   else{document.getElementById('lockErrorPwd').textContent='Mot de passe incorrect';document.getElementById('pwdInput').value='';}
 }
 async function tryAutoLogin(){
-  var dbg='';
   try{
     var st=await fetch('/api/auth/can-skip').then(function(r){return r.json();});
-    dbg='can-skip='+JSON.stringify(st&&st.data);
     if(st&&st.data&&st.data.auth_disabled){
-      window._autoTried=true;
       var al=await fetch('/api/auth/auto-login',{method:'POST'}).then(function(r){return r.json();});
-      dbg+=' | auto-login='+JSON.stringify(al);
-      if(al&&al.ok&&al.data&&al.data.token){TOKEN=al.data.token;_diagBox(dbg+' | OK showApp');showApp();return true;}
+      if(al&&al.ok&&al.data&&al.data.token){TOKEN=al.data.token;showApp();return true;}
     }
-  }catch(e){dbg+=' | ERR='+e;}
-  _diagBox(dbg);
+  }catch(e){}
   return false;
-}
-function _diagBox(msg){
-  try{if(!msg)return;var d=document.getElementById('_diagBox');if(!d){d=document.createElement('div');d.id='_diagBox';d.style.cssText='position:fixed;left:0;right:0;bottom:0;padding:10px;font-size:11px;color:#ffd97a;background:rgba(0,0,0,.8);text-align:center;z-index:999999;word-break:break-all';document.body.appendChild(d);}d.textContent='DIAG: '+msg;}catch(e){}
 }
 
 function saveNoAuth(){
@@ -1382,7 +1374,6 @@ function showApp(){
   setTimeout(()=>{ls.style.display='none';document.getElementById('app').style.display='flex';initApp();},400);
 }
 async function lockApp(){
-  try{if(window._autoTried)_diagBox('RE-LOCK apres auto-login : token rejete par le serveur');}catch(e){}
   try{await api('/api/auth/logout',{method:'POST'});}catch(e){}
   TOKEN='';pin='';
   document.getElementById('lockError').textContent='';
@@ -2321,7 +2312,7 @@ function applyPalette(name){
 }
 function quitApp(){if(window.pywebview&&window.pywebview.api&&window.pywebview.api.quit){window.pywebview.api.quit();}else{try{window.close();}catch(e){}}}
 function applyAppLogo(src){if(src===undefined)src=window._appLogo||'';var sb=document.getElementById('sidebarLogoImg');if(sb){if(src){sb.src=src;sb.style.display='block';}else{sb.style.display='none';}}var pv=document.getElementById('appLogoPrev');if(pv){if(src){pv.src=src;pv.style.display='block';}else{pv.style.display='none';}}var lg=document.getElementById('loginLogoImg');if(lg&&src){lg.src=src;}}async function loadAppLogo(){try{var r=await api('/api/logo');var lg=(r&&r.ok&&r.data)?r.data.logo:'';window._appLogo=lg||'';applyAppLogo(window._appLogo);}catch(e){}}function onAppLogoPick(input){if(!input.files||!input.files[0])return;resizeImageFull(input.files[0],256).then(function(b){if(!b)return;window._appLogo=b;applyAppLogo(b);api('/api/settings',{method:'POST',body:{app_logo:b}}).then(function(){notify('Logo enregistre');});});}function removeAppLogo(){window._appLogo='';applyAppLogo('');api('/api/settings',{method:'POST',body:{app_logo:''}}).then(function(){notify('Logo retire');});}if(document.readyState!=='loading '.trim()){loadAppLogo();}else{document.addEventListener('DOMContentLoaded',loadAppLogo);}
-if(document.readyState!=='loading'){loadPochetteSizes();}else{document.addEventListener('DOMContentLoaded',loadPochetteSizes);}
+(function(){function go(){try{if(typeof loadPochetteSizes==='function')loadPochetteSizes();}catch(e){}}if(document.readyState!=='loading'){setTimeout(go,0);}else{document.addEventListener('DOMContentLoaded',go);}})();
 function loadSavedPalette(){
   const saved=store.get('palette');
   if(saved&&PALETTES[saved])applyPalette(saved);
@@ -5412,6 +5403,5 @@ tbody tr:hover{background:rgba(255,255,255,.025);}
     </div>
   </div>
 </div>
-<script>(function(){try{var d=document.createElement("div");d.id="_vbadge";d.style.cssText="position:fixed;top:0;left:0;right:0;background:#1a1408;color:#ffd97a;font-size:12px;text-align:center;padding:7px;z-index:2147483647;border-bottom:1px solid #c9a84c";d.textContent="Gestion Perso v2.92 - diagnostic actif (page rechargee a neuf)";(document.body||document.documentElement).appendChild(d);}catch(e){}})();</script>
 </body>
 </html>
