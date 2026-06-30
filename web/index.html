@@ -1287,7 +1287,7 @@ async function api(path,opts={}){
   if(opts.body&&typeof opts.body==='object')opts.body=JSON.stringify(opts.body);
   var fetchOpts = {}; for(var k in opts){fetchOpts[k]=opts[k];} fetchOpts.headers=headers; const res=await fetch(path,fetchOpts);
   const json=await res.json().catch(()=>({}));
-  if(!res.ok&&res.status===401&&path!=='/api/auth/login'){lockApp();return null;}
+  if(!res.ok&&res.status===401&&path!=='/api/auth/login'){if(TOKEN){lockApp();}return null;}
   return json;
 }
 function fmt(n){return parseFloat(n||0).toFixed(2)+' €';}
