@@ -2196,6 +2196,11 @@ async function lireTicketOCR(which){
     }
     filled++;
   }
+  if(which==='dep'&&filled){
+    var _tot=0;var _rows=document.querySelectorAll('#depTicketList .tkrow');
+    _rows.forEach(function(rw){var a=rw.querySelector('.tka');if(a&&a.value){var v=parseFloat((''+a.value).replace(',','.'))||0;_tot+=v;}});
+    if(_tot>0){var dm=document.getElementById('depMontant');if(dm){dm.value=_tot.toFixed(2);if(typeof majDepotInfo==='function')majDepotInfo();}}
+  }
   if(filled)notify('Lu : '+filled+' ticket(s) rempli(s) - verifie les codes','success');
   else notify(lastErr||'Rien detecte, saisis manuellement','error');
 }
