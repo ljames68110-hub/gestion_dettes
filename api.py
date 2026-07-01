@@ -1769,7 +1769,7 @@ def ocr_ticket_route():
         return ok({"ok": False, "error": "Photo manquante"})
     try:
         import ocr
-        res = ocr.lire_ticket(photo)
+        res = ocr.lire_ticket(photo, hint=data.get("mode", ""))
     except Exception as e:
         res = {"ok": False, "error": str(e)}
     return ok(res)

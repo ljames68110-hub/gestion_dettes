@@ -2174,9 +2174,10 @@ async function lireTicketOCR(which){
   var box=document.getElementById(listId);
   notify('Lecture de '+photos.length+' ticket(s)...');
   var filled=0,lastErr='';
+  var _ocrMode=(document.getElementById(which==='pos'?'posMode':'depMode')||{}).value||'';
   for(var idx=0;idx<photos.length;idx++){
     var r;
-    try{r=await api('/api/ocr-ticket',{method:'POST',body:{photo:photos[idx]}});}catch(e){lastErr=''+e;continue;}
+    try{r=await api('/api/ocr-ticket',{method:'POST',body:{photo:photos[idx],mode:_ocrMode}});}catch(e){lastErr=''+e;continue;}
     if(!r||!r.ok){lastErr='Serveur indisponible';continue;}
     var d=r.data||{};
     if(!d.ok){if(d.error)lastErr=d.error;continue;}

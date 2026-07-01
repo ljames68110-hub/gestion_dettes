@@ -38,7 +38,7 @@ def _preprocess(img):
     g = g.resize((w*2, h*2), Image.LANCZOS).filter(ImageFilter.SHARPEN)
     return g
 
-def lire_ticket(photo, lang="fra"):
+def lire_ticket(photo, lang="fra", hint=""):
     if not _OCR_OK:
         return {"ok": False, "error": "OCR indisponible (pytesseract/Pillow manquants)"}
     try:
@@ -65,10 +65,17 @@ def lire_ticket(photo, lang="fra"):
     up = txt.upper()
     lines = [l for l in up.splitlines() if l.strip()]
 
-    # --- type de ticket ---
-    if "TRANSCASH" in up:
+    # --- type de ticket (indice du mode choisi, sinon detection texte elargie) ---
+    hint_l = (hint or "").lower()
+    if "transcash" in hint_l:
         typ = "transcash"
-    elif "PAYSAFECARD" in up or "PAYSAFE CARD" in up:
+    elif "paysafe" in hint_l:
+        typ = "paysafecard"
+    elif hint_l in ("pcs", "neosurf"):
+        typ = "pcs"
+    elif "TRANSCASH" in up:
+        typ = "transcash"
+    elif "PAYSAFE" in up:
         typ = "paysafecard"
     else:
         typ = "pcs"
@@ -100,15 +107,27 @@ def lire_ticket(photo, lang="fra"):
     code = ""
 
     if typ == "paysafecard":
-        # Montant : "PaysafeCard Classic 100€"
-        m = re.search(r'CLASSIC\s*([0-9]{2,3})', up)
+        # Montant : "Montant: 50.00" (sinon "Classic 100")
+        m = re.search(r'MONTANT\s*[:\-]?\s*([0-9]+(?:[.,][0-9]{1,2})?)', up)
+        if not m:
+            m = re.search(r'CLASSIC\s*([0-9]{2,3})', up)
         if m:
-            montant = m.group(1)
-        # Code : 16 chiffres
-        for d in druns:
-            if 15 <= len(d) <= 17:
+            montant = m.group(1).replace(",", ".")
+        # Code : 16 chiffres — passe chiffres PUIS texte principal
+        cand = list(druns)
+        for _ln in lines:
+            _dd = re.sub(r"\D", "", _ln)
+            if _dd:
+                cand.append(_dd)
+        for d in cand:
+            if len(d) == 16:
                 code = d
                 break
+        if not code:
+            for d in cand:
+                if 15 <= len(d) <= 17:
+                    code = d
+                    break
 
     elif typ == "transcash":
         # Montant : "Montant credite : 50 EUR" (jamais "Prix de la recharge")
