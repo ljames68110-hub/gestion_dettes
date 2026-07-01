@@ -2173,13 +2173,14 @@ async function lireTicketOCR(which){
   _ticketEnsure(listId);
   var box=document.getElementById(listId);
   notify('Lecture de '+photos.length+' ticket(s)...');
-  var filled=0;
+  var filled=0,lastErr='';
   for(var idx=0;idx<photos.length;idx++){
     var r;
-    try{r=await api('/api/ocr-ticket',{method:'POST',body:{photo:photos[idx]}});}catch(e){continue;}
-    if(!r||!r.ok)continue;
+    try{r=await api('/api/ocr-ticket',{method:'POST',body:{photo:photos[idx]}});}catch(e){lastErr=''+e;continue;}
+    if(!r||!r.ok){lastErr='Serveur indisponible';continue;}
     var d=r.data||{};
-    if(!d.ok||(!d.code&&!d.montant))continue;
+    if(!d.ok){if(d.error)lastErr=d.error;continue;}
+    if(!d.code&&!d.montant){lastErr='Aucun code lu sur la photo (essaie une photo plus nette et cadree sur le code)';continue;}
     var rows=box?box.querySelectorAll('.tkrow'):[];
     var target=null;
     for(var rr=0;rr<rows.length;rr++){
@@ -2195,7 +2196,7 @@ async function lireTicketOCR(which){
     filled++;
   }
   if(filled)notify('Lu : '+filled+' ticket(s) rempli(s) - verifie les codes','success');
-  else notify('Rien detecte, saisis manuellement','error');
+  else notify(lastErr||'Rien detecte, saisis manuellement','error');
 }
 function askEcheance(){return new Promise(function(resolve){var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100000;padding:16px';var today=new Date().toISOString().slice(0,10);var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:330px;max-width:92vw';box.innerHTML='<div style="font-weight:600;margin-bottom:6px">Vente a credit</div><div style="font-size:13px;color:var(--text3);margin-bottom:12px">Une date de remboursement est-elle connue ?</div><input type="date" id="_echDate" value="'+today+'" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);margin-bottom:14px"><div style="display:flex;gap:8px"><button type="button" class="btn" id="_echYes" style="flex:1">Oui, enregistrer</button><button type="button" class="btn" id="_echNo" style="flex:1;background:var(--bg3)">Non, conclure</button></div><button type="button" class="btn" id="_echCancel" style="width:100%;margin-top:8px;background:transparent;color:var(--text3)">Annuler</button>';ov.appendChild(box);document.body.appendChild(ov);function done(v){if(ov.parentNode)ov.parentNode.removeChild(ov);resolve(v);}box.querySelector('#_echYes').onclick=function(){var d=box.querySelector('#_echDate').value;done(d||null);};box.querySelector('#_echNo').onclick=function(){done(null);};box.querySelector('#_echCancel').onclick=function(){done('__CANCEL__');};});}function clearTicketCaisse(which,listId){_ticketClear(listId);_ticketEnsure(listId);_clearTicketPhoto(which);}
 function openTransDetail(id){
