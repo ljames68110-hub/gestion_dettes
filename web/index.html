@@ -392,7 +392,7 @@ select option{background:var(--bg3)}
 
       <!-- PARAMÈTRES -->
       <div class="page" id="pg-settings">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px"><div class="card" style="grid-column:1/-1"><div class="card-title">&#128220; Journal d'erreurs</div><p style="font-size:13px;color:var(--text3)">Les erreurs (Python et JavaScript) sont enregistrees automatiquement. En cas de bug, ouvre le journal et copie-le pour me le transmettre.</p><button class="btn" style="margin-top:8px" onclick="openLogModal()">Voir le journal</button></div><div class="card" style="grid-column:1/-1"><div class="card-title">&#128274; Verrouillage automatique</div><p style="font-size:13px;color:var(--text3)">Reverrouille l'application (redemande le code) apres une periode d'inactivite. Mets 0 pour desactiver.</p><div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="number" id="setAutolockMin" min="0" max="240" step="1" value="0" style="width:90px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px"><span style="font-size:13px;color:var(--text2)">minutes</span><button class="btn primary" style="margin-left:8px" onclick="saveAutolock()">Enregistrer</button></div></div><div class="card" style="grid-column:1/-1"><div class="card-title">Logo du menu</div><p style="font-size:13px;color:var(--text3)">Affiche en haut du menu lateral. (Pour l'icone du raccourci .exe, voir la note plus bas / la doc.)</p><img id="appLogoPrev" style="display:none;max-width:140px;max-height:80px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:var(--bg3);margin:8px 0"><div style="display:flex;gap:8px;align-items:center;margin-top:8px"><label class="btn" style="cursor:pointer">Choisir une image<input type="file" accept="image/*" style="display:none" onchange="onAppLogoPick(this)"></label><button type="button" class="btn" style="background:var(--bg3);color:var(--red)" onclick="removeAppLogo()">Retirer</button></div></div><div class="card" style="grid-column:1/-1"><div class="card-title">🤝 Frais des associés</div><label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;color:var(--text2)"><input type="checkbox" id="setAssocieFraisAuto" onchange="saveAssocieFraisAuto()" style="width:auto;margin:0"> Mode automatique : l'associé paie toujours ses frais (sans me demander)</label><div style="font-size:12px;color:var(--text3);margin-top:8px">Si décoché, la caisse te demandera à chaque fois (case « j'absorbe ? ») pour les associés.</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px"><div class="card" style="grid-column:1/-1"><div class="card-title">&#128220; Journal d'erreurs</div><p style="font-size:13px;color:var(--text3)">Les erreurs (Python et JavaScript) sont enregistrees automatiquement. En cas de bug, ouvre le journal et copie-le pour me le transmettre.</p><button class="btn" style="margin-top:8px" onclick="openLogModal()">Voir le journal</button></div><div class="card" style="grid-column:1/-1"><div class="card-title">&#128274; Verrouillage automatique</div><p style="font-size:13px;color:var(--text3)">Reverrouille l'application (redemande le code) apres une periode d'inactivite. Mets 0 pour desactiver.</p><div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="number" id="setAutolockMin" min="0" max="240" step="1" value="0" style="width:90px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px"><span style="font-size:13px;color:var(--text2)">minutes</span><button class="btn primary" style="margin-left:8px" onclick="saveAutolock()">Enregistrer</button></div></div><div class="card" style="grid-column:1/-1"><div class="card-title">&#128424; Ticket de caisse</div><label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;color:var(--text2)"><input type="checkbox" id="setTicketAuto" onchange="saveTicketAuto()" style="width:auto;margin:0"> Proposer d'imprimer un ticket apres chaque vente</label><div style="font-size:12px;color:var(--text3);margin-top:8px">Un apercu s'ouvre apres la vente : Imprimer (choisis l'imprimante) ou Fermer. Astuce : mets ton imprimante A4 par defaut dans Windows.</div></div><div class="card" style="grid-column:1/-1"><div class="card-title">Logo du menu</div><p style="font-size:13px;color:var(--text3)">Affiche en haut du menu lateral. (Pour l'icone du raccourci .exe, voir la note plus bas / la doc.)</p><img id="appLogoPrev" style="display:none;max-width:140px;max-height:80px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:var(--bg3);margin:8px 0"><div style="display:flex;gap:8px;align-items:center;margin-top:8px"><label class="btn" style="cursor:pointer">Choisir une image<input type="file" accept="image/*" style="display:none" onchange="onAppLogoPick(this)"></label><button type="button" class="btn" style="background:var(--bg3);color:var(--red)" onclick="removeAppLogo()">Retirer</button></div></div><div class="card" style="grid-column:1/-1"><div class="card-title">🤝 Frais des associés</div><label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;color:var(--text2)"><input type="checkbox" id="setAssocieFraisAuto" onchange="saveAssocieFraisAuto()" style="width:auto;margin:0"> Mode automatique : l'associé paie toujours ses frais (sans me demander)</label><div style="font-size:12px;color:var(--text3);margin-top:8px">Si décoché, la caisse te demandera à chaque fois (case « j'absorbe ? ») pour les associés.</div></div>
           <div class="card" style="grid-column:1/-1">
             <div class="card-title">🔐 Méthode de connexion</div>
             <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;color:var(--text2);margin-bottom:16px;padding:12px;border:1px solid var(--border);border-radius:10px"><input type="checkbox" id="setNoAuth" onchange="saveNoAuth()" style="width:auto;margin:0"> Desactiver le 2eme mot de passe (ne plus demander de code apres le mot de passe d'ouverture)</label><div style="display:flex;gap:12px;margin-bottom:20px">
@@ -1380,7 +1380,7 @@ function loadNoAuth(){
 function showApp(){
   const ls=document.getElementById('lockScreen');
   ls.style.transition='opacity .4s';ls.style.opacity='0';
-  setTimeout(()=>{ls.style.display='none';document.getElementById('app').style.display='flex';initApp();loadAutolock();},400);
+  setTimeout(()=>{ls.style.display='none';document.getElementById('app').style.display='flex';initApp();loadAutolock();loadTicketAuto();},400);
 }
 async function lockApp(){
   try{await api('/api/auth/logout',{method:'POST'});}catch(e){}
@@ -4475,6 +4475,7 @@ async function posEncaisser(){
   }
   btn.disabled=false;btn.textContent='Encaisser';
   if(fail===0){
+    var _tkData={items:posCart.map(function(l){return {nom:(l.motif&&l.motif.length?l.motif:l.nom),qty:l.qty,unite:l.unite,prix:((l.gratuit||_conso)?0:Math.round(l.prix*facteurReduc*100)/100),gratuit:l.gratuit};}),total:venteTotal,remb:remb,mode:mode,payMode:posPayMode,cid:cid,date:_posDate};
     var msg=[];
     if(venteTotal>0)msg.push('vente '+venteTotal.toFixed(2)+' EUR');
     if(remb>0)msg.push('remboursement '+remb.toFixed(2)+' EUR');
@@ -4483,6 +4484,7 @@ async function posEncaisser(){
     posCart=[];var _cpx=document.getElementById('posConsoPerso');if(_cpx)_cpx.checked=false;var _pr=document.getElementById('posReduc');if(_pr)_pr.value='0';renderPosCart();
     var ri=document.getElementById('posRemb');if(ri)ri.value='0';
     onPosClientChange(); // recharge la dette a jour
+    if(window._ticketAuto)imprimerTicketCaisse(_tkData);
     if(typeof loadDashboard==='function')loadDashboard();
     if(typeof loadTransactions==='function')loadTransactions();
   }else{
@@ -5583,6 +5585,67 @@ document.addEventListener('keydown',function(e){
   else if(e.key==='F3'){e.preventDefault(); var s=document.getElementById('posSearch'); if(s){s.focus();s.select();}}
   else if(e.key==='F4'){e.preventDefault(); if(typeof setPosPay==='function')setPosPay((typeof posPayMode!=='undefined'&&posPayMode==='cash')?'credit':'cash');}
 });
+</script>
+<script>
+// ===== TICKET DE CAISSE (3.08) =====
+window._ticketAuto=false;
+function _escT(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function _ticketCaisseHTML(d){
+  var nom='';
+  try{var c=(clientsCache||[]).find(function(x){return x.id===d.cid;});nom=c?c.nom:'';}catch(e){}
+  var lignes='';
+  (d.items||[]).forEach(function(it){
+    var pu=(+it.prix||0),q=(+it.qty||0),tot=pu*q;
+    var u=(it.unite==='gramme')?'g':'';
+    lignes+='<tr><td class="d">'+_escT(it.nom)+(it.gratuit?' <span class="of">(offert)</span>':'')+'</td>'
+      +'<td class="c">'+q+u+'</td><td class="r">'+pu.toFixed(2)+'</td><td class="r">'+tot.toFixed(2)+'</td></tr>';
+  });
+  var logo=(window._appLogo)?'<img src="'+window._appLogo+'" style="max-height:64px;max-width:200px;object-fit:contain;margin-bottom:6px">':'';
+  var dt=String(d.date||'').replace('T',' ');
+  if(!dt){var n=new Date();dt=n.toLocaleDateString('fr-FR')+' '+((''+n.getHours()).padStart(2,'0'))+':'+((''+n.getMinutes()).padStart(2,'0'));}
+  var modeTxt=(d.payMode==='credit'?'A credit':'Comptant')+((d.mode&&d.mode!=='Liquide')?(' - '+_escT(d.mode)):'');
+  var totLine=(d.total>0)?('<div class="row total"><span>TOTAL VENTE</span><b>'+(+d.total).toFixed(2)+' EUR</b></div>'):'';
+  var rembLine=(d.remb>0)?('<div class="row"><span>Remboursement / depot</span><b>'+(+d.remb).toFixed(2)+' EUR</b></div>'):'';
+  var itemsBlock=(d.items&&d.items.length)?('<table><thead><tr><th class="d">Article</th><th class="c">Qte</th><th class="r">PU</th><th class="r">Total</th></tr></thead><tbody>'+lignes+'</tbody></table>'):'';
+  return '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Ticket</title><style>'
+    +'*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;padding:16px;font-size:13px}'
+    +'.tk{max-width:340px;margin:0 auto}'
+    +'.hd{text-align:center;border-bottom:1px dashed #999;padding-bottom:10px;margin-bottom:10px}'
+    +'.hd .t{font-size:16px;font-weight:700;letter-spacing:1px}'
+    +'.meta{font-size:12px;color:#333;margin-bottom:8px;line-height:1.6}'
+    +'table{width:100%;border-collapse:collapse;margin:8px 0}'
+    +'th{font-size:11px;text-transform:uppercase;color:#666;border-bottom:1px solid #ccc;padding:4px 2px;text-align:left}'
+    +'td{padding:4px 2px;border-bottom:1px dotted #ddd;vertical-align:top}'
+    +'.c{text-align:center}.r{text-align:right;white-space:nowrap}.d{width:52%}.of{color:#888;font-size:11px}'
+    +'.row{display:flex;justify-content:space-between;padding:4px 2px;font-size:13px}'
+    +'.total{font-size:15px;font-weight:700;border-top:2px solid #111;margin-top:6px;padding-top:8px}'
+    +'.mode{text-align:center;margin-top:10px;font-size:12px;color:#333;border-top:1px dashed #999;padding-top:10px}'
+    +'.ft{text-align:center;margin-top:14px;font-size:12px;color:#555}'
+    +'@media print{body{padding:0}.tk{max-width:100%}}'
+    +'</style></head><body><div class="tk">'
+    +'<div class="hd">'+logo+'<div class="t">TICKET DE CAISSE</div></div>'
+    +'<div class="meta">Date : '+_escT(dt)+(nom?('<br>Client : '+_escT(nom)):'')+'</div>'
+    +itemsBlock+totLine+rembLine
+    +'<div class="mode">Paiement : '+modeTxt+'</div>'
+    +'<div class="ft">Merci !</div></div></body></html>';
+}
+function imprimerTicketCaisse(d){
+  try{
+    var html=_ticketCaisseHTML(d);
+    var b=new Blob([html],{type:'text/html'});var u=URL.createObjectURL(b);
+    var pf=document.getElementById('printFrame');
+    if(pf){pf.src=u;var mp=document.getElementById('modalPrintPreview');if(mp)mp.classList.add('open');}
+  }catch(e){}
+}
+async function saveTicketAuto(){
+  var el=document.getElementById('setTicketAuto');var v=!!(el&&el.checked);
+  try{await api('/api/settings',{method:'POST',body:{ticket_auto:v?'1':'0'}});if(typeof notify==='function')notify(v?'Ticket propose apres chaque vente':'Ticket desactive');}
+  catch(e){if(typeof notify==='function')notify('Erreur','error');}
+  window._ticketAuto=v;
+}
+async function loadTicketAuto(){
+  try{var r=await api('/api/settings');var v=(r&&r.ok&&r.data&&(r.data.ticket_auto==='1'||r.data.ticket_auto===1||r.data.ticket_auto===true));window._ticketAuto=!!v;var el=document.getElementById('setTicketAuto');if(el)el.checked=!!v;}catch(e){}
+}
 </script>
 </body>
 </html>
