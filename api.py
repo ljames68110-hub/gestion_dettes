@@ -1359,7 +1359,7 @@ def associes_create():
 @require_auth
 def client_tabac_paquets(cid):
     with db.get_conn() as conn:
-        rows = conn.execute("""SELECT COALESCE(mode_paiement,'Tabac') as nom, type, COALESCE(SUM(quantite),0) as qte FROM transactions WHERE client_id=? AND COALESCE(compte,'euro')='tabac' GROUP BY COALESCE(mode_paiement,'Tabac'), type""", (cid,)).fetchall()
+        rows = conn.execute("""SELECT COALESCE(mode_paiement,'Tabac') as nom, type, COALESCE(SUM(quantite),0) as qte FROM transactions WHERE client_id=? AND COALESCE(compte,'euro')='tabac' AND (notes IS NULL OR notes NOT LIKE '%[CAISSE PAYE]%') GROUP BY COALESCE(mode_paiement,'Tabac'), type""", (cid,)).fetchall()
         prix_map = {}
         try:
             for t in conn.execute("SELECT nom, prix FROM types_tabac").fetchall():
