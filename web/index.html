@@ -297,6 +297,7 @@ select option{background:var(--bg3)}
     <div class="nav-item" onclick="exportAll()"><span class="nav-icon">↓</span> Export CSV complet</div>
     <div class="nav-item" onclick="exportDB()"><span class="nav-icon">💾</span> Exporter la base</div>
     <div class="nav-item" onclick="document.getElementById('importDBInput').click()"><span class="nav-icon">📂</span> Importer une base</div>
+    <div class="nav-item" onclick="goPage('corbeille',this)"><span class="nav-icon">&#128465;</span> Corbeille</div>
     <input type="file" id="importDBInput" accept=".db" style="display:none" onchange="importDB(this)">
     <div class="sidebar-footer">
       <div class="sidebar-user">
@@ -786,6 +787,13 @@ select option{background:var(--bg3)}
         <div class="table-wrap">
           <div class="table-header"><span>Operations de la periode</span></div>
           <table><thead><tr><th>Date</th><th>Client</th><th>Type</th><th>Motif</th><th>Mode</th><th style="text-align:right">Montant</th></tr></thead><tbody id="comptaTbody"></tbody></table>
+        </div>
+      </div>
+      <div class="page" id="pg-corbeille">
+        <div class="table-wrap">
+          <div class="table-header"><span>Corbeille - transactions supprimees</span><button class="btn danger" onclick="viderCorbeille()">Vider la corbeille</button></div>
+          <div style="font-size:12px;color:var(--text3);padding:2px 4px 12px">Les transactions supprimees sont conservees ici. Restaure-les (stock et liens retablis) ou supprime-les definitivement.</div>
+          <div id="corbeilleList"></div>
         </div>
       </div>
       <div class="page" id="pg-rappels">
@@ -1391,7 +1399,7 @@ async function refreshPinLength(){
 }
 
 // ── NAVIGATION ──
-const TITLES={rentab:'Rentabilite par article',caisse:'Caisse',catalogue:'Catalogue Produits',factures:'Factures & Bons',stock:'Stock',dashboard:'Tableau de bord',clients:'Clients',transactions:'Transactions',soldes:'Soldes & Dettes',settings:'Parametres',rappels:'Rappels et Relances',entrees:'Entrees materiel',recap:'Recap mensuel',compta:'Comptabilite'};
+const TITLES={rentab:'Rentabilite par article',caisse:'Caisse',catalogue:'Catalogue Produits',factures:'Factures & Bons',stock:'Stock',dashboard:'Tableau de bord',clients:'Clients',transactions:'Transactions',soldes:'Soldes & Dettes',settings:'Parametres',rappels:'Rappels et Relances',entrees:'Entrees materiel',recap:'Recap mensuel',compta:'Comptabilite',corbeille:'Corbeille'};
 function goPage(name,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -1414,6 +1422,7 @@ function goPage(name,el){
   if(name==='caisse'){initCaisse();}
   if(name==='factures'){initFactures();}
   if(name==='compta'){initCompta();}
+  if(name==='corbeille')loadCorbeille();
 }
 
 // ── DASHBOARD ──
@@ -5443,5 +5452,56 @@ tbody tr:hover{background:rgba(255,255,255,.025);}
     </div>
   </div>
 </div>
+<script>
+// ===== CORBEILLE (3.02) =====
+async function loadCorbeille(){
+  var box=document.getElementById('corbeilleList');
+  if(box)box.innerHTML='<div style="color:var(--text3);padding:16px">Chargement...</div>';
+  var res=await api('/api/corbeille');
+  if(!res||!res.ok){if(box)box.innerHTML='<div style="color:var(--red);padding:16px">Erreur de chargement</div>';return;}
+  var rows=res.data||[];
+  if(!rows.length){if(box)box.innerHTML='<div style="color:var(--text3);text-align:center;padding:32px">Corbeille vide</div>';return;}
+  var html='<table><thead><tr>'
+    +'<th>Supprimee le</th><th>Client</th><th>Motif</th><th style="text-align:center">Type</th>'
+    +'<th style="text-align:right">Montant</th><th style="text-align:center">Date origine</th><th></th>'
+    +'</tr></thead><tbody>';
+  rows.forEach(function(tr){
+    var typ=(tr.type==='credit')?'Remboursement':'Vente';
+    var col=(tr.type==='debit')?'var(--green)':'var(--red)';
+    var sig=(tr.type==='debit')?'+':'-';
+    var mnt=(tr.montant_brut!=null?tr.montant_brut:(tr.montant_net||0));
+    html+='<tr>'
+      +'<td style="font-size:12px;color:var(--text2)">'+fmtDate(tr.deleted_at||'')+'</td>'
+      +'<td>'+(tr.client_nom||'\u2014')+'</td>'
+      +'<td>'+(tr.motif||'\u2014')+'</td>'
+      +'<td style="text-align:center;font-size:12px">'+typ+'</td>'
+      +'<td class="mono" style="text-align:right;color:'+col+'">'+sig+fmt(mnt)+'</td>'
+      +'<td style="text-align:center;font-size:12px;color:var(--text3)">'+fmtDate(tr.date||'')+'</td>'
+      +'<td style="text-align:right;white-space:nowrap">'
+        +'<button class="btn" style="padding:4px 10px;font-size:12px" onclick="restaurerCorbeille('+tr.id+')">Restaurer</button> '
+        +'<button class="btn danger" style="padding:4px 10px;font-size:12px" onclick="purgerCorbeille('+tr.id+')">Supprimer</button>'
+      +'</td></tr>';
+  });
+  html+='</tbody></table>';
+  if(box)box.innerHTML=html;
+}
+async function restaurerCorbeille(id){
+  var res=await api('/api/corbeille/'+id+'/restore',{method:'POST'});
+  if(res&&res.ok){notify('Transaction restauree');loadCorbeille();if(typeof loadTransactions==='function')loadTransactions();}
+  else notify('Echec de la restauration','error');
+}
+async function purgerCorbeille(id){
+  if(!confirm('Supprimer DEFINITIVEMENT cette transaction ? Action irreversible.'))return;
+  var res=await api('/api/corbeille/'+id,{method:'DELETE'});
+  if(res&&res.ok){notify('Supprimee definitivement');loadCorbeille();}
+  else notify('Echec','error');
+}
+async function viderCorbeille(){
+  if(!confirm('Vider TOUTE la corbeille ? Les transactions supprimees seront perdues definitivement.'))return;
+  var res=await api('/api/corbeille/purge',{method:'POST'});
+  if(res&&res.ok){notify('Corbeille videe ('+((res.data&&res.data.purged)||0)+')');loadCorbeille();}
+  else notify('Echec','error');
+}
+</script>
 </body>
 </html>
