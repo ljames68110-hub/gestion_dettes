@@ -334,6 +334,30 @@ def transactions_delete(tid):
     db.delete_transaction(tid)
     return ok({"deleted": tid})
 
+@app.route("/api/corbeille")
+@require_auth
+def corbeille_list():
+    return ok(db.get_corbeille())
+
+@app.route("/api/corbeille/<int:tid>/restore", methods=["POST"])
+@require_auth
+def corbeille_restore(tid):
+    if db.restore_corbeille_item(tid):
+        return ok({"restored": tid})
+    return err("Introuvable dans la corbeille", 404)
+
+@app.route("/api/corbeille/<int:tid>", methods=["DELETE"])
+@require_auth
+def corbeille_purge_item(tid):
+    db.purge_corbeille_item(tid)
+    return ok({"purged": tid})
+
+@app.route("/api/corbeille/purge", methods=["POST"])
+@require_auth
+def corbeille_purge_all():
+    n = db.purge_corbeille_all()
+    return ok({"purged": n})
+
 # ── EXPORT ────────────────────────────────────────────────────────────────────
 
 @app.route("/api/export/csv/<int:cid>")

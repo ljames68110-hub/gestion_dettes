@@ -308,6 +308,111 @@ def get_all_transactions(limit=200):
     return [dict(r) for r in rows]
 
 
+# ===== CORBEILLE (soft-delete : archivage avant suppression) =====
+def _txn_columns(conn):
+    return [r[1] for r in conn.execute("PRAGMA table_info(transactions)").fetchall()]
+
+def _ensure_corbeille_table(conn):
+    cols = set(r[1] for r in conn.execute("PRAGMA table_info(transactions_corbeille)").fetchall())
+    if not cols:
+        conn.execute("CREATE TABLE transactions_corbeille AS SELECT * FROM transactions WHERE 0")
+        conn.execute("ALTER TABLE transactions_corbeille ADD COLUMN deleted_at TEXT")
+        conn.execute("ALTER TABLE transactions_corbeille ADD COLUMN client_nom TEXT")
+    else:
+        if "deleted_at" not in cols:
+            conn.execute("ALTER TABLE transactions_corbeille ADD COLUMN deleted_at TEXT")
+        if "client_nom" not in cols:
+            conn.execute("ALTER TABLE transactions_corbeille ADD COLUMN client_nom TEXT")
+
+def _archive_txn(conn, where, params):
+    """Copie vers la corbeille les transactions correspondant a <where> (avant DELETE)."""
+    _ensure_corbeille_table(conn)
+    cols = _txn_columns(conn)
+    collist = ",".join(cols)
+    sel = ",".join("t." + c for c in cols)
+    now = datetime.utcnow().isoformat(sep=' ', timespec='seconds')
+    conn.execute(
+        "INSERT INTO transactions_corbeille (" + collist + ",deleted_at,client_nom) "
+        "SELECT " + sel + ",?,c.nom FROM transactions t "
+        "LEFT JOIN clients c ON c.id=t.client_id WHERE " + where,
+        (now,) + tuple(params)
+    )
+
+def get_corbeille(limit=500):
+    with get_conn() as conn:
+        _ensure_corbeille_table(conn)
+        rows = conn.execute(
+            "SELECT * FROM transactions_corbeille ORDER BY deleted_at DESC, id DESC LIMIT ?",
+            (int(limit),)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+def _reapply_effects_on_restore(conn, row):
+    """ Re-applique l'inverse des effets de delete_transaction (stock + SIM)."""
+    import re as _re
+    notes = row["notes"] or ""
+    m = _re.search(r"\[STK ([^\]]*)\]", notes)
+    if m:
+        for part in m.group(1).split(";"):
+            part = part.strip()
+            if ":" in part:
+                cid_s, delta_s = part.split(":", 1)
+                try:
+                    conn.execute("UPDATE catalogue SET stock=COALESCE(stock,0)+? WHERE id=?",
+                                 (float(delta_s), int(cid_s)))
+                except Exception:
+                    pass
+    elif row["type"] == "debit" and "[CAISSE" in notes:
+        cat = conn.execute("SELECT id FROM catalogue WHERE nom=? AND actif=1", (row["motif"],)).fetchone()
+        if cat:
+            is_sim = conn.execute("SELECT COUNT(*) FROM sim_cards WHERE catalogue_id=?", (cat["id"],)).fetchone()[0] > 0
+            if not is_sim:
+                conn.execute("UPDATE catalogue SET stock=COALESCE(stock,0)-? WHERE id=?",
+                             (row["quantite"] or 0, cat["id"]))
+    try:
+        for mm in _re.finditer(r"\[SIM puce=([^\|\]]*)\|last4=([^\]]*)\]", notes):
+            puce = (mm.group(1) or "").strip()
+            sc = conn.execute("SELECT id,catalogue_id FROM sim_cards WHERE puce=? AND statut='stock'", (puce,)).fetchone()
+            if sc:
+                conn.execute("UPDATE sim_cards SET statut='vendu', transaction_id=?, client_id=? WHERE id=?",
+                             (row["id"], row["client_id"], sc["id"]))
+                try: _sync_sim_stock(conn, sc["catalogue_id"])
+                except Exception: pass
+    except Exception:
+        pass
+
+def restore_corbeille_item(tid):
+    with get_conn() as conn:
+        _ensure_corbeille_table(conn)
+        row = conn.execute("SELECT * FROM transactions_corbeille WHERE id=?", (tid,)).fetchone()
+        if not row:
+            return False
+        cols = _txn_columns(conn)
+        collist = ",".join(cols)
+        conn.execute(
+            "INSERT INTO transactions (" + collist + ") SELECT " + collist +
+            " FROM transactions_corbeille WHERE id=?", (tid,)
+        )
+        _reapply_effects_on_restore(conn, row)
+        conn.execute("DELETE FROM transactions_corbeille WHERE id=?", (tid,))
+        conn.commit()
+    return True
+
+def purge_corbeille_item(tid):
+    with get_conn() as conn:
+        _ensure_corbeille_table(conn)
+        conn.execute("DELETE FROM transactions_corbeille WHERE id=?", (tid,))
+        conn.commit()
+    return True
+
+def purge_corbeille_all():
+    with get_conn() as conn:
+        _ensure_corbeille_table(conn)
+        n = conn.execute("SELECT COUNT(*) FROM transactions_corbeille").fetchone()[0]
+        conn.execute("DELETE FROM transactions_corbeille")
+        conn.commit()
+    return n
+
 def delete_transaction(trans_id: int):
     import re as _re
     _ensure_sim_table()
@@ -334,6 +439,7 @@ def delete_transaction(trans_id: int):
         for s in conn.execute("SELECT id,catalogue_id FROM sim_cards WHERE transaction_id=? AND statut='vendu'", (trans_id,)).fetchall():
             conn.execute("UPDATE sim_cards SET statut='stock', transaction_id=NULL, client_id=NULL, date_vente=NULL WHERE id=?", (s["id"],))
             _sync_sim_stock(conn, s["catalogue_id"])
+        _archive_txn(conn, "t.id=?", (trans_id,))
         conn.execute("DELETE FROM transactions WHERE id=?", (trans_id,))
         conn.commit()
 def get_stats_client(client_id: int):
@@ -1149,6 +1255,7 @@ def reset_client_data(client_id):
     """Efface transactions + frais_dus + prets + factures d'un client."""
     _ensure_frais_dus_table(); _ensure_prets_table()
     with get_conn() as conn:
+        _archive_txn(conn, "t.client_id=?", (int(client_id),))
         cur = conn.execute("DELETE FROM transactions WHERE client_id=?", (int(client_id),))
         n = cur.rowcount
         conn.execute("DELETE FROM frais_dus WHERE client_id=?", (int(client_id),))
