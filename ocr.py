@@ -107,10 +107,16 @@ def lire_ticket(photo, lang="fra", hint=""):
     code = ""
 
     if typ == "paysafecard":
-        # Montant : "Montant: 50.00" (sinon "Classic 100")
-        m = re.search(r'MONTANT\s*[:\-]?\s*([0-9]+(?:[.,][0-9]{1,2})?)', up)
-        if not m:
-            m = re.search(r'CLASSIC\s*([0-9]{2,3})', up)
+        # Montant : "Montant: 50.00" / "Classic 100" / "PaysafeCard EUR 50" / "50 EUR"
+        m = None
+        for _pat in (r'MONTANT\s*[:\-]?\s*([0-9]+(?:[.,][0-9]{1,2})?)',
+                     r'CLASSIC\s*([0-9]{2,3})',
+                     r'PAYSAFECARD\s+EUR\s*([0-9]{2,3})',
+                     r'EUR\s*([0-9]{2,3})',
+                     r'([0-9]{2,3})\s*(?:\u20ac|EUR)\b'):
+            m = re.search(_pat, up)
+            if m:
+                break
         if m:
             montant = m.group(1).replace(",", ".")
         # Code : 16 chiffres — passe chiffres PUIS texte principal
@@ -130,15 +136,27 @@ def lire_ticket(photo, lang="fra", hint=""):
                     break
 
     elif typ == "transcash":
-        # Montant : "Montant credite : 50 EUR" (jamais "Prix de la recharge")
-        m = re.search(r'CR[E\u00c9]DIT[E\u00c9]?\s*[:\-]?\s*([0-9]{1,4})', up)
+        # Montant "credite" : separateur permissif (':', '|', espace...) ; jamais "prix recharge"
+        m = re.search(r'CR[E\u00c9]DIT[E\u00c9]?[^\d\n]{0,6}(\d{1,4})', up)
+        if not m:
+            m = re.search(r'MONTANT[^\d\n]{0,10}(\d{1,4})', up)
         if m:
             montant = m.group(1)
-        # Code : ~12 chiffres apres "VOTRE CODE" (exclut le tel = 10 chiffres)
-        for d in druns:
-            if 11 <= len(d) <= 14:
+        # Code : 12 chiffres (exclut tel/ref = 10) - passe chiffres PUIS texte
+        cand = list(druns)
+        for _ln in lines:
+            _dd = re.sub(r"\D", "", _ln)
+            if _dd:
+                cand.append(_dd)
+        for d in cand:
+            if len(d) == 12:
                 code = d
                 break
+        if not code:
+            for d in cand:
+                if 11 <= len(d) <= 13:
+                    code = d
+                    break
 
     else:  # PCS
         # Montant : "Credit: X"
@@ -159,13 +177,34 @@ def lire_ticket(photo, lang="fra", hint=""):
                             break
                     except Exception:
                         pass
-        # Code : alphanumerique apres SECRET
+        # Code : passe dediee alphanumerique (police grasse ratee en psm 6)
+        for _cfg in ("--psm 4", "--psm 11"):
+            if code:
+                break
+            try:
+                _atxt = pytesseract.image_to_string(
+                    img, lang="eng",
+                    config=_cfg + " -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+                for _tok in re.findall(r'\b[A-Z0-9]{9,11}\b', _atxt.upper()):
+                    if (len(_tok) == 10
+                            and len(re.findall(r'[A-Z]', _tok)) >= 3
+                            and re.search(r'[0-9]', _tok)
+                            and not _tok.startswith(("EXRECH", "RECH", "PCS", "LB00"))
+                            and "RECH" not in _tok
+                            and _tok not in _BL):
+                        code = _tok
+                        break
+            except Exception:
+                pass
+        # Fallback : alphanumerique apres SECRET
         _SKIP = ("ESPACE","DERNIERS","CHIFFRES","CARTE","EX","RECH","NUMERO","SMS")
         def good(tok):
             return (8 <= len(tok) <= 12 and tok not in _BL
                     and len(re.findall(r'[A-Z]', tok)) >= 3
                     and re.search(r'[0-9]', tok) and "RECH" not in tok)
         for i, line in enumerate(lines):
+            if code:
+                break
             if "SECRET" in line:
                 for j in range(i+1, min(i+3, len(lines))):
                     if any(k in lines[j] for k in _SKIP):
