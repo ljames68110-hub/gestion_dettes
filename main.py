@@ -247,6 +247,44 @@ def _ensure_flask_started():
         print("[Gestion Perso] Scan telephone non demarre:", e)
 
 
+def _backup_enc(keep=15):
+    """Sauvegarde datee de la base chiffree au lancement. Garde les <keep> plus recentes."""
+    try:
+        import shutil, glob, hashlib, datetime
+        if not (ENC_PATH and os.path.exists(ENC_PATH) and os.path.getsize(ENC_PATH) > 0):
+            return
+        bdir = os.path.join(DATA_DIR, "backups")
+        os.makedirs(bdir, exist_ok=True)
+        try:
+            _sb = os.path.join(bdir, "dettes.salt")
+            if os.path.exists(SALT_PATH) and not os.path.exists(_sb):
+                shutil.copy2(SALT_PATH, _sb)
+        except Exception:
+            pass
+        existing = sorted(glob.glob(os.path.join(bdir, "dettes-*.db.enc")))
+        try:
+            with open(ENC_PATH, "rb") as _f:
+                _cur = hashlib.md5(_f.read()).hexdigest()
+            if existing:
+                with open(existing[-1], "rb") as _f:
+                    if hashlib.md5(_f.read()).hexdigest() == _cur:
+                        return
+        except Exception:
+            pass
+        stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        dst = os.path.join(bdir, "dettes-" + stamp + ".db.enc")
+        shutil.copy2(ENC_PATH, dst)
+        print("[Gestion Perso] Sauvegarde :", dst)
+        existing = sorted(glob.glob(os.path.join(bdir, "dettes-*.db.enc")))
+        for _old in existing[:-keep]:
+            try:
+                os.remove(_old)
+            except Exception:
+                pass
+    except Exception as _e:
+        print("[Gestion Perso] Echec sauvegarde :", _e)
+
+
 def _save_backup_on_exit():
     if ENCRYPTION_ON and DB_PASSWORD is not None:
         _lock_db_on_exit(); return
@@ -361,6 +399,7 @@ def _open_main_window():
 def main():
     global _SALT
     atexit.register(_save_backup_on_exit)
+    _backup_enc()
     print(f"[Gestion Perso] Demarrage {URL}")
     print(f"[Gestion Perso] DB : {DB_PATH}")
 
