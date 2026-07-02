@@ -186,10 +186,10 @@ def client_stats_comptes(cid):
             GROUP BY COALESCE(compte,'euro'), type
         """, (cid,)).fetchall()
 
-        paye_rows = conn.execute("""
+        paye_rows = conn.execute(f"""
             SELECT COALESCE(compte,'euro') as compte, COALESCE(SUM(montant_net),0) as paye
             FROM transactions
-            WHERE client_id=? AND type='debit' AND notes LIKE '%[CAISSE PAYE]%'
+            WHERE client_id=? AND type='debit' AND {db.is_paye_clause()}
             GROUP BY COALESCE(compte,'euro')
         """, (cid,)).fetchall()
         paye = {}
@@ -544,7 +544,7 @@ def dettes_ouvertes(cid):
             rid, rtype, mnet, mbrut, linked = r[0], r[2], r[3], r[4], r[5]
             notes = r[8] or ""
             if rtype == 'debit':
-                if excl_paye and ('[CAISSE PAYE]' in notes):
+                if excl_paye and (db.CAISSE_PAYE_TAG in notes):
                     continue
                 rem[rid] = mnet
                 opened.append(rid)
@@ -1118,7 +1118,7 @@ def _build_facture_html(trans, client, type_):
     date_trans = trans.get("date","")[:10].split("-")
     date_fmt = "/".join(reversed(date_trans)) if len(date_trans)==3 else trans.get("date","")
     is_vente = type_ == "vente"
-    _paye = is_vente and ("[CAISSE PAYE]" in (trans.get("notes") or ""))
+    _paye = is_vente and (db.CAISSE_PAYE_TAG in (trans.get("notes") or ""))
     titre = "FACTURE DE VENTE" if is_vente else ("BON DE DÉPÔT" if (client and client.get("associe")) else "BON DE REMBOURSEMENT")
     couleur = "#16a34a" if is_vente else "#c9a84c"
     _logo = db.get_setting("app_logo", "")
@@ -1460,7 +1460,7 @@ def associes_create():
 @require_auth
 def client_tabac_paquets(cid):
     with db.get_conn() as conn:
-        rows = conn.execute("""SELECT COALESCE(mode_paiement,'Tabac') as nom, type, COALESCE(SUM(quantite),0) as qte FROM transactions WHERE client_id=? AND COALESCE(compte,'euro')='tabac' AND (notes IS NULL OR notes NOT LIKE '%[CAISSE PAYE]%') GROUP BY COALESCE(mode_paiement,'Tabac'), type""", (cid,)).fetchall()
+        rows = conn.execute("SELECT COALESCE(mode_paiement,'Tabac') as nom, type, COALESCE(SUM(quantite),0) as qte FROM transactions WHERE client_id=? AND COALESCE(compte,'euro')='tabac' AND " + db.excl_paye_clause() + " GROUP BY COALESCE(mode_paiement,'Tabac'), type", (cid,)).fetchall()
         prix_map = {}
         try:
             for t in conn.execute("SELECT nom, prix FROM types_tabac").fetchall():
@@ -1524,7 +1524,7 @@ def _build_facture_groupee_html(transs, client, type_):
         _pimg = f'<img src="{_ph}" style="width:34px;height:34px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:6px">' if _ph else ""
         rows_html += f"<tr><td>{_pimg}<strong>{motif}</strong></td><td>{float(qty):.1f} {ulabel}</td><td>{float(pu):.2f} EUR</td><td>{mode}</td><td style='text-align:right;font-weight:600'>{float(mb):.2f} EUR</td></tr>"
     total = round(total,2)
-    _paye = is_vente and bool(transs) and all(("[CAISSE PAYE]" in (t.get("notes") or "")) for t in transs)
+    _paye = is_vente and bool(transs) and all((db.CAISSE_PAYE_TAG in (t.get("notes") or "")) for t in transs)
     total_label = ("Total payé" if _paye else "Total du") if is_vente else ("Montant déposé" if (client and client.get("associe")) else "Montant rembourse")
     html = f"""<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>{titre} {numero}</title>
 <style>*{{margin:0;padding:0;box-sizing:border-box}}body{{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:32px;max-width:600px;margin:auto}}

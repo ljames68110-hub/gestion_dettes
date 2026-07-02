@@ -12,6 +12,17 @@ def get_conn():
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
+CAISSE_PAYE_TAG = "[CAISSE PAYE]"  # marqueur d'une vente comptant (deja payee)
+
+def excl_paye_clause(col="notes"):
+    """Fragment SQL vrai quand la transaction n'est PAS un comptant deja paye."""
+    return "(" + col + " IS NULL OR " + col + " NOT LIKE '%" + CAISSE_PAYE_TAG + "%')"
+
+def is_paye_clause(col="notes"):
+    """Fragment SQL vrai quand la transaction est un comptant deja paye."""
+    return col + " LIKE '%" + CAISSE_PAYE_TAG + "%'"
+
+
 def init_db():
     """Crée toutes les tables si elles n'existent pas, et migre si besoin."""
     with get_conn() as conn:
@@ -459,7 +470,7 @@ def get_stats_client(client_id: int):
         # Un frais paye/facture reste sur la transaction (trace) mais ne compte plus
         # dans le solde -> evite le double comptage avec le debit de frais reportes.
         _assoc = q("SELECT COALESCE(associe,0) FROM clients WHERE id=?", client_id)
-        _excl_paye = "" if _assoc else " AND (notes IS NULL OR notes NOT LIKE '%[CAISSE PAYE]%')"
+        _excl_paye = "" if _assoc else (" AND " + excl_paye_clause())
         debit_brut  = q("SELECT COALESCE(SUM(montant_brut),0) FROM transactions WHERE client_id=? AND type='debit'" + _excl_paye, client_id)
         credit_brut = q("SELECT COALESCE(SUM(montant_brut),0) FROM transactions WHERE client_id=? AND type='credit'", client_id)
         try:
@@ -491,11 +502,11 @@ def get_stats_global():
         nb_trans      = q("SELECT COUNT(*) FROM transactions")
 
         # Clients avec solde négatif (dettes)
-        rows_soldes = conn.execute("""
+        rows_soldes = conn.execute(f"""
             SELECT t.client_id,
                    SUM(CASE WHEN t.type='credit' THEN t.montant_net ELSE 0 END) -
                    SUM(CASE WHEN t.type='debit'
-                            AND NOT (COALESCE(c.associe,0)=0 AND t.notes LIKE '%[CAISSE PAYE]%')
+                            AND NOT (COALESCE(c.associe,0)=0 AND {is_paye_clause('t.notes')})
                             THEN t.montant_net ELSE 0 END) AS solde
             FROM transactions t LEFT JOIN clients c ON c.id=t.client_id
             GROUP BY t.client_id
