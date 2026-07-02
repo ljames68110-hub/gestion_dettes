@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
   <meta name="theme-color" content="#0a0a0f">
+<script>/* capture erreurs JS (3.03) */(function(){function _send(p){try{fetch('/api/log-client-error',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).catch(function(){});}catch(e){}}window.addEventListener('error',function(ev){try{_send({kind:'js-error',message:(ev&&ev.message)||'error',source:(ev&&ev.filename)||'',line:(ev&&ev.lineno)||0,stack:(ev&&ev.error&&ev.error.stack)?(''+ev.error.stack):'',url:location.href});}catch(e){}});window.addEventListener('unhandledrejection',function(ev){try{var r=ev&&ev.reason;_send({kind:'promise-rejection',message:(r&&r.message)?r.message:(''+r),stack:(r&&r.stack)?(''+r.stack):'',url:location.href});}catch(e){}});})();</script>
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -391,7 +392,7 @@ select option{background:var(--bg3)}
 
       <!-- PARAMÈTRES -->
       <div class="page" id="pg-settings">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px"><div class="card" style="grid-column:1/-1"><div class="card-title">Logo du menu</div><p style="font-size:13px;color:var(--text3)">Affiche en haut du menu lateral. (Pour l'icone du raccourci .exe, voir la note plus bas / la doc.)</p><img id="appLogoPrev" style="display:none;max-width:140px;max-height:80px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:var(--bg3);margin:8px 0"><div style="display:flex;gap:8px;align-items:center;margin-top:8px"><label class="btn" style="cursor:pointer">Choisir une image<input type="file" accept="image/*" style="display:none" onchange="onAppLogoPick(this)"></label><button type="button" class="btn" style="background:var(--bg3);color:var(--red)" onclick="removeAppLogo()">Retirer</button></div></div><div class="card" style="grid-column:1/-1"><div class="card-title">🤝 Frais des associés</div><label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;color:var(--text2)"><input type="checkbox" id="setAssocieFraisAuto" onchange="saveAssocieFraisAuto()" style="width:auto;margin:0"> Mode automatique : l'associé paie toujours ses frais (sans me demander)</label><div style="font-size:12px;color:var(--text3);margin-top:8px">Si décoché, la caisse te demandera à chaque fois (case « j'absorbe ? ») pour les associés.</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px"><div class="card" style="grid-column:1/-1"><div class="card-title">&#128220; Journal d'erreurs</div><p style="font-size:13px;color:var(--text3)">Les erreurs (Python et JavaScript) sont enregistrees automatiquement. En cas de bug, ouvre le journal et copie-le pour me le transmettre.</p><button class="btn" style="margin-top:8px" onclick="openLogModal()">Voir le journal</button></div><div class="card" style="grid-column:1/-1"><div class="card-title">Logo du menu</div><p style="font-size:13px;color:var(--text3)">Affiche en haut du menu lateral. (Pour l'icone du raccourci .exe, voir la note plus bas / la doc.)</p><img id="appLogoPrev" style="display:none;max-width:140px;max-height:80px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:var(--bg3);margin:8px 0"><div style="display:flex;gap:8px;align-items:center;margin-top:8px"><label class="btn" style="cursor:pointer">Choisir une image<input type="file" accept="image/*" style="display:none" onchange="onAppLogoPick(this)"></label><button type="button" class="btn" style="background:var(--bg3);color:var(--red)" onclick="removeAppLogo()">Retirer</button></div></div><div class="card" style="grid-column:1/-1"><div class="card-title">🤝 Frais des associés</div><label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;color:var(--text2)"><input type="checkbox" id="setAssocieFraisAuto" onchange="saveAssocieFraisAuto()" style="width:auto;margin:0"> Mode automatique : l'associé paie toujours ses frais (sans me demander)</label><div style="font-size:12px;color:var(--text3);margin-top:8px">Si décoché, la caisse te demandera à chaque fois (case « j'absorbe ? ») pour les associés.</div></div>
           <div class="card" style="grid-column:1/-1">
             <div class="card-title">🔐 Méthode de connexion</div>
             <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;color:var(--text2);margin-bottom:16px;padding:12px;border:1px solid var(--border);border-radius:10px"><input type="checkbox" id="setNoAuth" onchange="saveNoAuth()" style="width:auto;margin:0"> Desactiver le 2eme mot de passe (ne plus demander de code apres le mot de passe d'ouverture)</label><div style="display:flex;gap:12px;margin-bottom:20px">
@@ -5500,6 +5501,43 @@ async function viderCorbeille(){
   if(!confirm('Vider TOUTE la corbeille ? Les transactions supprimees seront perdues definitivement.'))return;
   var res=await api('/api/corbeille/purge',{method:'POST'});
   if(res&&res.ok){notify('Corbeille videe ('+((res.data&&res.data.purged)||0)+')');loadCorbeille();}
+  else notify('Echec','error');
+}
+</script>
+<div class="modal-bg" id="modalLog" onclick="if(event.target===this)closeLogModal()">
+  <div class="modal" style="max-width:780px;width:94%">
+    <div class="modal-title">Journal d'erreurs</div>
+    <div class="modal-sub">Erreurs Python et JavaScript. Copie le contenu pour le partager en cas de bug.</div>
+    <pre id="logContent" style="max-height:54vh;overflow:auto;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-word;color:var(--text2);margin:14px 0">Chargement...</pre>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeLogModal()">Fermer</button>
+      <button class="btn" onclick="copierLog()">Copier</button>
+      <button class="btn danger" onclick="viderLog()">Vider le journal</button>
+    </div>
+  </div>
+</div>
+<script>
+async function openLogModal(){
+  var m=document.getElementById('modalLog');if(m)m.classList.add('open');
+  var pre=document.getElementById('logContent');if(pre)pre.textContent='Chargement...';
+  var res=await api('/api/logs');
+  if(pre){pre.textContent=(res&&res.ok&&res.data&&res.data.log)?res.data.log:'(journal vide)';pre.scrollTop=pre.scrollHeight;}
+}
+function closeLogModal(){var m=document.getElementById('modalLog');if(m)m.classList.remove('open');}
+function copierLog(){
+  var pre=document.getElementById('logContent');if(!pre)return;
+  var txt=pre.textContent||'';
+  try{navigator.clipboard.writeText(txt).then(function(){notify('Journal copie');},function(){_fallbackCopyLog(txt);});}
+  catch(e){_fallbackCopyLog(txt);}
+}
+function _fallbackCopyLog(txt){
+  try{var ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);notify('Journal copie');}
+  catch(e){notify('Copie impossible','error');}
+}
+async function viderLog(){
+  if(!confirm('Vider le journal d\'erreurs ?'))return;
+  var res=await api('/api/logs/clear',{method:'POST'});
+  if(res&&res.ok){notify('Journal vide');openLogModal();}
   else notify('Echec','error');
 }
 </script>

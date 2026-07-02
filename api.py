@@ -334,6 +334,83 @@ def transactions_delete(tid):
     db.delete_transaction(tid)
     return ok({"deleted": tid})
 
+# ===== JOURNAL D'ERREURS (3.03) =====
+def _log_path():
+    d = os.path.join(os.path.dirname(db.DB_FILE), "logs")
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, "app.log")
+
+def _write_log(level, msg):
+    try:
+        p = _log_path()
+        try:
+            if os.path.exists(p) and os.path.getsize(p) > 1000000:
+                bak = p + ".1"
+                if os.path.exists(bak):
+                    os.remove(bak)
+                os.replace(p, bak)
+        except Exception:
+            pass
+        from datetime import datetime as _dt
+        with open(p, "a", encoding="utf-8") as f:
+            f.write("[" + _dt.now().strftime("%Y-%m-%d %H:%M:%S") + "] " + str(level) + " " + str(msg) + "\n")
+    except Exception:
+        pass
+
+@app.route("/api/log-client-error", methods=["POST"])
+def log_client_error():
+    try:
+        d = request.get_json(silent=True) or {}
+    except Exception:
+        d = {}
+    kind = str(d.get("kind", "js-error"))[:40]
+    msg = str(d.get("message", ""))[:1000]
+    src = str(d.get("source", ""))[:300]
+    ln = d.get("line", 0)
+    stack = str(d.get("stack", ""))[:3000].replace("\n", " ")
+    detail = kind + ": " + msg + " (" + src + ":" + str(ln) + ")"
+    if stack:
+        detail += " | " + stack
+    _write_log("JS ", detail)
+    return ok({"logged": True})
+
+@app.route("/api/logs")
+@require_auth
+def logs_get():
+    try:
+        p = _log_path()
+        if not os.path.exists(p):
+            return ok({"log": ""})
+        with open(p, "r", encoding="utf-8", errors="replace") as f:
+            data = f.read()
+        return ok({"log": data[-40000:]})
+    except Exception:
+        return err("Erreur lecture journal", 500)
+
+@app.route("/api/logs/clear", methods=["POST"])
+@require_auth
+def logs_clear():
+    try:
+        open(_log_path(), "w", encoding="utf-8").close()
+    except Exception:
+        pass
+    return ok({"cleared": True})
+
+@app.errorhandler(Exception)
+def _log_unhandled(e):
+    try:
+        from werkzeug.exceptions import HTTPException
+        if isinstance(e, HTTPException):
+            return e
+    except Exception:
+        pass
+    try:
+        import traceback
+        _write_log("ERR", "Server: " + repr(e) + " | " + traceback.format_exc().replace("\n", " ")[:3000])
+    except Exception:
+        pass
+    return err("Erreur serveur interne", 500)
+
 @app.route("/api/corbeille")
 @require_auth
 def corbeille_list():
