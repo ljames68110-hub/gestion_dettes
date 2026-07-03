@@ -1870,7 +1870,8 @@ def ocr_ticket_route():
         return ok({"ok": False, "error": "Photo manquante"})
     try:
         import ocr
-        res = ocr.lire_ticket(photo, hint=data.get("mode", ""))
+        _vkey = db.get_setting("google_vision_key", "") or ""
+        res = ocr.lire_ticket(photo, hint=data.get("mode", ""), api_key=_vkey, prefer_cloud=bool(data.get("cloud")))
     except Exception as e:
         res = {"ok": False, "error": str(e)}
     return ok(res)

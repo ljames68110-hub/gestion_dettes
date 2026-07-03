@@ -53,29 +53,57 @@ def _detect_by_code_format(up):
             return "pcs"
     return ""
 
-def lire_ticket(photo, lang="fra", hint=""):
-    if not _OCR_OK:
-        return {"ok": False, "error": "OCR indisponible (pytesseract/Pillow manquants)"}
-    try:
-        pytesseract.get_tesseract_version()
-    except Exception:
-        return {"ok": False, "error": "Tesseract introuvable. Installe-le et garde le chemin C:\\Program Files\\Tesseract-OCR"}
-    try:
-        img = _preprocess(_to_image(photo))
-    except Exception:
-        return {"ok": False, "error": "Image illisible"}
-    txt, err = "", ""
-    for lg in (lang, "eng"):
+def _google_vision_ocr(photo, api_key):
+    """OCR (dont manuscrit) via Google Cloud Vision - DOCUMENT_TEXT_DETECTION."""
+    import json as _json, urllib.request as _url
+    b64 = photo.split(",", 1)[1] if "," in photo else photo
+    endpoint = "https://vision.googleapis.com/v1/images:annotate?key=" + api_key
+    payload = _json.dumps({"requests": [{
+        "image": {"content": b64},
+        "features": [{"type": "DOCUMENT_TEXT_DETECTION"}]
+    }]}).encode("utf-8")
+    req = _url.Request(endpoint, data=payload, headers={"Content-Type": "application/json"})
+    with _url.urlopen(req, timeout=25) as resp:
+        data = _json.loads(resp.read().decode("utf-8"))
+    r0 = (data.get("responses") or [{}])[0]
+    if r0.get("error"):
+        raise RuntimeError(str(r0["error"].get("message", "Vision error")))
+    fta = r0.get("fullTextAnnotation") or {}
+    return fta.get("text", "") or ""
+
+
+def lire_ticket(photo, lang="fra", hint="", api_key="", prefer_cloud=False):
+    txt, err, img, cloud_err = "", "", None, ""
+    if prefer_cloud and api_key:
         try:
-            txt = pytesseract.image_to_string(img, lang=lg, config="--psm 6")
-            if txt.strip():
-                break
-        except Exception as e:
-            err = str(e)
+            txt = _google_vision_ocr(photo, api_key) or ""
+        except Exception as _ce:
+            cloud_err = str(_ce)[:160]
+            txt = ""
     if not txt.strip():
-        if err:
-            return {"ok": False, "error": ("Tesseract: " + err)[:140]}
-        return {"ok": False, "error": "Aucun texte detecte (photo trop floue ?)"}
+        if not _OCR_OK:
+            return {"ok": False, "error": "OCR indisponible (pytesseract/Pillow manquants)"}
+        try:
+            pytesseract.get_tesseract_version()
+        except Exception:
+            return {"ok": False, "error": "Tesseract introuvable. Installe-le, ou active le cloud dans les reglages."}
+        try:
+            img = _preprocess(_to_image(photo))
+        except Exception:
+            return {"ok": False, "error": "Image illisible"}
+        for lg in (lang, "eng"):
+            try:
+                txt = pytesseract.image_to_string(img, lang=lg, config="--psm 6")
+                if txt.strip():
+                    break
+            except Exception as _e:
+                err = str(_e)
+        if not txt.strip():
+            if cloud_err:
+                return {"ok": False, "error": ("Cloud: " + cloud_err)}
+            if err:
+                return {"ok": False, "error": ("Tesseract: " + err)[:140]}
+            return {"ok": False, "error": "Aucun texte detecte (photo trop floue ?)"}
 
     up = txt.upper()
     lines = [l for l in up.splitlines() if l.strip()]
@@ -100,16 +128,24 @@ def lire_ticket(photo, lang="fra", hint=""):
     # --- passe chiffres dediee (psm 4) pour les codes numeriques nets ---
     druns = []
     if typ in ("paysafecard", "transcash"):
-        try:
-            dtxt = pytesseract.image_to_string(
-                img, lang="eng",
-                config="--psm 4 -c tessedit_char_whitelist=0123456789")
-            for ln in dtxt.splitlines():
+        if img is not None:
+            try:
+                dtxt = pytesseract.image_to_string(
+                    img, lang="eng",
+                    config="--psm 4 -c tessedit_char_whitelist=0123456789")
+                for ln in dtxt.splitlines():
+                    d = re.sub(r"\D", "", ln)
+                    if len(d) >= 8:
+                        druns.append(d)
+            except Exception:
+                pass
+        else:
+            for ln in up.splitlines():
                 d = re.sub(r"\D", "", ln)
                 if len(d) >= 8:
                     druns.append(d)
-        except Exception:
-            pass
+            for d in re.findall(r"[0-9]{8,}", re.sub(r"[ .]", "", up)):
+                druns.append(d)
 
     # --- serie (commun PCS / PaysafeCard) ---
     serie = ""
@@ -130,7 +166,7 @@ def lire_ticket(photo, lang="fra", hint=""):
                      r'CLASSIC\s*([0-9]{2,3})',
                      r'PAYSAFECARD\s+EUR\s*([0-9]{2,3})',
                      r'EUR\s*([0-9]{2,3})',
-                     r'([0-9]{2,3})\s*(?:\u20ac|EUR)\b'):
+                     r'([0-9]{2,3})\s*(?:\u20ac|EUR)'):
             m = re.search(_pat, up)
             if m:
                 break
