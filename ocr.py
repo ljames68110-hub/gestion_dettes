@@ -80,6 +80,8 @@ def lire_ticket(photo, lang="fra", hint="", api_key="", prefer_cloud=False):
         except Exception as _ce:
             cloud_err = str(_ce)[:160]
             txt = ""
+    if prefer_cloud and api_key and not txt.strip():
+        return {"ok": False, "error": ("OCR cloud a echoue: " + (cloud_err or "reponse vide de Google Vision"))}
     if not txt.strip():
         if not _OCR_OK:
             return {"ok": False, "error": "OCR indisponible (pytesseract/Pillow manquants)"}
@@ -271,4 +273,7 @@ def lire_ticket(photo, lang="fra", hint="", api_key="", prefer_cloud=False):
             if code:
                 break
 
+    if prefer_cloud and api_key and not code:
+        _preview = (txt or "").replace("\r", " ").replace("\n", " / ")[:200]
+        return {"ok": False, "error": ("Vision a lu, mais code non reconnu. Texte: " + _preview)}
     return {"ok": True, "code": code, "serie": serie, "montant": montant, "type": typ}
