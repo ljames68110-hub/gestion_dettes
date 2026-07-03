@@ -55,16 +55,29 @@ def _detect_by_code_format(up):
 
 def _google_vision_ocr(photo, api_key):
     """OCR (dont manuscrit) via Google Cloud Vision - DOCUMENT_TEXT_DETECTION."""
-    import json as _json, urllib.request as _url
+    import json as _json, urllib.request as _url, urllib.error as _uerr
     b64 = photo.split(",", 1)[1] if "," in photo else photo
+    b64 = "".join(b64.split())
     endpoint = "https://vision.googleapis.com/v1/images:annotate?key=" + api_key
     payload = _json.dumps({"requests": [{
         "image": {"content": b64},
         "features": [{"type": "DOCUMENT_TEXT_DETECTION"}]
     }]}).encode("utf-8")
     req = _url.Request(endpoint, data=payload, headers={"Content-Type": "application/json"})
-    with _url.urlopen(req, timeout=25) as resp:
-        data = _json.loads(resp.read().decode("utf-8"))
+    try:
+        with _url.urlopen(req, timeout=25) as resp:
+            data = _json.loads(resp.read().decode("utf-8"))
+    except _uerr.HTTPError as he:
+        try:
+            _body = he.read().decode("utf-8", "replace")
+        except Exception:
+            _body = ""
+        _msg = ""
+        try:
+            _msg = (_json.loads(_body).get("error") or {}).get("message", "")
+        except Exception:
+            _msg = _body[:300]
+        raise RuntimeError("HTTP %s - %s" % (he.code, _msg or "sans detail"))
     r0 = (data.get("responses") or [{}])[0]
     if r0.get("error"):
         raise RuntimeError(str(r0["error"].get("message", "Vision error")))
