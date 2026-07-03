@@ -38,6 +38,21 @@ def _preprocess(img):
     g = g.resize((w*2, h*2), Image.LANCZOS).filter(ImageFilter.SHARPEN)
     return g
 
+def _detect_by_code_format(up):
+    """Devine le type d'apres le format du code : 16 chiffres -> Paysafecard,
+    12 chiffres -> Transcash, 10 alphanumeriques (lettres+chiffres) -> PCS."""
+    import re as _re
+    flat = _re.sub(r'[ .]', '', up)
+    runs = _re.findall(r'[0-9]{10,17}', flat)
+    if any(len(d) == 16 for d in runs):
+        return "paysafecard"
+    if any(len(d) == 12 for d in runs):
+        return "transcash"
+    for tok in _re.findall(r'\b[A-Z0-9]{10}\b', up):
+        if _re.search(r'[A-Z]', tok) and _re.search(r'[0-9]', tok) and "RECH" not in tok:
+            return "pcs"
+    return ""
+
 def lire_ticket(photo, lang="fra", hint=""):
     if not _OCR_OK:
         return {"ok": False, "error": "OCR indisponible (pytesseract/Pillow manquants)"}
@@ -77,8 +92,10 @@ def lire_ticket(photo, lang="fra", hint=""):
         typ = "transcash"
     elif "PAYSAFE" in up:
         typ = "paysafecard"
-    else:
+    elif "MYPCS" in up or "MYDCS" in up or "PCS BLACK" in up:
         typ = "pcs"
+    else:
+        typ = _detect_by_code_format(up) or "pcs"
 
     # --- passe chiffres dediee (psm 4) pour les codes numeriques nets ---
     druns = []
