@@ -384,7 +384,7 @@ select option{background:var(--bg3)}
           <label style="font-size:13px;color:var(--text2);white-space:nowrap">Sélectionner un client :</label>
           <select id="soldeClientSel" onchange="loadSolde()" style="padding:9px 14px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:'Outfit',sans-serif;flex:1"><option value="">-- Choisir --</option></select>
           <button class="btn" id="exportCsvBtn" onclick="exportClient()" style="display:none">↓ CSV</button>
-          <button class="btn" id="exportPdfBtn" onclick="exportClientPDF()" style="display:none">📄 PDF</button><button class="btn" id="exportTicketsBtn" onclick="exportTicketsPDF()" style="display:none">🧾 PDF dépôts/remb.</button>
+          <button class="btn" id="exportPdfBtn" onclick="exportClientPDF()" style="display:none">📄 PDF</button><button class="btn" id="exportTicketsBtn" onclick="exportTicketsPDF()" style="display:none">🧾 PDF dépôts/remb.</button><button class="btn" id="exportFraisBtn" onclick="openFraisPdf()" style="display:none">&#128176; PDF frais</button>
         </div>
         <div id="soldeContent" style="display:none;flex-direction:column;gap:16px">
         <canvas id="evolutionChart" style="display:none;max-height:200px;margin-bottom:8px"></canvas></div>
@@ -1591,7 +1591,7 @@ async function loadSolde(){
   loadCantineRecap(cid);
   loadAssocieRecap(cid);renderFichePrets(cid);renderFraisDetail(cid);renderFicheDanger(cid);
   document.getElementById('exportCsvBtn').style.display='inline-flex';
-  var pdfBtn=document.getElementById('exportPdfBtn');if(pdfBtn)pdfBtn.style.display='inline-flex';var tkBtn=document.getElementById('exportTicketsBtn');if(tkBtn)tkBtn.style.display='inline-flex';
+  var pdfBtn=document.getElementById('exportPdfBtn');if(pdfBtn)pdfBtn.style.display='inline-flex';var tkBtn=document.getElementById('exportTicketsBtn');if(tkBtn)tkBtn.style.display='inline-flex';var _frB=document.getElementById('exportFraisBtn');if(_frB){var _fc=(clientsCache||[]).find(function(c){return c.id===parseInt(cid);});_frB.style.display=(_fc&&_fc.associe)?'inline-flex':'none';}
   // Construire la card info client (photo + notes)
   var photoHtml = clientData.photo
     ? '<img src="'+clientData.photo+'" onclick="openPhotoLightbox(this.src)" style="width:72px;height:72px;object-fit:cover;border-radius:50%;cursor:pointer">'
@@ -5697,5 +5697,46 @@ async function loadVisionKey(){
   try{var r=await api('/api/settings');var v=(r&&r.ok&&r.data&&r.data.google_vision_key)||'';var el=document.getElementById('setVisionKey');if(el)el.value=v;}catch(e){}
 }
 </script>
-<style id="pprod-img-fix-320">#pg-caisse .pos-prod{height:auto !important}#pg-caisse .pos-prod .pprod-img{height:120px !important;min-height:120px;flex:0 0 120px}#pg-caisse .pos-prod .pprod-img img{width:100%;height:100%;object-fit:cover}#pg-caisse .pos-prod .pprod-badge{z-index:3}#pg-caisse .pos-prod .pcat,#pg-caisse .pos-prod .pname,#pg-caisse .pos-prod .pprice{flex:0 0 auto;overflow:visible}</style></body>
+<style id="pprod-img-fix-321">#pg-caisse .pos-grid{grid-auto-rows:210px !important}#pg-caisse .pos-prod{height:210px !important;overflow:hidden;justify-content:flex-start}#pg-caisse .pos-prod .pprod-img{height:116px !important;min-height:116px;flex:0 0 116px}#pg-caisse .pos-prod .pprod-img img{width:100%;height:100%;object-fit:cover}#pg-caisse .pos-prod .pprod-badge{z-index:3}#pg-caisse .pos-prod .pcat,#pg-caisse .pos-prod .pname,#pg-caisse .pos-prod .pprice{flex:0 0 auto;overflow:hidden}</style><script>
+// ===== PDF FRAIS (associes) =====
+function openFraisPdf(){
+  var cid=document.getElementById('soldeClientSel').value;
+  if(!cid){if(typeof notify==='function')notify('Choisis un associe','error');return;}
+  var _t=new Date();var _f=new Date(_t.getFullYear(),_t.getMonth(),1);
+  function _iso(d){return d.getFullYear()+'-'+(''+(d.getMonth()+1)).padStart(2,'0')+'-'+(''+d.getDate()).padStart(2,'0');}
+  var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100000;padding:16px';
+  var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:340px;max-width:92vw';
+  box.innerHTML='<div style="font-weight:600;margin-bottom:6px">PDF des frais</div><div style="font-size:13px;color:var(--text3);margin-bottom:14px">Choisis la periode :</div>'
+    +'<label style="font-size:12px;color:var(--text3)">Du</label><input type="date" id="_frDu" value="'+_iso(_f)+'" style="width:100%;padding:8px 10px;margin:4px 0 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">'
+    +'<label style="font-size:12px;color:var(--text3)">Au</label><input type="date" id="_frAu" value="'+_iso(_t)+'" style="width:100%;padding:8px 10px;margin:4px 0 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">'
+    +'<div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_frGo" style="flex:1">Generer le PDF</button><button type="button" class="btn" id="_frCancel" style="background:transparent;color:var(--text3)">Annuler</button></div>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  function close(){if(ov.parentNode)ov.parentNode.removeChild(ov);}
+  box.querySelector('#_frGo').onclick=function(){var du=box.querySelector('#_frDu').value;var au=box.querySelector('#_frAu').value;close();_buildFraisPDF(cid,du,au);};
+  box.querySelector('#_frCancel').onclick=close;
+  ov.onclick=function(e){if(e.target===ov)close();};
+}
+async function _buildFraisPDF(cid,du,au){
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  var client=(clientsCache||[]).find(function(c){return String(c.id)===String(cid);});var nom=client?client.nom:'';
+  var res=await api('/api/clients/'+cid+'/transactions');var all=(res&&res.ok)?res.data.slice():[];
+  var list=all.filter(function(t){var fr=parseFloat(t.frais||0);if(!(fr>0))return false;var d=(t.date||'').slice(0,10);if(du&&d<du)return false;if(au&&d>au)return false;return true;});
+  list.sort(function(a,b){return (a.date||'').localeCompare(b.date||'');});
+  var totFrais=0,totBrut=0;
+  var rows=list.map(function(t){
+    var brut=parseFloat(t.montant_brut||0),fr=parseFloat(t.frais||0);totFrais+=fr;totBrut+=brut;
+    var dt=(t.date||'');var d=dt.slice(0,10).split('-').reverse().join('/');var h=(dt.length>10)?dt.slice(11,16):'';
+    var typ=(t.type==='debit')?'Vente':((/Depot/i.test(t.motif||'')||/Depot associe/.test(t.notes||''))?'Depot':'Credit');
+    return '<tr><td>'+d+(h?' '+h:'')+'</td><td>'+esc(t.motif||'')+'</td><td>'+typ+'</td><td>'+esc(t.mode_paiement||'')+'</td><td style="text-align:right">'+brut.toFixed(2)+'</td><td style="text-align:right;color:#c0392b">'+fr.toFixed(2)+'</td></tr>';
+  }).join('');
+  var perTxt=(du||au)?('Periode : '+(du?du.split('-').reverse().join('/'):'debut')+' au '+(au?au.split('-').reverse().join('/'):'aujourd hui')):'Toutes periodes';
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Frais</title><style>body{font-family:Arial,sans-serif;font-size:11px;color:#111;padding:24px}h1{color:#b8860b;font-size:20px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:12px}th{background:#b8860b;color:#fff;padding:5px 6px;text-align:left;font-size:10px}td{padding:5px 6px;border-bottom:1px solid #eee}.tot{margin-top:14px;font-size:15px;font-weight:bold;color:#b8860b}.foot{margin-top:18px;font-size:9px;color:#999}</style></head><body>'
+    +'<h1>Frais \u2014 '+esc(nom)+'</h1><div>Edite le '+new Date().toLocaleString()+' \u2014 '+perTxt+' \u2014 '+list.length+' ligne(s)</div>'
+    +'<table><thead><tr><th>Date</th><th>Motif</th><th>Type</th><th>Mode</th><th style="text-align:right">Montant brut</th><th style="text-align:right">Frais</th></tr></thead><tbody>'+(rows||'<tr><td colspan="6" style="text-align:center;color:#999;padding:16px">Aucun frais sur cette periode</td></tr>')+'</tbody></table>'
+    +'<div class="tot">Total frais : '+totFrais.toFixed(2)+' EUR</div><div class="foot">Gestion Perso</div></body></html>';
+  var b=new Blob([html],{type:'text/html'});var u=URL.createObjectURL(b);var pf=document.getElementById('printFrame');
+  if(pf){pf.src=u;var mp=document.getElementById('modalPrintPreview');if(mp)mp.classList.add('open');pf.onload=function(){try{pf.contentWindow.print();}catch(e){}pf.onload=null;};}else{window.open(u,'_blank');}
+}
+</script>
+</body>
 </html>
