@@ -285,6 +285,13 @@ def lire_ticket(photo, lang="fra", hint="", api_key="", prefer_cloud=False):
                         break
             if code:
                 break
+        if not code:
+            _JUNKPCS = ("RECH","MYPCS","EURO","LB00","BLACK","INFINITY","ABSOLUT","CHROME","CREDIT","SERIE","SECRET","MONTANT","TICKET","VALABLE")
+            for _tk in re.findall(r"\b[A-Z0-9]{9,11}\b", up):
+                if (len(_tk) == 10 and re.search(r"[A-Z]", _tk) and re.search(r"[0-9]", _tk)
+                        and not any(j in _tk for j in _JUNKPCS) and _tk not in _BL):
+                    code = _tk
+                    break
 
     if prefer_cloud and api_key and not code:
         _preview = (txt or "").replace("\r", " ").replace("\n", " / ")[:200]
