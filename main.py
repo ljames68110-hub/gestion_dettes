@@ -322,6 +322,17 @@ def _boot_app_after_unlock():
 
 
 class _GpApi:
+    def minimize(self):
+        try:
+            import webview as _wv
+            for w in list(getattr(_wv, "windows", []) or []):
+                try:
+                    w.minimize()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     def quit(self):
         try:
             import webview as _wv
@@ -380,6 +391,8 @@ def _open_main_window():
         print("[Gestion Perso] PyWebView - fenetre native")
         webview.create_window(
             title            = "Gestion Perso",
+            frameless        = True,
+            easy_drag        = True,
             url              = URL,
             width            = 1280,
             height           = 800,
