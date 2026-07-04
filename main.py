@@ -409,6 +409,34 @@ def _open_main_window():
         import webbrowser; webbrowser.open(URL)
 
 
+def _place_window(win):
+    """Place la fenetre frameless sur la zone de travail (plein ecran hors barre des taches)."""
+    try:
+        try:
+            win.restore()
+        except Exception:
+            pass
+        import ctypes
+        class _RECT(ctypes.Structure):
+            _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
+                        ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+        r = _RECT()
+        ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(r), 0)
+        w = int(r.right - r.left)
+        h = int(r.bottom - r.top)
+        if w > 200 and h > 200:
+            try:
+                win.resize(w, h)
+            except Exception:
+                pass
+            try:
+                win.move(int(r.left), int(r.top))
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 def main():
     global _SALT
     atexit.register(_save_backup_on_exit)
@@ -434,7 +462,7 @@ def main():
                 if _wait_url("/login.html"):
                     import webview
                     icon = get_icon_path()
-                    webview.create_window(
+                    _win = webview.create_window(
                         title            = "Gestion Perso",
                         frameless        = True,
                         easy_drag        = True,
@@ -447,7 +475,7 @@ def main():
                         background_color = "#0a0a0f",
                         js_api           = _GpApi(),
                     )
-                    webview.start(debug=False, icon=icon, gui="edgechromium")
+                    webview.start(lambda: _place_window(_win), debug=False, icon=icon, gui="edgechromium")
                     _save_backup_on_exit()
                     return
                 else:
