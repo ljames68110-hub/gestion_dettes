@@ -436,6 +436,8 @@ def main():
                     icon = get_icon_path()
                     webview.create_window(
                         title            = "Gestion Perso",
+                        frameless        = True,
+                        easy_drag        = True,
                         url              = URL + "/login.html?v=" + str(int(time.time())),
                         width            = 1280,
                         height           = 800,
