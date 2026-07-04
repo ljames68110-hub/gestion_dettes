@@ -1350,10 +1350,14 @@ def frais_dus_facturer():
     cid = data.get("client_id")
     if not ids or not cid:
         return err("Selection vide")
-    # Total des frais selectionnes
+    # Ne facturer QUE les frais encore en attente (evite le double-comptage si refacturation)
     frais_list = db.get_frais_dus(cid, "all")
-    total = sum(f["montant"] for f in frais_list if f["id"] in [int(i) for i in ids])
-    total = round(total, 2)
+    _idset = set(int(i) for i in ids)
+    a_facturer = [f for f in frais_list if f["id"] in _idset and (f.get("statut") or "en_attente") == "en_attente"]
+    if not a_facturer:
+        return err("Ces frais sont deja factures ou payes")
+    ids = [f["id"] for f in a_facturer]
+    total = round(sum(f["montant"] for f in a_facturer), 2)
     if total <= 0:
         return err("Montant nul")
     # 1) Creer une transaction debit (ajoute a la dette)
