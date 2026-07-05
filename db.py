@@ -837,6 +837,9 @@ def _ensure_catalogue_table():
         if "code_barre" not in cols:
             conn.execute("ALTER TABLE catalogue ADD COLUMN code_barre TEXT DEFAULT ''")
             conn.commit()
+        if "date_entree" not in cols:
+            conn.execute("ALTER TABLE catalogue ADD COLUMN date_entree TEXT DEFAULT ''")
+            conn.commit()
 
 def get_catalogue():
     _ensure_catalogue_table()
@@ -852,24 +855,24 @@ def get_catalogue_item(item_id):
         row = conn.execute("SELECT * FROM catalogue WHERE id=?", (item_id,)).fetchone()
     return dict(row) if row else None
 
-def add_catalogue_item(nom, categorie, description, prix_vente, prix_achat, unite, stock_min, stock=0, grammes_piece=0, code_barre=''):
+def add_catalogue_item(nom, categorie, description, prix_vente, prix_achat, unite, stock_min, stock=0, grammes_piece=0, code_barre='', date_entree=''):
     _ensure_catalogue_table()
     with get_conn() as conn:
         cur = conn.execute(
-            """INSERT INTO catalogue (nom,categorie,description,prix_vente,prix_achat,unite,stock_min,stock,grammes_piece,code_barre)
-               VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, stock, grammes_piece, code_barre)
+            """INSERT INTO catalogue (nom,categorie,description,prix_vente,prix_achat,unite,stock_min,stock,grammes_piece,code_barre,date_entree)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, stock, grammes_piece, code_barre, date_entree)
         )
         conn.commit()
         return cur.lastrowid
 
-def update_catalogue_item(item_id, nom, categorie, description, prix_vente, prix_achat, unite, stock_min, stock=None, grammes_piece=None, code_barre=None):
+def update_catalogue_item(item_id, nom, categorie, description, prix_vente, prix_achat, unite, stock_min, stock=None, grammes_piece=None, code_barre=None, date_entree=None):
     _ensure_catalogue_table()
     with get_conn() as conn:
         conn.execute(
             """UPDATE catalogue SET nom=?,categorie=?,description=?,prix_vente=?,
-               prix_achat=?,unite=?,stock_min=?, stock=COALESCE(?,stock), grammes_piece=COALESCE(?,grammes_piece), code_barre=COALESCE(?,code_barre) WHERE id=?""",
-            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, stock, grammes_piece, code_barre, item_id)
+               prix_achat=?,unite=?,stock_min=?, stock=COALESCE(?,stock), grammes_piece=COALESCE(?,grammes_piece), code_barre=COALESCE(?,code_barre), date_entree=COALESCE(?,date_entree) WHERE id=?""",
+            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, stock, grammes_piece, code_barre, date_entree, item_id)
         )
         conn.commit()
 
@@ -1294,6 +1297,10 @@ def _ensure_sim_table():
             date_vente TEXT,
             created_at TEXT DEFAULT (datetime('now'))
         )""")
+        try:
+            conn.execute("ALTER TABLE sim_cards ADD COLUMN puk TEXT DEFAULT ''")
+        except Exception:
+            pass
         conn.commit()
 
 def _sync_sim_stock(conn, catalogue_id):
@@ -1302,14 +1309,14 @@ def _sync_sim_stock(conn, catalogue_id):
     n = conn.execute("SELECT COUNT(*) FROM sim_cards WHERE catalogue_id=? AND statut='stock'", (catalogue_id,)).fetchone()[0]
     conn.execute("UPDATE catalogue SET stock=? WHERE id=?", (n, catalogue_id))
 
-def add_sim_card(catalogue_id, numero, last4=""):
+def add_sim_card(catalogue_id, numero, last4="", puk=""):
     _ensure_sim_table()
     numero = (numero or "").strip()
     if not numero:
         return None
     with get_conn() as conn:
-        cur = conn.execute("INSERT INTO sim_cards (catalogue_id,numero,last4,statut) VALUES (?,?,?,'stock')",
-                           (catalogue_id, numero, (last4 or "").strip()))
+        cur = conn.execute("INSERT INTO sim_cards (catalogue_id,numero,last4,puk,statut) VALUES (?,?,?,?,'stock')",
+                           (catalogue_id, numero, (last4 or "").strip(), (puk or "").strip()))
         _sync_sim_stock(conn, catalogue_id)
         conn.commit()
         return cur.lastrowid
@@ -1321,10 +1328,11 @@ def add_sim_cards_bulk(catalogue_id, items):
         for it in (items or []):
             numero = (str(it.get("numero", "")).strip() if isinstance(it, dict) else "")
             last4 = (str(it.get("last4", "")).strip() if isinstance(it, dict) else "")
+            puk = (str(it.get("puk", "")).strip() if isinstance(it, dict) else "")
             if not numero:
                 continue
-            conn.execute("INSERT INTO sim_cards (catalogue_id,numero,last4,statut) VALUES (?,?,?,'stock')",
-                        (catalogue_id, numero, last4))
+            conn.execute("INSERT INTO sim_cards (catalogue_id,numero,last4,puk,statut) VALUES (?,?,?,?,'stock')",
+                        (catalogue_id, numero, last4, puk))
             n += 1
         _sync_sim_stock(conn, catalogue_id)
         conn.commit()

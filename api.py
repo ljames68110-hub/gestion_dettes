@@ -1068,6 +1068,7 @@ def catalogue_create():
         stock        = float(data.get("stock", 0)),
         grammes_piece = float(data.get("grammes_piece", 0) or 0),
         code_barre   = (data.get("code_barre") or "").strip(),
+        date_entree  = (data.get("date_entree") or "").strip(),
     )
     return ok(db.get_catalogue_item(iid)), 201
 
@@ -1090,6 +1091,7 @@ def catalogue_update(iid):
         stock        = (float(data["stock"]) if "stock" in data and data["stock"] is not None else None),
         grammes_piece = (float(data["grammes_piece"]) if "grammes_piece" in data and data["grammes_piece"] is not None else None),
         code_barre   = data.get("code_barre"),
+        date_entree  = data.get("date_entree"),
     )
     return ok(db.get_catalogue_item(iid))
 
@@ -1832,7 +1834,7 @@ def sim_cards_create():
     numero = (data.get("numero") or "").strip()
     if not numero:
         return err("Numero requis")
-    sid = db.add_sim_card(cat, numero, data.get("last4", ""))
+    sid = db.add_sim_card(cat, numero, data.get("last4", ""), data.get("puk", ""))
     return ok({"id": sid})
 
 @app.route("/api/sim-cards/<int:sid>", methods=["DELETE"])
