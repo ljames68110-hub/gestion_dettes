@@ -2191,7 +2191,7 @@ async function lireTicketOCR(which,cloud){
     if(!r||!r.ok){lastErr='Serveur indisponible';continue;}
     var d=r.data||{};
     if(!d.ok){if(d.error)lastErr=d.error;continue;}
-    if(!d.code&&!d.montant){lastErr='Aucun code lu sur la photo (essaie une photo plus nette et cadree sur le code)';continue;}if(d.code&&/PCS|Paysafe|Transcash/i.test(_ocrMode)){var _am=await askMontant('Ticket '+d.code+' - montant en EUR ?',d.montant);if(_am)d.montant=_am;}
+    if(!d.code&&!d.montant){lastErr='Aucun code lu sur la photo (essaie une photo plus nette et cadree sur le code)';continue;}if(d.code&&!d.montant){var _am=await askMontant('Ticket '+d.code+' - montant en EUR ?');if(_am)d.montant=_am;}
     var rows=box?box.querySelectorAll('.tkrow'):[];
     var target=null;
     for(var rr=0;rr<rows.length;rr++){
