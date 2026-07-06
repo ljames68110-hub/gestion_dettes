@@ -1478,8 +1478,8 @@ function renderMensual(){
   const mf=document.getElementById('mensualMois').value;
   const filtered=mf?mensualData.filter(t=>t.date&&t.date.slice(0,7)===mf):mensualData;
   const map={};
-  filtered.forEach(t=>{if(!map[t.client_id])map[t.client_id]={nom:t.client_nom||'—',vendu:0,rembourse:0};if(t.type==='debit')map[t.client_id].vendu+=t.montant_net;else map[t.client_id].rembourse+=t.montant_net;});
-  const cumul={};mensualData.forEach(t=>{if(!cumul[t.client_id])cumul[t.client_id]=0;if(t.type==='debit')cumul[t.client_id]+=t.montant_net;else cumul[t.client_id]-=t.montant_net;});
+  filtered.forEach(t=>{if(t.compte&&t.compte!=='euro')return;if(!map[t.client_id])map[t.client_id]={nom:t.client_nom||'—',vendu:0,rembourse:0};if(t.type==='debit')map[t.client_id].vendu+=t.montant_net;else map[t.client_id].rembourse+=t.montant_net;});
+  const cumul={};mensualData.forEach(t=>{if(t.compte&&t.compte!=='euro')return;if(!cumul[t.client_id])cumul[t.client_id]=0;if(t.type==='debit')cumul[t.client_id]+=t.montant_net;else cumul[t.client_id]-=t.montant_net;});
   const rows=Object.keys(map).map(function(cid){var v=map[cid];return {nom:v.nom,vendu:v.vendu,rembourse:v.rembourse,dette:v.vendu-v.rembourse,cumul:cumul[cid]||0};}).sort(function(a,b){return b.dette-a.dette;});
   const tbody=document.getElementById('mensualTbody');tbody.innerHTML='';
   if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Aucune donnée</td></tr>';document.getElementById('mensualTotal').innerHTML='';return;}
