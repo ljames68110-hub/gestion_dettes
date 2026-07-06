@@ -1070,6 +1070,15 @@ def catalogue_create():
         code_barre   = (data.get("code_barre") or "").strip(),
         date_entree  = (data.get("date_entree") or "").strip(),
     )
+    try:
+        _st = float(data.get("stock", 0) or 0)
+        if iid and _st > 0:
+            db.add_entree(description=nom, quantite=_st,
+                          prix_achat=float(data.get("prix_achat", 0) or 0),
+                          date=(data.get("date_entree") or "").strip(),
+                          notes="Creation article", unite=data.get("unite", "piece"))
+    except Exception:
+        pass
     return ok(db.get_catalogue_item(iid)), 201
 
 @app.route("/api/catalogue/<int:iid>", methods=["PUT"])
@@ -1444,6 +1453,26 @@ def catalogue_adjust_stock(iid):
     delta = float(data.get("delta", 0))
     db.adjust_stock_catalogue(iid, delta)
     return ok(db.get_catalogue_item(iid))
+
+@app.route("/api/catalogue/<int:iid>/restock", methods=["POST"])
+@require_auth
+def catalogue_restock(iid):
+    data = request.json or {}
+    try:
+        qte = float(data.get("quantite", 0) or 0)
+    except Exception:
+        qte = 0
+    if qte <= 0:
+        return err("Quantite invalide")
+    it = db.get_catalogue_item(iid)
+    if not it:
+        return err("Article introuvable")
+    prix = float(data.get("prix_achat", it.get("prix_achat", 0)) or 0)
+    date = (data.get("date") or "").strip()
+    db.adjust_stock_catalogue(iid, qte)
+    eid = db.add_entree(description=it.get("nom", ""), quantite=qte, prix_achat=prix,
+                        date=date, notes="Reappro", unite=it.get("unite", "piece"))
+    return ok({"entree_id": eid})
 
 
 # -- ASSOCIES -----------------------------------------------------------------
