@@ -5777,7 +5777,7 @@ function reapproCatalogue(id){
   box.innerHTML='<div style="font-weight:600;margin-bottom:2px">Reapprovisionner</div><div style="font-size:13px;color:var(--text3);margin-bottom:14px">'+_e(it.nom)+' (stock actuel : '+parseFloat(it.stock||0).toFixed(1)+' '+u+')</div>'
     +'<label style="font-size:12px;color:var(--text3)">Quantite ajoutee ('+u+')</label><input type="number" id="_rqQte" step="0.1" min="0" style="width:100%;padding:8px 10px;margin:4px 0 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">'
     +'<label style="font-size:12px;color:var(--text3)">Prix d\'achat (total du lot)</label><input type="number" id="_rqPa" step="0.01" min="0" value="'+parseFloat(it.prix_achat||0)+'" style="width:100%;padding:8px 10px;margin:4px 0 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">'
-    +'<label style="font-size:12px;color:var(--text3)">Date d\'entree</label><input type="date" id="_rqDate" value="'+_iso(_t)+'" style="width:100%;padding:8px 10px;margin:4px 0 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">'
+    +'<label style="font-size:12px;color:var(--text3)">Date d\'entree</label><input type="date" id="_rqDate" value="'+_iso(_t)+'" style="width:100%;padding:8px 10px;margin:4px 0 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">'+'<label style="font-size:12px;color:var(--text3)">Produit source a deduire'+((it.grammes_piece>0)?(' (1 pochette = '+it.grammes_piece+'g)'):'')+' - optionnel</label><select id="_rqSrc" style="width:100%;padding:8px 10px;margin:4px 0 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)"><option value="">-- Aucun --</option>'+(catalogueCache||[]).filter(function(x){return x.id!==id;}).map(function(x){return '<option value="'+x.id+'">'+_e(x.nom)+'</option>';}).join('')+'</select>'
     +'<div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_rqGo" style="flex:1">Ajouter</button><button type="button" class="btn" id="_rqNo" style="background:var(--bg3)">Annuler</button></div>';
   ov.appendChild(box);document.body.appendChild(ov);
   function close(){if(ov.parentNode)ov.parentNode.removeChild(ov);}
@@ -5785,7 +5785,7 @@ function reapproCatalogue(id){
   box.querySelector('#_rqGo').onclick=async function(){
     var q=parseFloat(box.querySelector('#_rqQte').value||0);if(!(q>0)){notify('Quantite requise','error');return;}
     var pa=parseFloat(box.querySelector('#_rqPa').value||0);var dt=box.querySelector('#_rqDate').value;
-    var r=await api('/api/catalogue/'+id+'/restock',{method:'POST',body:{quantite:q,prix_achat:pa,date:dt}});
+    var r=await api('/api/catalogue/'+id+'/restock',{method:'POST',body:{quantite:q,prix_achat:pa,date:dt,source_id:((box.querySelector('#_rqSrc')||{}).value||'')}});
     if(r&&r.ok){close();notify('Stock reapprovisionne');if(typeof loadCatalogue==='function')loadCatalogue();if(typeof loadStock==='function')loadStock();if(typeof loadEntrees==='function')loadEntrees();if(typeof renderPosGrid==='function')renderPosGrid(((document.getElementById('posSearch')||{}).value)||'');}
     else notify((r&&r.error)||'Erreur','error');
   };

@@ -1474,6 +1474,13 @@ def catalogue_restock(iid):
     db.adjust_stock_catalogue(iid, qte)
     eid = db.add_entree(description=it.get("nom", ""), quantite=qte, prix_achat=prix,
                         date=date, notes="Reappro", unite=it.get("unite", "piece"))
+    src = data.get("source_id")
+    if src:
+        try:
+            gp = float(it.get("grammes_piece", 0) or 0) or 1
+            db.adjust_stock_catalogue(int(src), -(qte * gp))
+        except Exception:
+            pass
     return ok({"entree_id": eid})
 
 
