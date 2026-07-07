@@ -1481,28 +1481,36 @@ function renderMensual(){
   function _skip(t){return (t.type==='debit'&&t.notes&&t.notes.indexOf('[CAISSE PAYE]')>=0);}
   function build(compte){
     var map={},cumul={};
-    filtered.forEach(t=>{if(_cpt(t)!==compte)return;if(_skip(t))return;if(!map[t.client_id])map[t.client_id]={nom:t.client_nom||'—',vendu:0,rembourse:0};if(t.type==='debit')map[t.client_id].vendu+=t.montant_net;else map[t.client_id].rembourse+=t.montant_net;});
-    mensualData.forEach(t=>{if(_cpt(t)!==compte)return;if(_skip(t))return;if(!cumul[t.client_id])cumul[t.client_id]=0;if(t.type==='debit')cumul[t.client_id]+=t.montant_net;else cumul[t.client_id]-=t.montant_net;});
-    return Object.keys(map).map(function(cid){var v=map[cid];return {nom:v.nom,vendu:v.vendu,rembourse:v.rembourse,dette:v.vendu-v.rembourse,cumul:cumul[cid]||0};}).filter(function(r){return Math.abs(r.vendu)>0.001||Math.abs(r.rembourse)>0.001;}).sort(function(a,b){return b.dette-a.dette;});
+    filtered.forEach(t=>{if(_cpt(t)!==compte)return;if(_skip(t))return;if(!map[t.client_id])map[t.client_id]={nom:t.client_nom||'—',vendu:0,rembourse:0,venduQ:0,rembourseQ:0};var q=parseFloat(t.quantite||0)||0;if(t.type==='debit'){map[t.client_id].vendu+=t.montant_net;map[t.client_id].venduQ+=q;}else{map[t.client_id].rembourse+=t.montant_net;map[t.client_id].rembourseQ+=q;}});
+    mensualData.forEach(t=>{if(_cpt(t)!==compte)return;if(_skip(t))return;if(!cumul[t.client_id])cumul[t.client_id]={e:0,q:0};var q=parseFloat(t.quantite||0)||0;if(t.type==='debit'){cumul[t.client_id].e+=t.montant_net;cumul[t.client_id].q+=q;}else{cumul[t.client_id].e-=t.montant_net;cumul[t.client_id].q-=q;}});
+    return Object.keys(map).map(function(cid){var v=map[cid];var c=cumul[cid]||{e:0,q:0};return {nom:v.nom,vendu:v.vendu,rembourse:v.rembourse,dette:v.vendu-v.rembourse,cumul:c.e,venduQ:v.venduQ,rembourseQ:v.rembourseQ,detteQ:v.venduQ-v.rembourseQ,cumulQ:c.q};}).filter(function(r){return Math.abs(r.vendu)>0.001||Math.abs(r.rembourse)>0.001||Math.abs(r.venduQ)>0.001||Math.abs(r.rembourseQ)>0.001;}).sort(function(a,b){return b.dette-a.dette;});
   }
+  function pqf(n){var r=Math.round(n*100)/100;return (r>0?'+':'')+r+' pq';}
   const tbody=document.getElementById('mensualTbody');tbody.innerHTML='';
   const sections=[['euro','&#128181; Argent (euros)'],['tabac','&#128684; Tabac'],['cantine','&#127860; Cantine']];
   var anyRow=false,gv=0,gr=0,gd=0,gc=0;
   sections.forEach(function(sp){
-    var rows=build(sp[0]);if(!rows.length)return;anyRow=true;
-    var hr=document.createElement('tr');hr.innerHTML='<td colspan="5" style="background:var(--bg3);color:var(--gold2);font-weight:700;padding:8px 12px;font-size:13px">'+sp[1]+'</td>';tbody.appendChild(hr);
+    var rows=build(sp[0]);if(!rows.length)return;anyRow=true;var pq=(sp[0]==='tabac');
+    var hr=document.createElement('tr');hr.innerHTML='<td colspan="5" style="background:var(--bg3);color:var(--gold2);font-weight:700;padding:8px 12px;font-size:13px">'+sp[1]+(pq?' <span style="font-weight:400;color:var(--text3);font-size:11px">(en paquets, valeur revente entre parentheses)</span>':'')+'</td>';tbody.appendChild(hr);
     rows.forEach(r=>{
-      const dc=r.dette>0?'var(--green)':r.dette<0?'var(--red)':'var(--text3)';
-      const cc=r.cumul>0?'var(--green)':r.cumul<0?'var(--red)':'var(--text3)';
       const tr=document.createElement('tr');
-      tr.innerHTML='<td style="color:var(--text);font-weight:500">'+r.nom+'</td><td style="text-align:right" class="mono">'+(r.vendu>0?'+'+fmt(r.vendu):'—')+'</td><td style="text-align:right" class="mono">'+(r.rembourse>0?'-'+fmt(r.rembourse):'—')+'</td><td style="text-align:right"><span class="mono" style="color:'+dc+'">'+(r.dette>=0?'+':'')+fmt(r.dette)+'</span></td><td style="text-align:right"><span class="mono" style="color:'+cc+';font-weight:700">'+(r.cumul>=0?'+':'')+fmt(r.cumul)+'</span></td>';
+      if(pq){
+        const dc=r.detteQ>0?'var(--green)':r.detteQ<0?'var(--red)':'var(--text3)';
+        const cc=r.cumulQ>0?'var(--green)':r.cumulQ<0?'var(--red)':'var(--text3)';
+        tr.innerHTML='<td style="color:var(--text);font-weight:500">'+r.nom+'</td><td style="text-align:right" class="mono">'+(Math.abs(r.venduQ)>0.001?pqf(r.venduQ):'—')+'</td><td style="text-align:right" class="mono">'+(Math.abs(r.rembourseQ)>0.001?pqf(-r.rembourseQ):'—')+'</td><td style="text-align:right"><span class="mono" style="color:'+dc+'">'+pqf(r.detteQ)+'</span></td><td style="text-align:right"><span class="mono" style="color:'+cc+';font-weight:700">'+pqf(r.cumulQ)+'</span><span style="color:var(--text3);font-size:11px"> ('+(r.cumul>=0?'+':'')+fmt(r.cumul)+')</span></td>';
+      } else {
+        const dc=r.dette>0?'var(--green)':r.dette<0?'var(--red)':'var(--text3)';
+        const cc=r.cumul>0?'var(--green)':r.cumul<0?'var(--red)':'var(--text3)';
+        tr.innerHTML='<td style="color:var(--text);font-weight:500">'+r.nom+'</td><td style="text-align:right" class="mono">'+(r.vendu>0?'+'+fmt(r.vendu):'—')+'</td><td style="text-align:right" class="mono">'+(r.rembourse>0?'-'+fmt(r.rembourse):'—')+'</td><td style="text-align:right"><span class="mono" style="color:'+dc+'">'+(r.dette>=0?'+':'')+fmt(r.dette)+'</span></td><td style="text-align:right"><span class="mono" style="color:'+cc+';font-weight:700">'+(r.cumul>=0?'+':'')+fmt(r.cumul)+'</span></td>';
+      }
       tbody.appendChild(tr);
     });
-    gv+=rows.reduce((s,r)=>s+r.vendu,0);gr+=rows.reduce((s,r)=>s+r.rembourse,0);gd+=rows.reduce((s,r)=>s+r.dette,0);gc+=rows.reduce((s,r)=>s+r.cumul,0);
+    if(sp[0]!=='tabac'){gv+=rows.reduce((s,r)=>s+r.vendu,0);gr+=rows.reduce((s,r)=>s+r.rembourse,0);gd+=rows.reduce((s,r)=>s+r.dette,0);}
+    gc+=rows.reduce((s,r)=>s+r.cumul,0);
   });
   if(!anyRow){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Aucune donnée</td></tr>';document.getElementById('mensualTotal').innerHTML='';return;}
   const dc=gd>=0?'var(--green)':'var(--red)';const cc=gc>=0?'var(--green)':'var(--red)';
-  document.getElementById('mensualTotal').innerHTML='<span style="color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:1px">Totaux</span><span class="mono">'+(gv>0?'+':'')+fmt(gv)+'</span><span class="mono" style="color:var(--red)">'+(gr>0?'-':'')+fmt(gr)+'</span><span class="mono" style="color:'+dc+'">'+(gd>=0?'+':'')+fmt(gd)+'</span><span class="mono" style="color:'+cc+';font-weight:700">'+(gc>=0?'+':'')+fmt(gc)+'</span>';
+  document.getElementById('mensualTotal').innerHTML='<span style="color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:1px">Totaux (€, hors paquets)</span><span class="mono">'+(gv>0?'+':'')+fmt(gv)+'</span><span class="mono" style="color:var(--red)">'+(gr>0?'-':'')+fmt(gr)+'</span><span class="mono" style="color:'+dc+'">'+(gd>=0?'+':'')+fmt(gd)+'</span><span class="mono" style="color:'+cc+';font-weight:700">'+(gc>=0?'+':'')+fmt(gc)+'</span>';
 }
 
 // ── CLIENTS ──
@@ -3967,7 +3975,7 @@ function initRaccourcis(){
     <div class="modal-sub">Ajouter au catalogue produits</div>
     <div class="form-grid">
       <div class="form-group full"><label>Nom de l'article *</label><input type="text" id="catNom" placeholder="Ex: Tabac x1..."></div>
-      <div class="form-group"><label>Code-barres</label><input type="text" id="catCodeBarre" placeholder="Scanner ou saisir..."></div>
+      <div class="form-group"><label>Code-barres</label><div style="display:flex;gap:6px"><input type="text" id="catCodeBarre" placeholder="Scanner ou saisir..." style="flex:1"><button type="button" class="btn" onclick="genererCodeBarre()" style="white-space:nowrap;padding:8px 12px">&#9974; Code-barre</button></div></div>
       <div class="form-group"><label>Categorie</label><input type="text" id="catCategorie" list="catCategorieList" placeholder="Categorie..." style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif;width:100%"><datalist id="catCategorieList"></datalist></div>
       <div class="form-group"><label>Unite</label><select id="catUnite" style="padding:10px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;font-family:Outfit,sans-serif"><option value="piece">Piece(s)</option><option value="gramme">Gramme(s)</option><option value="litre">Litre(s)</option><option value="paquet">Paquet(s)</option></select></div>
       <div class="form-group"><label>Prix de vente</label><input type="number" id="catPrixVente" value="0" step="0.5" min="0" style="font-size:18px;font-weight:600;color:var(--green)"></div>
@@ -5797,6 +5805,36 @@ function showMemoBillet(){
     +'<div style="font-size:11px;color:var(--text3);margin-top:8px;border-top:1px solid var(--border);padding-top:10px">Rappel : une photo ne remplace jamais ces controles physiques.</div>';
   ov.appendChild(box);document.body.appendChild(ov);
   ov.onclick=function(e){if(e.target===ov)ov.remove();};
+}
+</script>
+<script>
+function genBarcode128(data){
+  var P="212222,222122,222221,121223,121322,131222,122213,122312,132212,221213,221312,231212,112232,122132,122231,113222,123122,123221,223211,221132,221231,213212,223112,312131,311222,321122,321221,312212,322112,322211,212123,212321,232121,111323,131123,131321,112313,132113,132311,211313,231113,231311,112133,112331,132131,113123,113321,133121,313121,211331,231131,213113,213311,213131,311123,311321,331121,312113,312311,332111,314111,221411,431111,111224,111422,121124,121421,141122,141221,112214,112412,122114,122411,142112,142211,241211,221114,413111,241112,134111,111242,121142,121241,114212,124112,124211,411212,421112,421211,212141,214121,412121,111143,111341,131141,114113,114311,411113,411311,113141,114131,311141,411131,211412,211214,211232,2331112".split(",");
+  data=String(data);
+  var codes=[104],sum=104;
+  for(var i=0;i<data.length;i++){var v=data.charCodeAt(i)-32;if(v<0||v>94)v=0;codes.push(v);sum+=v*(i+1);}
+  codes.push(sum%103);codes.push(106);
+  var x=0,rects='';
+  for(var c=0;c<codes.length;c++){var pat=P[codes[c]];for(var k=0;k<pat.length;k++){var w=parseInt(pat.charAt(k),10)*1.8;if(k%2===0){rects+='<rect x="'+x.toFixed(1)+'" y="0" width="'+w.toFixed(1)+'" height="70"/>';}x+=w;}}
+  var tot=x+16;
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="'+tot.toFixed(0)+'" height="94" viewBox="0 0 '+tot.toFixed(0)+' 94"><rect width="100%" height="100%" fill="#fff"/><g fill="#000" transform="translate(8,6)">'+rects+'</g><text x="'+(tot/2).toFixed(0)+'" y="90" text-anchor="middle" font-family="monospace" font-size="13" fill="#000">'+data.replace(/&/g,"&amp;").replace(/</g,"&lt;")+'</text></svg>';
+}
+function genererCodeBarre(){
+  var inp=document.getElementById('catCodeBarre');if(!inp)return;
+  var code=(inp.value||'').trim(),genere=false;
+  if(!code){var idv=parseInt((document.getElementById('catId')||{}).value)||0;code=String(200000000000+(idv*100000)+Math.floor(Math.random()*99999));inp.value=code;genere=true;}
+  var svg=genBarcode128(code);
+  var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100001;padding:16px';
+  var box=document.createElement('div');box.style.cssText='background:#fff;border-radius:14px;padding:22px;max-width:94vw';
+  box.innerHTML='<div style="text-align:center;color:#111;font-weight:700;margin-bottom:10px">Code-barre</div><div style="text-align:center">'+svg+'</div>'+(genere?'<div style="text-align:center;color:#b8860b;font-size:12px;margin-top:8px">Code genere : pense a Enregistrer l article pour le garder.</div>':'')+'<div style="display:flex;gap:8px;margin-top:14px;justify-content:center"><button class="btn primary" id="_bcPrint">Imprimer</button><button class="btn" id="_bcClose" style="background:#eee;color:#111">Fermer</button></div>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  box.querySelector('#_bcClose').onclick=function(){ov.remove();};
+  ov.onclick=function(e){if(e.target===ov)ov.remove();};
+  box.querySelector('#_bcPrint').onclick=function(){
+    var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Code-barre</title><style>body{margin:0;display:flex;align-items:center;justify-content:center;height:100vh}</style></head><body>'+svg+'</body></html>';
+    var b=new Blob([html],{type:'text/html'});var u=URL.createObjectURL(b);var pf=document.getElementById('printFrame');
+    if(pf){pf.src=u;var mp=document.getElementById('modalPrintPreview');if(mp)mp.classList.add('open');pf.onload=function(){try{pf.contentWindow.print();}catch(e){}pf.onload=null;};}else{window.open(u,'_blank');}
+  };
 }
 </script>
 </body>
