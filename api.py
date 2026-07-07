@@ -1070,6 +1070,7 @@ def catalogue_create():
         code_barre   = (data.get("code_barre") or "").strip(),
         date_entree  = (data.get("date_entree") or "").strip(),
         sans_stock   = int(data.get("sans_stock", 0) or 0),
+        nb_paquets   = float(data.get("nb_paquets", 0) or 0),
     )
     try:
         _st = float(data.get("stock", 0) or 0)
@@ -1103,6 +1104,7 @@ def catalogue_update(iid):
         code_barre   = data.get("code_barre"),
         date_entree  = data.get("date_entree"),
         sans_stock   = data.get("sans_stock"),
+        nb_paquets   = data.get("nb_paquets"),
     )
     return ok(db.get_catalogue_item(iid))
 
