@@ -1069,10 +1069,11 @@ def catalogue_create():
         grammes_piece = float(data.get("grammes_piece", 0) or 0),
         code_barre   = (data.get("code_barre") or "").strip(),
         date_entree  = (data.get("date_entree") or "").strip(),
+        sans_stock   = int(data.get("sans_stock", 0) or 0),
     )
     try:
         _st = float(data.get("stock", 0) or 0)
-        if iid and _st > 0:
+        if iid and _st > 0 and not int(data.get("sans_stock", 0) or 0):
             db.add_entree(description=nom, quantite=_st,
                           prix_achat=float(data.get("prix_achat", 0) or 0),
                           date=(data.get("date_entree") or "").strip(),
@@ -1101,6 +1102,7 @@ def catalogue_update(iid):
         grammes_piece = (float(data["grammes_piece"]) if "grammes_piece" in data and data["grammes_piece"] is not None else None),
         code_barre   = data.get("code_barre"),
         date_entree  = data.get("date_entree"),
+        sans_stock   = data.get("sans_stock"),
     )
     return ok(db.get_catalogue_item(iid))
 

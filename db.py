@@ -841,6 +841,9 @@ def _ensure_catalogue_table():
         if "date_entree" not in cols:
             conn.execute("ALTER TABLE catalogue ADD COLUMN date_entree TEXT DEFAULT ''")
             conn.commit()
+        if "sans_stock" not in cols:
+            conn.execute("ALTER TABLE catalogue ADD COLUMN sans_stock INTEGER DEFAULT 0")
+            conn.commit()
 
 def get_catalogue():
     _ensure_catalogue_table()
@@ -856,24 +859,24 @@ def get_catalogue_item(item_id):
         row = conn.execute("SELECT * FROM catalogue WHERE id=?", (item_id,)).fetchone()
     return dict(row) if row else None
 
-def add_catalogue_item(nom, categorie, description, prix_vente, prix_achat, unite, stock_min, stock=0, grammes_piece=0, code_barre='', date_entree=''):
+def add_catalogue_item(nom, categorie, description, prix_vente, prix_achat, unite, stock_min, stock=0, grammes_piece=0, code_barre='', date_entree='', sans_stock=0):
     _ensure_catalogue_table()
     with get_conn() as conn:
         cur = conn.execute(
-            """INSERT INTO catalogue (nom,categorie,description,prix_vente,prix_achat,unite,stock_min,stock,grammes_piece,code_barre,date_entree)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, stock, grammes_piece, code_barre, date_entree)
+            """INSERT INTO catalogue (nom,categorie,description,prix_vente,prix_achat,unite,stock_min,stock,grammes_piece,code_barre,date_entree,sans_stock)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, stock, grammes_piece, code_barre, date_entree, int(sans_stock or 0))
         )
         conn.commit()
         return cur.lastrowid
 
-def update_catalogue_item(item_id, nom, categorie, description, prix_vente, prix_achat, unite, stock_min, stock=None, grammes_piece=None, code_barre=None, date_entree=None):
+def update_catalogue_item(item_id, nom, categorie, description, prix_vente, prix_achat, unite, stock_min, stock=None, grammes_piece=None, code_barre=None, date_entree=None, sans_stock=None):
     _ensure_catalogue_table()
     with get_conn() as conn:
         conn.execute(
             """UPDATE catalogue SET nom=?,categorie=?,description=?,prix_vente=?,
-               prix_achat=?,unite=?,stock_min=?, stock=COALESCE(?,stock), grammes_piece=COALESCE(?,grammes_piece), code_barre=COALESCE(?,code_barre), date_entree=COALESCE(?,date_entree) WHERE id=?""",
-            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, stock, grammes_piece, code_barre, date_entree, item_id)
+               prix_achat=?,unite=?,stock_min=?, stock=COALESCE(?,stock), grammes_piece=COALESCE(?,grammes_piece), code_barre=COALESCE(?,code_barre), date_entree=COALESCE(?,date_entree), sans_stock=COALESCE(?,sans_stock) WHERE id=?""",
+            (nom.strip(), categorie, description, prix_vente, prix_achat, unite, stock_min, stock, grammes_piece, code_barre, date_entree, sans_stock, item_id)
         )
         conn.commit()
 
