@@ -450,6 +450,7 @@ def delete_transaction(trans_id: int):
         for s in conn.execute("SELECT id,catalogue_id FROM sim_cards WHERE transaction_id=? AND statut='vendu'", (trans_id,)).fetchall():
             conn.execute("UPDATE sim_cards SET statut='stock', transaction_id=NULL, client_id=NULL, date_vente=NULL WHERE id=?", (s["id"],))
             _sync_sim_stock(conn, s["catalogue_id"])
+        conn.execute("DELETE FROM factures WHERE transaction_id=?", (trans_id,))
         _archive_txn(conn, "t.id=?", (trans_id,))
         conn.execute("DELETE FROM transactions WHERE id=?", (trans_id,))
         conn.commit()
