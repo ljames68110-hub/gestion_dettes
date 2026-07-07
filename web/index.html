@@ -5787,7 +5787,7 @@ function reapproCatalogue(id){
     var q=parseFloat(box.querySelector('#_rqQte').value||0);if(!(q>0)){notify('Quantite requise','error');return;}
     var pa=parseFloat(box.querySelector('#_rqPa').value||0);var dt=box.querySelector('#_rqDate').value;
     var r=await api('/api/catalogue/'+id+'/restock',{method:'POST',body:{quantite:q,prix_achat:pa,date:dt,source_id:((box.querySelector('#_rqSrc')||{}).value||'')}});
-    if(r&&r.ok){close();notify('Stock reapprovisionne');if(typeof loadCatalogue==='function')loadCatalogue();if(typeof loadStock==='function')loadStock();if(typeof loadEntrees==='function')loadEntrees();if(typeof renderPosGrid==='function')renderPosGrid(((document.getElementById('posSearch')||{}).value)||'');}
+    if(r&&r.ok){close();notify('Stock reapprovisionne');if(typeof loadCatalogue==='function')loadCatalogue().then(function(){if(typeof renderPosGrid==='function')renderPosGrid(((document.getElementById('posSearch')||{}).value)||'');});if(typeof loadStock==='function')loadStock();if(typeof loadEntrees==='function')loadEntrees();}
     else notify((r&&r.error)||'Erreur','error');
   };
 }
