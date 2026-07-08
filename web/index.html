@@ -4475,7 +4475,7 @@ async function posEncaisser(){
   var venteBrutEnc=getCartTotal();var reducEnc=getReduc();var venteTotal=venteBrutEnc-reducEnc;if(venteTotal<0)venteTotal=0;
   var facteurReduc=(venteBrutEnc>0)?(venteTotal/venteBrutEnc):1;
   var remb=getRemb();
-  if(posCart.length===0 && remb<=0){notify('Rien a encaisser','error');return;}
+  if(posCart.length===0 && remb<=0){notify('Rien a encaisser','error');return;}var _cvItems=posCart.map(function(l){return {nom:(l.motif&&l.motif.length?l.motif:l.nom),qty:l.qty,montant:(l.prix||0)*l.qty};});var _cvSel=document.getElementById('posClient');if(!(await confirmVente({clientNom:(_cvSel&&_cvSel.selectedOptions&&_cvSel.selectedOptions[0]?_cvSel.selectedOptions[0].text:''),type:(posPayMode==='cash'?'Comptant (paye)':'A credit (dette)'),typeKind:posPayMode,items:_cvItems,reduc:reducEnc,total:venteTotal,remb:remb,date:((document.getElementById('posDate')||{}).value||'')+' '+((document.getElementById('posTime')||{}).value||''),mode:(document.getElementById('posMode')||{}).value||''}))){notify('Vente annulee','error');return;}
   var mode=document.getElementById('posMode').value;var _posTicketRaw='';if(_isVoucher(mode)){var _tkr=_collectTickets('posTicketList');if(_tkr.error){notify(_tkr.error,'error');return;}_posTicketRaw=_tkr.codes;}var _posTicketTag=_posTicketRaw?(' [TICKET code='+_posTicketRaw+']'):'';var _echTag='';if(posPayMode==='credit'&&posCart.length>0){var _ech2=await askEcheance();if(_ech2==='__CANCEL__'){notify('Vente annulee','error');return;}_echTag=_ech2?(' [ECHEANCE '+_ech2+']'):'';}
   var btn=document.getElementById('posCashout');btn.disabled=true;btn.textContent='Encaissement...';
   var ok=0,fail=0;var venteTids=[];var _posTimeElTop=document.getElementById('posTime');var _posDate=(document.getElementById('posDate')&&document.getElementById('posDate').value)?(document.getElementById('posDate').value+((_posTimeElTop&&_posTimeElTop.value)?(' '+_posTimeElTop.value):'')):undefined;
@@ -5855,6 +5855,22 @@ function askNature(nom,nbPaquets){
         else{done({kind:'tabac',label:l,nbPaquets:nbPaquets});}
       };
     });
+  });
+}
+</script>
+<script>
+function confirmVente(o){
+  return new Promise(function(resolve){
+    var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:100002;padding:16px';
+    var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:24px;width:400px;max-width:94vw;max-height:88vh;overflow:auto';
+    function done(v){if(ov.parentNode)ov.parentNode.removeChild(ov);resolve(v);}
+    var items=(o.items||[]).map(function(i){return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:13px"><span style="color:var(--text2)">'+((i.nom||'')+' x'+i.qty)+'</span><span class="mono">'+fmt(i.montant||0)+'</span></div>';}).join('');
+    var typeColor=(o.typeKind==='cash')?'#4cc97a':'#e0a04c';
+    box.innerHTML='<div style="font-weight:700;font-size:17px;margin-bottom:2px">Confirmer la vente</div><div style="font-size:13px;color:var(--text3);margin-bottom:14px">'+(o.date||'')+'</div><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--text3)">Client</span><span style="font-weight:600">'+(o.clientNom||'')+'</span></div><div style="display:flex;justify-content:space-between;margin-bottom:10px"><span style="color:var(--text3)">Type</span><span style="font-weight:700;color:'+typeColor+'">'+(o.type||'')+'</span></div>'+(items?('<div style="border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:8px 0;margin-bottom:10px">'+items+'</div>'):'')+(o.reduc>0?'<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text3)"><span>Reduction</span><span class="mono">-'+fmt(o.reduc)+'</span></div>':'')+(o.remb>0?'<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--red)"><span>Remboursement</span><span class="mono">-'+fmt(o.remb)+'</span></div>':'')+'<div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0 4px"><span style="font-weight:600">TOTAL</span><span class="mono" style="font-size:20px;font-weight:800;color:var(--gold2)">'+fmt(o.total||0)+' EUR</span></div><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text3);margin-bottom:16px"><span>Mode</span><span>'+(o.mode||'')+'</span></div><div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_cvOk" style="flex:1;padding:12px;font-size:15px">Valider la vente</button><button type="button" class="btn" id="_cvNo" style="background:var(--bg3);padding:12px">Annuler</button></div>';
+    ov.appendChild(box);document.body.appendChild(ov);
+    box.querySelector('#_cvOk').onclick=function(){done(true);};
+    box.querySelector('#_cvNo').onclick=function(){done(false);};
+    ov.onclick=function(e){if(e.target===ov)done(false);};
   });
 }
 </script>
