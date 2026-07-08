@@ -680,7 +680,7 @@ select option{background:var(--bg3)}
             <div class="pos-cart-foot">
               <div id="posDetteBox" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);padding:10px 12px;font-size:13px">
                 <div style="display:flex;justify-content:space-between;align-items:center">
-                  <span style="color:var(--text3)">Dette actuelle</span>
+                  <span id="posDetteLbl" style="color:var(--text3)">Dette actuelle</span>
                   <span id="posDetteVal" style="font-family:DM Mono,monospace;font-weight:700;color:var(--green)">0.00 EUR</span>
                 </div>
                 <div id="posDettesList"></div>
@@ -4431,7 +4431,7 @@ function onPosClientChange(){
     posDette = (res&&res.ok&&res.data)?(parseFloat(res.data.solde)||0):0;if(posIsAssocie&&typeof renderAssoCards==='function')renderAssoCards(posDette);posLoadDettesOuvertes(cid);
     if(box)box.style.display='block';
     var dv=document.getElementById('posDetteVal');
-    if(dv){ dv.textContent=posDette.toFixed(2)+' EUR'; dv.style.color=posDette>0?'var(--green)':'var(--text3)'; }
+    if(dv){ dv.textContent=posDette.toFixed(2)+' EUR'; dv.style.color=posDette>0?'var(--green)':'var(--text3)'; }api('/api/clients/'+cid+'/stats-comptes').then(function(r2){if(!r2||!r2.ok||!r2.data)return;var _eu=(r2.data.euro&&r2.data.euro.solde!=null)?(parseFloat(r2.data.euro.solde)||0):0;var _dv2=document.getElementById('posDetteVal');if(_dv2){_dv2.textContent=_eu.toFixed(2)+' EUR';_dv2.style.color=_eu>0?'var(--green)':(_eu<0?'var(--red)':'var(--text3)');}var _lbl=document.getElementById('posDetteLbl');if(_lbl)_lbl.textContent='Solde net euro';});
     var ri=document.getElementById('posRemb'); if(ri) ri.value='0';
     updatePosTotals();
   });
