@@ -267,6 +267,25 @@ def delete_client(client_id: int):
 
 # ── TRANSACTIONS ──────────────────────────────────────────────────────────────
 
+def find_entree_for_motif(motif):
+    """Retourne l'id du lot (entree) le plus ancien de meme description avec du stock restant, sinon None."""
+    if not motif:
+        return None
+    with get_conn() as conn:
+        rows = conn.execute(
+            """SELECT e.id, e.quantite - COALESCE((SELECT SUM(t.quantite) FROM transactions t
+                      WHERE t.entree_id=e.id AND t.type='debit'),0) as restant
+               FROM entrees_materiel e
+               WHERE LOWER(TRIM(e.description))=LOWER(TRIM(?))
+               ORDER BY e.date ASC, e.id ASC""",
+            (motif,)
+        ).fetchall()
+    for r in rows:
+        if (r[1] or 0) > 0:
+            return r[0]
+    return None
+
+
 def add_transaction(client_id, type_, motif, quantite, prix_unitaire,
                     mode_paiement, frais, montant_brut, montant_net,
                     reference=None, notes=None, date=None):

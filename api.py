@@ -292,6 +292,12 @@ def transactions_create():
         date          = data.get("date") or None,
     )
 
+    # Auto-lien vente -> lot (si debit non deja lie)
+    if type_ == "debit" and not entree_id:
+        try:
+            entree_id = db.find_entree_for_motif(data["motif"])
+        except Exception:
+            entree_id = None
     # Sauvegarder entree_id, linked_debit_id, unite, compte dans la transaction
     compte = data.get("compte", "euro")
     if entree_id or linked_debit_id or unite != "piece" or compte != "euro":
