@@ -4734,7 +4734,7 @@ async function posEncaisserTabac(cid,mode){
   var valeur=Math.round(packs*prix*100)/100;
   var _posDate=(document.getElementById('posDate')&&document.getElementById('posDate').value)?document.getElementById('posDate').value:undefined;
   var btn=document.getElementById('posCashout');btn.disabled=true;btn.textContent='Encaissement...';
-  var motif=(posCart.length?posCart.map(function(l){return l.nom;}).join(', '):'Paiement tabac');
+  var _simTag='';for(var _si=0;_si<posCart.length;_si++){var _sl=posCart[_si];if(!/sim|puce/i.test(_sl.nom||''))continue;var _picked=null,_units=[];if(_sl.id&&_sl.id>0){try{var _ur=await api('/api/sim-cards?catalogue_id='+_sl.id+'&statut=stock');_units=(_ur&&_ur.ok&&_ur.data&&_ur.data.cards)?_ur.data.cards:[];}catch(e){_units=[];}}if(_units.length){_picked=await pickSim(_units,_sl.nom);}else{_picked=await askSimInfo();}if(!_picked){btn.disabled=false;btn.textContent='Encaisser';notify('Vente annulee','error');return;}_simTag+=' [SIM puce='+(_picked.puce||'')+'|last4='+(_picked.last4||'')+(_picked.puk?('|puk='+_picked.puk):'')+']';}var motif=(posCart.length?posCart.map(function(l){return l.nom;}).join(', '):'Paiement tabac');
   var comptant=(posPayMode==='cash');
   var tabacCatId=null;
   try{
@@ -4751,7 +4751,7 @@ async function posEncaisserTabac(cid,mode){
   var stkTag=stkParts.length?(' [STK '+stkParts.join(';')+']'):'';
   var body={client_id:cid,type:'debit',motif:motif,quantite:packs,unite:'paquet',
     prix_unitaire:prix,mode_paiement:t.nom,
-    notes:(comptant?'[CAISSE PAYE] ':'[CAISSE CREDIT] ')+'Tabac: '+packs+' x '+t.nom+stkTag,
+    notes:(comptant?'[CAISSE PAYE] ':'[CAISSE CREDIT] ')+'Tabac: '+packs+' x '+t.nom+stkTag+_simTag,
     frais_deduits:0,compte:'tabac',date:_posDate};
   var ok=true;
   try{var r=await api('/api/transactions',{method:'POST',body:body});if(!r||!r.ok)ok=false;}catch(e){ok=false;}
