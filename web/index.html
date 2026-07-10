@@ -4500,7 +4500,7 @@ async function posEncaisser(){
     if(venteTotal>0)msg.push('vente '+venteTotal.toFixed(2)+' EUR');
     if(remb>0)msg.push('remboursement '+remb.toFixed(2)+' EUR');
     notify('Encaisse : '+msg.join(' + '));if(venteTids.length){api('/api/factures/groupee',{method:'POST',body:{client_id:cid,transaction_ids:venteTids,type:'vente'}}).catch(function(){});}if(window._posTicketPhotos&&window._posTicketPhotos.length&&venteTids.length){var _ph=JSON.stringify(window._posTicketPhotos);venteTids.forEach(function(_tid){api('/api/transactions/'+_tid+'/photo-ticket',{method:'POST',body:{photo:_ph}}).catch(function(){});});_clearTicketPhoto('pos');}
-    var _stkP=[];posCart.forEach(function(l){if(l.libre||l.sansStock)return;_stkP.push(api('/api/catalogue/'+l.id+'/adjust-stock',{method:'POST',body:{delta:-(l.qty*((l.unite==='piece'&&l.grammesPiece>0)?l.grammesPiece:1))}}).catch(function(){}));});Promise.all(_stkP).then(function(){if(typeof loadCatalogue==='function')loadCatalogue().then(function(){if(typeof renderPosGrid==='function')renderPosGrid(((document.getElementById('posSearch')||{}).value)||'');});});
+    var _stkP=[];posCart.forEach(function(l){if(l.libre||l.sansStock)return;_stkP.push(api('/api/catalogue/'+l.id+'/adjust-stock',{method:'POST',body:{delta:-l.qty}}).catch(function(){}));});Promise.all(_stkP).then(function(){if(typeof loadCatalogue==='function')loadCatalogue().then(function(){if(typeof renderPosGrid==='function')renderPosGrid(((document.getElementById('posSearch')||{}).value)||'');});});
     posCart=[];var _cpx=document.getElementById('posConsoPerso');if(_cpx)_cpx.checked=false;var _pr=document.getElementById('posReduc');if(_pr)_pr.value='0';renderPosCart();
     var ri=document.getElementById('posRemb');if(ri)ri.value='0';
     onPosClientChange(); // recharge la dette a jour
@@ -4746,7 +4746,7 @@ async function posEncaisserTabac(cid,mode){
     }
   }catch(e){}
   var stkParts=[];
-  posCart.forEach(function(l){if(l.libre)return;var dq=l.qty*((l.unite==='piece'&&l.grammesPiece>0)?l.grammesPiece:1);stkParts.push(l.id+':-'+dq);});
+  posCart.forEach(function(l){if(l.libre)return;var dq=l.qty;stkParts.push(l.id+':-'+dq);});
   if(comptant && tabacCatId){stkParts.push(tabacCatId+':+'+packs);}
   var stkTag=stkParts.length?(' [STK '+stkParts.join(';')+']'):'';
   var body={client_id:cid,type:'debit',motif:motif,quantite:packs,unite:'paquet',
@@ -4755,7 +4755,7 @@ async function posEncaisserTabac(cid,mode){
     frais_deduits:0,compte:'tabac',date:_posDate};
   var ok=true;
   try{var r=await api('/api/transactions',{method:'POST',body:body});if(!r||!r.ok)ok=false;}catch(e){ok=false;}
-  posCart.forEach(function(l){if(l.libre)return;api('/api/catalogue/'+l.id+'/adjust-stock',{method:'POST',body:{delta:-(l.qty*((l.unite==='piece'&&l.grammesPiece>0)?l.grammesPiece:1))}}).catch(function(){});});
+  posCart.forEach(function(l){if(l.libre)return;api('/api/catalogue/'+l.id+'/adjust-stock',{method:'POST',body:{delta:-l.qty}}).catch(function(){});});
   if(comptant && ok && tabacCatId){
     try{await api('/api/catalogue/'+tabacCatId+'/adjust-stock',{method:'POST',body:{delta:packs}});}catch(e){}
   }
