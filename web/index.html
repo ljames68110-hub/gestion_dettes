@@ -649,7 +649,7 @@ select option{background:var(--bg3)}
         <div class="table-wrap" style="margin-top:16px">
           <div class="table-header"><span>📦 Stock articles (catalogue)</span></div>
           <table>
-            <thead><tr><th>Article</th><th>Categorie</th><th>Stock</th><th>Statut</th></tr></thead>
+            <thead><tr><th>Article</th><th>Categorie</th><th>Stock</th><th>Vendu</th><th>Benefice</th><th>Statut</th></tr></thead>
             <tbody id="stockCatalogueTbody"></tbody>
           </table>
         </div>
@@ -4819,10 +4819,10 @@ async function loadStockExtra(){
   try{
     var rc=await api('/api/catalogue');
     var cat=(rc&&rc.ok)?rc.data:[];
-    var tb=document.getElementById('stockCatalogueTbody');
+    var _rentMap={};try{var _rr=await api('/api/rentabilite');if(_rr&&_rr.ok)(_rr.data||[]).forEach(function(x){x._ben=((x.prix_vente||0)-(x.prix_achat||0))*(x.qty_vendue||0);_rentMap[x.nom]=x;});}catch(e){}var tb=document.getElementById('stockCatalogueTbody');
     if(tb){
       tb.innerHTML='';
-      if(!cat.length){tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:16px">Aucun article</td></tr>';}
+      if(!cat.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px">Aucun article</td></tr>';}
       else cat.forEach(function(a){
         var u=a.unite==='gramme'?'g':a.unite==='litre'?'L':'pcs';
         var stock=parseFloat(a.stock||0);var smin=parseFloat(a.stock_min||0);
@@ -4831,7 +4831,7 @@ async function loadStockExtra(){
         tr.innerHTML='<td style="color:var(--text);font-weight:500">'+a.nom+'</td>'
           +'<td style="color:var(--text3)">'+(a.categorie||'')+'</td>'
           +'<td><input type="number" value="'+stock.toFixed(0)+'" step="1" onchange="setCatalogueStock('+a.id+','+stock+',this.value)" style="width:80px;text-align:right;padding:4px 6px;border-radius:6px;border:1px solid '+(bas?'var(--red)':'var(--border)')+';background:var(--bg2);color:var(--text)"> '+u+'</td>'
-          +'<td>'+(bas?'🔴 Bas':'🟢 OK')+'</td>';
+          +'<td class="mono" style="text-align:right">'+(((_rentMap[a.nom]||{}).qty_vendue)||0)+'</td>'+'<td class="mono" style="text-align:right;font-weight:600;color:var(--gold2)">'+(((_rentMap[a.nom]||{})._ben)||0).toFixed(2)+' EUR</td>'+'<td>'+(bas?'🔴 Bas':'🟢 OK')+'</td>';
         tb.appendChild(tr);
       });
     }
