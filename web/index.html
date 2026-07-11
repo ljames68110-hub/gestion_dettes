@@ -640,7 +640,7 @@ select option{background:var(--bg3)}
           <div class="stat-card gold"><div class="stat-label">Articles en rupture</div><div class="stat-value" id="stockRupture">—</div></div>
         </div>
         <div class="table-wrap">
-          <div class="table-header"><span>Stock actuel</span><button class="btn primary" onclick="goPage('entrees',document.querySelector('.nav-item[onclick*=entrees]'))">+ Nouvelle entree</button></div>
+          <div class="table-header"><span>Stock actuel</span><button class="btn" onclick="reconcilierLots(this)" style="background:var(--gold2);color:#1a1a1a;margin-right:8px">Reconcilier les lots</button><button class="btn primary" onclick="goPage('entrees',document.querySelector('.nav-item[onclick*=entrees]'))">+ Nouvelle entree</button></div>
           <table>
             <thead><tr><th>Description</th><th>Unite</th><th>Stock initial</th><th>Vendu</th><th>Restant</th><th>Prix achat</th><th>Valeur restante</th><th>Statut</th></tr></thead>
             <tbody id="stockTbody"></tbody>
@@ -5875,6 +5875,16 @@ function confirmVente(o){
     box.querySelector('#_cvNo').onclick=function(){done(false);};
     ov.onclick=function(e){if(e.target===ov)done(false);};
   });
+}
+</script>
+<script>
+async function reconcilierLots(btn){
+  if(!confirm('Rattacher toutes les ventes passees a leur lot ? (met a jour le Vendu/Restant des lots)'))return;
+  if(btn){btn.disabled=true;btn.textContent='...';}
+  var r=await api('/api/reconcilier-lots',{method:'POST',body:{}});
+  if(btn){btn.disabled=false;btn.textContent='Reconcilier les lots';}
+  if(r&&r.ok){notify(((r.data&&r.data.linked)||0)+' vente(s) rattachee(s)');if(typeof loadStock==='function')loadStock();if(typeof loadEntrees==='function')loadEntrees();}
+  else notify('Erreur','error');
 }
 </script>
 </body>

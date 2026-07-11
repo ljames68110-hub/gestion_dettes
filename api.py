@@ -1491,6 +1491,28 @@ def catalogue_restock(iid):
             pass
     return ok({"entree_id": eid})
 
+@app.route("/api/reconcilier-lots", methods=["POST"])
+@require_auth
+def reconcilier_lots():
+    linked = 0
+    with db.get_conn() as conn:
+        entrees = conn.execute("SELECT id, description, quantite FROM entrees_materiel ORDER BY date ASC, id ASC").fetchall()
+        for e in entrees:
+            already = conn.execute("SELECT COALESCE(SUM(quantite),0) FROM transactions WHERE entree_id=? AND type='debit'", (e["id"],)).fetchone()[0] or 0
+            cap = (e["quantite"] or 0) - already
+            if cap <= 0:
+                continue
+            sales = conn.execute("SELECT id, COALESCE(quantite,0) as q FROM transactions WHERE type='debit' AND entree_id IS NULL AND LOWER(TRIM(motif))=LOWER(TRIM(?)) ORDER BY date ASC, id ASC", (e["description"],)).fetchall()
+            for s in sales:
+                if cap <= 0:
+                    break
+                conn.execute("UPDATE transactions SET entree_id=? WHERE id=?", (e["id"], s["id"]))
+                cap -= (s["q"] or 0)
+                linked += 1
+        conn.execute("UPDATE entrees_materiel SET stock_restant = MAX(0, quantite - COALESCE((SELECT SUM(quantite) FROM transactions WHERE entree_id=entrees_materiel.id AND type='debit'),0))")
+        conn.commit()
+    return ok({"linked": linked})
+
 
 # -- ASSOCIES -----------------------------------------------------------------
 @app.route("/api/associes")
