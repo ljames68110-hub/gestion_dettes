@@ -1513,6 +1513,25 @@ def reconcilier_lots():
         conn.commit()
     return ok({"linked": linked})
 
+@app.route("/api/recap-jour")
+@require_auth
+def recap_jour():
+    date = (request.args.get("date") or "").strip()[:10]
+    if not date:
+        return err("date requise")
+    with db.get_conn() as conn:
+        rows = conn.execute(
+            "SELECT COALESCE(mode_paiement,'?') as mode, COALESCE(SUM(montant_net),0) as total, COUNT(*) as nb "
+            "FROM transactions WHERE substr(date,1,10)=? AND COALESCE(compte,'euro')='euro' "
+            "AND ((type='debit' AND instr(COALESCE(notes,''),'[CAISSE PAYE]')>0) OR type='credit') "
+            "GROUP BY mode_paiement ORDER BY total DESC", (date,)).fetchall()
+        tabac = conn.execute("SELECT COALESCE(SUM(quantite),0) FROM transactions WHERE substr(date,1,10)=? AND COALESCE(compte,'euro')='tabac' AND type='debit'", (date,)).fetchone()[0] or 0
+        cantine = conn.execute("SELECT COALESCE(SUM(montant_net),0) FROM transactions WHERE substr(date,1,10)=? AND COALESCE(compte,'euro')='cantine' AND type='debit'", (date,)).fetchone()[0] or 0
+        credit = conn.execute("SELECT COALESCE(SUM(montant_net),0) FROM transactions WHERE substr(date,1,10)=? AND COALESCE(compte,'euro')='euro' AND type='debit' AND instr(COALESCE(notes,''),'[CAISSE PAYE]')=0", (date,)).fetchone()[0] or 0
+    modes = [{"mode": r["mode"], "total": r["total"], "nb": r["nb"]} for r in rows]
+    total_cash = sum(m["total"] for m in modes)
+    return ok({"date": date, "modes": modes, "total_encaisse": total_cash, "tabac_paquets": tabac, "cantine": cantine, "credit": credit})
+
 
 # -- ASSOCIES -----------------------------------------------------------------
 @app.route("/api/associes")
