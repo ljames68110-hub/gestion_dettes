@@ -353,7 +353,7 @@ select option{background:var(--bg3)}
 
       <!-- CLIENTS -->
       <div class="page" id="pg-clients">
-        <div style="display:flex;gap:10px"><button class="btn primary" onclick="openAddClientFresh()">+ Nouveau client</button></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px"><button class="btn primary" onclick="openAddClientFresh()">+ Nouveau client</button><input type="text" id="clientSearch" oninput="refreshClientsList()" placeholder="Rechercher (nom, tel)..." style="flex:1;min-width:200px;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text)"><button class="btn" id="clientSortBtn" onclick="toggleClientSort()">Tri : A-Z</button></div>
         <div class="clients-grid" id="clientsGrid"><div class="loading"><div class="spinner"></div> Chargement...</div></div>
       </div>
 
@@ -1517,15 +1517,24 @@ function renderMensual(){
 async function loadClients(){
   const res=await api('/api/clients');
   if(!res||!res.ok)return;
-  clientsCache=res.data;renderClients(clientsCache);populateClientSelects();
+  clientsCache=res.data;refreshClientsList();populateClientSelects();
 }
-function renderClients(list){list=(list||[]).filter(function(c){return !c.associe;});
-  const grid=document.getElementById('clientsGrid');grid.innerHTML='';
-  if(!list.length){grid.innerHTML='<p style="color:var(--text3);padding:20px">Aucun client.</p>';return;}
-  list.forEach(c=>{
-    const card=document.createElement('div');card.className='client-card fade';
-    card.innerHTML='<div class="client-avatar">'+initials(c.nom)+'</div><div class="client-name">'+c.nom+'</div><div class="client-info">'+(c.email||'Pas d\'email')+' · '+(c.tel||'Pas de tél')+'</div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn" style="flex:1;font-size:12px;padding:6px 0" onclick="event.stopPropagation();openEditClient('+c.id+')">✏ Modifier</button><button class="btn danger" style="font-size:12px;padding:6px 12px" onclick="event.stopPropagation();confirmDeleteClient('+c.id+',\''+c.nom.replace(/'/g,"\\'")+'\')">🗑</button><button class="btn primary" style="flex:1;font-size:12px;padding:6px 0" onclick="event.stopPropagation();openClientSolde('+c.id+')">→ Solde</button></div>';
-    grid.appendChild(card);
+function renderClients(list){
+  var grid=document.getElementById('clientsGrid');grid.innerHTML='';
+  grid.style.display='flex';grid.style.flexDirection='column';grid.style.gap='6px';
+  if(!list||!list.length){grid.innerHTML='<p style="color:var(--text3);padding:20px">Aucun client.</p>';return;}
+  list.forEach(function(c){
+    var s=parseFloat(c.solde_euro||0)||0;
+    var soldeHtml=(s>0.009)?('<span style="font-weight:700;color:var(--green)">'+fmt(s)+'</span>'):((s<-0.009)?('<span style="font-weight:700;color:var(--red)">'+fmt(s)+'</span>'):'<span style="color:var(--text3);font-size:12px">a jour</span>');
+    var row=document.createElement('div');row.className='client-row fade';
+    row.style.cssText='display:flex;align-items:center;gap:12px;padding:9px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;cursor:pointer';
+    row.onclick=function(){openClientSolde(c.id);};
+    row.innerHTML='<div class="client-avatar" style="width:38px;height:38px;flex:none;font-size:13px;margin:0">'+initials(c.nom)+'</div>'
+      +'<div style="flex:1;min-width:0"><div style="font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+c.nom+'</div><div style="font-size:12px;color:var(--text3)">'+(c.tel||'&mdash;')+'</div></div>'
+      +'<div style="text-align:right;min-width:70px">'+soldeHtml+'</div>'
+      +'<button class="btn" style="padding:5px 9px;font-size:12px;flex:none" onclick="event.stopPropagation();openEditClient('+c.id+')">&#9998;</button>'
+      +'<button class="btn danger" style="padding:5px 9px;font-size:12px;flex:none" onclick="event.stopPropagation();confirmDeleteClient('+c.id+',\''+(c.nom||'').replace(/'/g,"\\'")+'\')">&#128465;</button>';
+    grid.appendChild(row);
   });
 }
 function openClientSolde(cid){
@@ -5900,6 +5909,22 @@ async function recapJour(){
   ov.appendChild(box);document.body.appendChild(ov);
   box.querySelector('#_rjClose').onclick=function(){ov.remove();};
   ov.onclick=function(e){if(e.target===ov)ov.remove();};
+}
+</script>
+<script>
+var clientSortMode='az';
+function refreshClientsList(){
+  var q=(((document.getElementById('clientSearch')||{}).value)||'').toLowerCase().trim();
+  var list=(clientsCache||[]).filter(function(c){return !c.associe;});
+  if(q)list=list.filter(function(c){return ((c.nom||'').toLowerCase().indexOf(q)>=0)||((c.tel||'').toLowerCase().indexOf(q)>=0);});
+  if(clientSortMode==='debt')list.sort(function(a,b){return (parseFloat(b.solde_euro||0)||0)-(parseFloat(a.solde_euro||0)||0);});
+  else list.sort(function(a,b){return (a.nom||'').localeCompare(b.nom||'');});
+  renderClients(list);
+}
+function toggleClientSort(){
+  clientSortMode=(clientSortMode==='az')?'debt':'az';
+  var b=document.getElementById('clientSortBtn');if(b)b.textContent=(clientSortMode==='az')?'Tri : A-Z':'Tri : Dette';
+  refreshClientsList();
 }
 </script>
 </body>
