@@ -234,8 +234,11 @@ def get_clients():
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT id, nom, email, tel, notes, COALESCE(associe,0) as associe, COALESCE(photo,'') as photo, "
-            "(SELECT COALESCE(SUM(CASE WHEN t.type='debit' AND COALESCE(t.compte,'euro')='euro' AND instr(COALESCE(t.notes,''),'[CAISSE PAYE]')=0 THEN t.montant_net ELSE 0 END) "
-            "- SUM(CASE WHEN t.type='credit' AND COALESCE(t.compte,'euro')='euro' THEN t.montant_net ELSE 0 END),0) FROM transactions t WHERE t.client_id=clients.id) as solde_euro "
+            "(CASE WHEN COALESCE(clients.associe,0)=1 THEN "
+            "(SELECT COALESCE(SUM(CASE WHEN t.type='debit' THEN t.montant_net ELSE 0 END) - SUM(CASE WHEN t.type='credit' THEN t.montant_net ELSE 0 END) + SUM(COALESCE(t.frais,0)),0) FROM transactions t WHERE t.client_id=clients.id) "
+            "ELSE "
+            "(SELECT COALESCE(SUM(CASE WHEN t.type='debit' AND COALESCE(t.compte,'euro')='euro' AND instr(COALESCE(t.notes,''),'[CAISSE PAYE]')=0 THEN t.montant_net ELSE 0 END) - SUM(CASE WHEN t.type='credit' AND COALESCE(t.compte,'euro')='euro' THEN t.montant_net ELSE 0 END),0) FROM transactions t WHERE t.client_id=clients.id) "
+            "END) as solde_euro "
             "FROM clients ORDER BY nom"
         ).fetchall()
     return [dict(r) for r in rows]
