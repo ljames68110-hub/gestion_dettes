@@ -4755,7 +4755,7 @@ async function posEncaisserTabac(cid,mode){
     }
   }catch(e){}
   var stkParts=[];
-  posCart.forEach(function(l){if(l.libre)return;var dq=l.qty;stkParts.push(l.id+':-'+dq);});
+  posCart.forEach(function(l){if(l.libre||l.sansStock)return;var dq=l.qty;stkParts.push(l.id+':-'+dq);});
   if(comptant && tabacCatId){stkParts.push(tabacCatId+':+'+packs);}
   var stkTag=stkParts.length?(' [STK '+stkParts.join(';')+']'):'';
   var body={client_id:cid,type:'debit',motif:motif,quantite:packs,unite:'paquet',
