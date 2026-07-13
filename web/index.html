@@ -640,7 +640,7 @@ select option{background:var(--bg3)}
           <div class="stat-card gold"><div class="stat-label">Articles en rupture</div><div class="stat-value" id="stockRupture">—</div></div>
         </div>
         <div class="table-wrap">
-          <div class="table-header"><span>Stock actuel</span><button class="btn" onclick="reconcilierLots(this)" style="background:var(--gold2);color:#1a1a1a;margin-right:8px">Reconcilier les lots</button><button class="btn primary" onclick="goPage('entrees',document.querySelector('.nav-item[onclick*=entrees]'))">+ Nouvelle entree</button></div>
+          <div class="table-header"><span>Stock actuel</span><button class="btn" onclick="convertirProduit()" style="margin-right:8px">Convertir un produit</button><button class="btn" onclick="reconcilierLots(this)" style="background:var(--gold2);color:#1a1a1a;margin-right:8px">Reconcilier les lots</button><button class="btn primary" onclick="goPage('entrees',document.querySelector('.nav-item[onclick*=entrees]'))">+ Nouvelle entree</button></div>
           <table>
             <thead><tr><th>Description</th><th>Unite</th><th>Stock initial</th><th>Vendu</th><th>Restant</th><th>Prix achat</th><th>Valeur restante</th><th>Statut</th></tr></thead>
             <tbody id="stockTbody"></tbody>
@@ -1630,7 +1630,7 @@ async function loadSolde(){
     + '<div style="flex:1"><div style="font-size:17px;font-weight:600;color:var(--text)">'+(clientData.nom||'—')+'</div>'
     + '<div style="font-size:12px;color:var(--text3);margin-top:2px">'+(clientData.email||'')+(clientData.email&&clientData.tel?' · ':'')+(clientData.tel||'')+'</div>'
     + notesHtml + '</div>'
-    + '<button class="btn" style="font-size:12px" onclick="openEditClient('+cid+')">✏ Modifier</button>'
+    + '<button class="btn" style="font-size:12px;background:var(--gold2);color:#1a1a1a;margin-right:6px" onclick="solderDette('+cid+')">Solder / Remise</button><button class="btn" style="font-size:12px" onclick="openEditClient('+cid+')">✏ Modifier</button>'
     + '</div>';
 
   content.innerHTML='<div class="solde-grid fade">'+'<div id="fichePretsZone" style="grid-column:1/-1"></div>'+'<div id="fraisDetailZone" style="grid-column:1/-1"></div>'+'<div id="ficheDangerZone" style="grid-column:1/-1"></div>'

@@ -1523,7 +1523,7 @@ def recap_jour():
         rows = conn.execute(
             "SELECT COALESCE(mode_paiement,'?') as mode, COALESCE(SUM(montant_net),0) as total, COUNT(*) as nb "
             "FROM transactions WHERE substr(date,1,10)=? AND COALESCE(compte,'euro')='euro' "
-            "AND ((type='debit' AND instr(COALESCE(notes,''),'[CAISSE PAYE]')>0) OR type='credit') "
+            "AND ((type='debit' AND instr(COALESCE(notes,''),'[CAISSE PAYE]')>0) OR (type='credit' AND instr(COALESCE(notes,''),'[REMISE]')=0)) "
             "GROUP BY mode_paiement ORDER BY total DESC", (date,)).fetchall()
         tabac = conn.execute("SELECT COALESCE(SUM(quantite),0) FROM transactions WHERE substr(date,1,10)=? AND COALESCE(compte,'euro')='tabac' AND type='debit'", (date,)).fetchone()[0] or 0
         cantine = conn.execute("SELECT COALESCE(SUM(montant_net),0) FROM transactions WHERE substr(date,1,10)=? AND COALESCE(compte,'euro')='cantine' AND type='debit'", (date,)).fetchone()[0] or 0
@@ -1531,6 +1531,26 @@ def recap_jour():
     modes = [{"mode": r["mode"], "total": r["total"], "nb": r["nb"]} for r in rows]
     total_cash = sum(m["total"] for m in modes)
     return ok({"date": date, "modes": modes, "total_encaisse": total_cash, "tabac_paquets": tabac, "cantine": cantine, "credit": credit})
+
+@app.route("/api/convertir", methods=["POST"])
+@require_auth
+def convertir_produit():
+    data = request.json or {}
+    try:
+        sid = int(data.get("source_id")); tid = int(data.get("target_id"))
+        sq = float(data.get("source_qty", 0) or 0); tq = float(data.get("target_qty", 0) or 0)
+    except Exception:
+        return err("Donnees invalides")
+    if sid == tid: return err("Source et cible identiques")
+    if sq <= 0 or tq <= 0: return err("Quantites invalides")
+    s = db.get_catalogue_item(sid); tt = db.get_catalogue_item(tid)
+    if not s or not tt: return err("Produit introuvable")
+    db.adjust_stock_catalogue(sid, -sq); db.adjust_stock_catalogue(tid, tq)
+    try:
+        db.add_entree(description=tt.get("nom", ""), quantite=tq, prix_achat=float(tt.get("prix_achat", 0) or 0), notes="Conversion depuis " + str(s.get("nom", "")), unite=tt.get("unite", "piece"))
+    except Exception:
+        pass
+    return ok({"ok": True})
 
 
 # -- ASSOCIES -----------------------------------------------------------------
