@@ -2517,7 +2517,7 @@ async function checkRappelsBadge(){
 function initApp(){
   loadNoAuth();
   loadDashboard();loadSavedPalette();loadAppLogo();loadEntrees();loadMotifs();loadTarifs();
-  setTimeout(checkRappelsBadge,2000);
+  setTimeout(checkRappelsBadge,2000);setTimeout(function(){if(typeof autoCheckUpdate==='function')autoCheckUpdate();},4000);
   initRaccourcis(); // FIX : raccourcis clavier N/C/Échap
   autoBackup();     // FIX : backup auto quotidien
   loadAppSettings(); // FIX : charger frais/devise au démarrage
@@ -6031,6 +6031,14 @@ function openPosClientSearch(){
   });
   ov.onclick=function(e){if(e.target===ov)ov.remove();};
   render();setTimeout(function(){inp.focus();},50);
+}
+</script>
+<script>
+async function autoCheckUpdate(){
+  try{
+    var res=await api('/api/update/check');
+    if(res&&res.ok&&res.data&&res.data.available&&typeof checkUpdate==='function'){checkUpdate();}
+  }catch(e){}
 }
 </script>
 </body>
