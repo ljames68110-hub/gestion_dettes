@@ -5610,7 +5610,7 @@ async function loadAutolock(){
 document.addEventListener('keydown',function(e){
   var pg=document.getElementById('pg-caisse');
   if(!pg||!pg.classList.contains('active'))return;
-  if(e.key==='F2'){e.preventDefault(); if(typeof posEncaisser==='function')posEncaisser();}
+  if(e.key==='F1'){e.preventDefault();if(typeof openPosClientSearch==='function')openPosClientSearch();return;}if(e.ctrlKey&&(e.key==='ArrowUp'||e.key==='ArrowDown')){e.preventDefault();if(typeof posClientStep==='function')posClientStep(e.key==='ArrowUp'?-1:1);return;}if(e.key==='F2'){e.preventDefault(); if(typeof posEncaisser==='function')posEncaisser();}
   else if(e.key==='F3'){e.preventDefault(); var s=document.getElementById('posSearch'); if(s){s.focus();s.select();}}
   else if(e.key==='F4'){e.preventDefault(); if(typeof setPosPay==='function')setPosPay((typeof posPayMode!=='undefined'&&posPayMode==='cash')?'credit':'cash');}
 });
@@ -5998,6 +5998,39 @@ function setAssoMode(m){
   function _sb(b,on){if(!b)return;b.style.background=on?'var(--gold2)':'';b.style.color=on?'#1a1a1a':'';}
   if(m==='vente'){if(ap)ap.style.display='none';if(pz)pz.style.display='';_sb(bc,false);_sb(bv,true);}
   else{if(ap)ap.style.display='block';if(pz)pz.style.display='none';_sb(bc,true);_sb(bv,false);}
+}
+</script>
+<script>
+function posClientStep(dir){
+  var sel=document.getElementById('posClient');if(!sel||!sel.options.length)return;
+  var i=sel.selectedIndex+dir;
+  while(i>=0&&i<sel.options.length&&sel.options[i].value===''){i+=dir;}
+  if(i<0||i>=sel.options.length)return;
+  sel.selectedIndex=i;if(typeof onPosClientChange==='function')onPosClientChange();
+}
+function openPosClientSearch(){
+  var list=(clientsCache||[]).slice().sort(function(a,b){return (a.nom||'').localeCompare(b.nom||'');});
+  var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:flex-start;justify-content:center;z-index:100002;padding:60px 16px';
+  var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:16px;width:460px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column';
+  box.innerHTML='<input type="text" id="_pcsInput" placeholder="Rechercher un client / associe..." style="padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:15px;margin-bottom:10px"><div id="_pcsList" style="overflow:auto"></div>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  var inp=box.querySelector('#_pcsInput'),listDiv=box.querySelector('#_pcsList');
+  var filtered=list,sel=0;
+  function render(){
+    listDiv.innerHTML=filtered.map(function(c,i){return '<div class="_pcsRow" style="padding:9px 10px;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;background:'+(i===sel?'var(--bg3)':'transparent')+'"><span>'+(c.nom||'')+(c.associe?' <span style=\'font-size:9px;padding:1px 5px;border-radius:4px;background:var(--gold2);color:#1a1a1a\'>ASSOCIE</span>':'')+'</span><span style="color:var(--text3);font-size:12px">'+(c.tel||'')+'</span></div>';}).join('')||'<div style="color:var(--text3);padding:10px">Aucun</div>';
+    Array.prototype.forEach.call(listDiv.querySelectorAll('._pcsRow'),function(r,i){r.onclick=function(){choose(filtered[i]);};});
+  }
+  function choose(c){if(!c)return;var s=document.getElementById('posClient');if(s){s.value=c.id;if(typeof onPosClientChange==='function')onPosClientChange();}ov.remove();}
+  function filter(){var q=(inp.value||'').toLowerCase().trim();filtered=q?list.filter(function(c){return ((c.nom||'').toLowerCase().indexOf(q)>=0)||((c.tel||'').toLowerCase().indexOf(q)>=0);}):list;sel=0;render();}
+  inp.addEventListener('input',filter);
+  inp.addEventListener('keydown',function(e){
+    if(e.key==='ArrowDown'){e.preventDefault();sel=Math.min(sel+1,filtered.length-1);render();}
+    else if(e.key==='ArrowUp'){e.preventDefault();sel=Math.max(sel-1,0);render();}
+    else if(e.key==='Enter'){e.preventDefault();choose(filtered[sel]);}
+    else if(e.key==='Escape'){ov.remove();}
+  });
+  ov.onclick=function(e){if(e.target===ov)ov.remove();};
+  render();setTimeout(function(){inp.focus();},50);
 }
 </script>
 </body>
