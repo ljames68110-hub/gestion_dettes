@@ -1537,19 +1537,27 @@ def recap_jour():
 def convertir_produit():
     data = request.json or {}
     try:
-        sid = int(data.get("source_id")); tid = int(data.get("target_id"))
-        sq = float(data.get("source_qty", 0) or 0); tq = float(data.get("target_qty", 0) or 0)
+        sid = int(data.get("source_id")); sq = float(data.get("source_qty", 0) or 0)
+        targets = data.get("targets") or []
     except Exception:
         return err("Donnees invalides")
-    if sid == tid: return err("Source et cible identiques")
-    if sq <= 0 or tq <= 0: return err("Quantites invalides")
-    s = db.get_catalogue_item(sid); tt = db.get_catalogue_item(tid)
-    if not s or not tt: return err("Produit introuvable")
-    db.adjust_stock_catalogue(sid, -sq); db.adjust_stock_catalogue(tid, tq)
-    try:
-        db.add_entree(description=tt.get("nom", ""), quantite=tq, prix_achat=float(tt.get("prix_achat", 0) or 0), notes="Conversion depuis " + str(s.get("nom", "")), unite=tt.get("unite", "piece"))
-    except Exception:
-        pass
+    if sq <= 0 or not targets: return err("Quantites invalides")
+    s = db.get_catalogue_item(sid)
+    if not s: return err("Source introuvable")
+    db.adjust_stock_catalogue(sid, -sq)
+    for tgt in targets:
+        try:
+            tid = int(tgt.get("id")); tq = float(tgt.get("qty", 0) or 0)
+        except Exception:
+            continue
+        if tid == sid or tq <= 0: continue
+        tt = db.get_catalogue_item(tid)
+        if not tt: continue
+        db.adjust_stock_catalogue(tid, tq)
+        try:
+            db.add_entree(description=tt.get("nom",""), quantite=tq, prix_achat=float(tt.get("prix_achat",0) or 0), notes="Conversion depuis "+str(s.get("nom","")), unite=tt.get("unite","piece"))
+        except Exception:
+            pass
     return ok({"ok": True})
 
 
