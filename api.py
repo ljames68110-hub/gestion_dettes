@@ -1553,11 +1553,13 @@ def compta_articles():
             a = slot(r["k"], r["nom"]); a["achete"] = float(r["tot"] or 0); a["achete_qte"] = float(r["q"] or 0)
         for r in conn.execute("SELECT LOWER(TRIM(t.motif)) k, MIN(t.motif) nom, COALESCE(SUM(t.quantite),0) q, COALESCE(SUM(t.montant_net),0) ca FROM transactions t WHERE COALESCE(t.compte,'euro')='euro' AND t.type='debit' AND instr(COALESCE(t.notes,''),'Retrait associe')=0"+w2+" GROUP BY LOWER(TRIM(t.motif))", p2).fetchall():
             a = slot(r["k"], r["nom"]); a["vendu_qte"] = float(r["q"] or 0); a["ca"] = float(r["ca"] or 0)
-        for r in conn.execute("SELECT LOWER(TRIM(nom)) k, nom, COALESCE(prix_achat,0) pa, COALESCE(stock,0) st FROM catalogue WHERE actif=1").fetchall():
+        for r in conn.execute("SELECT LOWER(TRIM(nom)) k, nom, COALESCE(prix_achat,0) pa, COALESCE(stock,0) st, COALESCE(sans_stock,0) ss FROM catalogue WHERE actif=1").fetchall():
             if r["k"] in arts:
                 a = arts[r["k"]]
                 a["stock"] = float(r["st"] or 0)
                 a["cogs"] = round(a["vendu_qte"] * float(r["pa"] or 0), 2)
+                if int(r["ss"] or 0) == 1:
+                    a["achete"] = a["cogs"]; a["achete_qte"] = a["vendu_qte"]; a["stock"] = None
     out = []
     for a in arts.values():
         a["benefice"] = round(a["ca"] - a["cogs"], 2)
@@ -1589,6 +1591,7 @@ def compta_sheet():
         remb = q("SELECT COALESCE(SUM(t.montant_net),0) "+base+" AND t.type='credit' AND instr(COALESCE(t.notes,''),'[REMISE]')=0")
         remises = q("SELECT COALESCE(SUM(t.montant_net),0) "+base+" AND t.type='credit' AND instr(COALESCE(t.notes,''),'[REMISE]')>0")
         cogs = q("SELECT COALESCE(SUM(t.quantite * COALESCE(c.prix_achat,0)),0) FROM transactions t LEFT JOIN catalogue c ON LOWER(TRIM(c.nom))=LOWER(TRIM(t.motif)) WHERE COALESCE(t.compte,'euro')='euro' AND t.type='debit' {W} {C}")
+        achats_dem = q("SELECT COALESCE(SUM(t.quantite * COALESCE(c.prix_achat,0)),0) FROM transactions t JOIN catalogue c ON LOWER(TRIM(c.nom))=LOWER(TRIM(t.motif)) AND COALESCE(c.sans_stock,0)=1 WHERE COALESCE(t.compte,'euro')='euro' AND t.type='debit' {W} {C}")
         pm = list(params) + (([cid]) if cid else [])
         modes = conn.execute(("SELECT COALESCE(t.mode_paiement,'?') as mode, COALESCE(SUM(t.montant_net),0) as total, COUNT(*) as nb FROM transactions t WHERE COALESCE(t.compte,'euro')='euro' AND ((t.type='debit' AND instr(COALESCE(t.notes,''),'[CAISSE PAYE]')>0) OR (t.type='credit' AND instr(COALESCE(t.notes,''),'[REMISE]')=0)) {W} {C} GROUP BY t.mode_paiement ORDER BY total DESC").replace("{W}", w_date).replace("{C}", w_cid), pm).fetchall()
         pa = []
@@ -1616,7 +1619,8 @@ def compta_sheet():
         "encaisse_total": encaisse_total,
         "modes": [{"mode": m["mode"], "total": m["total"], "nb": m["nb"]} for m in modes],
         "benefice_brut": ca_net_remises - float(cogs[0] or 0) + float(frais_recus[0] or 0),
-        "tresorerie": encaisse_total - float(achats[0] or 0) - float(retraits[0] or 0),
+        "tresorerie": encaisse_total - float(achats[0] or 0) - float(retraits[0] or 0) - float(achats_dem[0] or 0),
+        "achats_demande": float(achats_dem[0] or 0),
         "retraits": float(retraits[0] or 0), "frais_recus": float(frais_recus[0] or 0), "stock_valeur": float(stock_val[0] or 0),
         "tabac_paquets": float(tabac[0] or 0), "cantine": float(cantine[0] or 0),
         "dettes_en_cours": dettes_pos, "depots_dus": depots, "depots_detail": sorted(depots_detail, key=lambda x: -x["montant"])
