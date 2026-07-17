@@ -6093,7 +6093,7 @@ async function loadComptaArticles(du,au){
   if(!box){
     box=document.createElement('div');box.id='comptaArticles';box.className='table-wrap';box.style.marginBottom='16px';
     var sheet=document.getElementById('comptaSheet');
-    if(sheet&&sheet.parentNode)sheet.parentNode.insertBefore(box,sheet.nextSibling);else return;
+    if(sheet&&sheet.parentNode){sheet.parentNode.insertBefore(box,sheet.nextSibling);}else{var _tb=document.getElementById('comptaTbody');var _wrap=_tb?_tb.closest('.table-wrap'):null;if(_wrap&&_wrap.parentNode){_wrap.parentNode.insertBefore(box,_wrap);}else{return;}}
   }
   function F(x){return (parseFloat(x)||0).toFixed(2);}
   var rows=arts.map(function(a){
