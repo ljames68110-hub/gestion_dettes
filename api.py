@@ -1532,6 +1532,58 @@ def recap_jour():
     total_cash = sum(m["total"] for m in modes)
     return ok({"date": date, "modes": modes, "total_encaisse": total_cash, "tabac_paquets": tabac, "cantine": cantine, "credit": credit})
 
+@app.route("/api/compta")
+@require_auth
+def compta_sheet():
+    du = (request.args.get("du") or "").strip()[:10]
+    au = (request.args.get("au") or "").strip()[:10]
+    cid = (request.args.get("client_id") or "").strip()
+    w_date = ""; params = []
+    if du: w_date += " AND substr(t.date,1,10)>=?"; params.append(du)
+    if au: w_date += " AND substr(t.date,1,10)<=?"; params.append(au)
+    w_cid = ""
+    if cid: w_cid = " AND t.client_id=?"
+    with db.get_conn() as conn:
+        def q(sql, extra=()):
+            p = list(params) + list(extra)
+            if cid: p.append(cid)
+            return conn.execute(sql.replace("{W}", w_date).replace("{C}", w_cid), p).fetchone()
+        base = "FROM transactions t WHERE COALESCE(t.compte,'euro')='euro' {W} {C}"
+        ca = q("SELECT COALESCE(SUM(t.montant_net),0), COALESCE(SUM(CASE WHEN instr(COALESCE(t.notes,''),'[CAISSE PAYE]')>0 THEN t.montant_net ELSE 0 END),0) "+base+" AND t.type='debit'")
+        ca_total, ca_comptant = float(ca[0] or 0), float(ca[1] or 0)
+        ca_credit = ca_total - ca_comptant
+        remb = q("SELECT COALESCE(SUM(t.montant_net),0) "+base+" AND t.type='credit' AND instr(COALESCE(t.notes,''),'[REMISE]')=0")
+        remises = q("SELECT COALESCE(SUM(t.montant_net),0) "+base+" AND t.type='credit' AND instr(COALESCE(t.notes,''),'[REMISE]')>0")
+        cogs = q("SELECT COALESCE(SUM(t.quantite * COALESCE(c.prix_achat,0)),0) FROM transactions t LEFT JOIN catalogue c ON LOWER(TRIM(c.nom))=LOWER(TRIM(t.motif)) WHERE COALESCE(t.compte,'euro')='euro' AND t.type='debit' {W} {C}")
+        pm = list(params) + (([cid]) if cid else [])
+        modes = conn.execute(("SELECT COALESCE(t.mode_paiement,'?') as mode, COALESCE(SUM(t.montant_net),0) as total, COUNT(*) as nb FROM transactions t WHERE COALESCE(t.compte,'euro')='euro' AND ((t.type='debit' AND instr(COALESCE(t.notes,''),'[CAISSE PAYE]')>0) OR (t.type='credit' AND instr(COALESCE(t.notes,''),'[REMISE]')=0)) {W} {C} GROUP BY t.mode_paiement ORDER BY total DESC").replace("{W}", w_date).replace("{C}", w_cid), pm).fetchall()
+        pa = []
+        w2 = ""
+        if du: w2 += " AND substr(date,1,10)>=?"; pa.append(du)
+        if au: w2 += " AND substr(date,1,10)<=?"; pa.append(au)
+        achats = conn.execute("SELECT COALESCE(SUM(prix_achat),0), COUNT(*) FROM entrees_materiel WHERE COALESCE(notes,'') NOT LIKE 'Conversion depuis%'"+w2, pa).fetchone()
+        tabac = q("SELECT COALESCE(SUM(t.quantite),0) FROM transactions t WHERE COALESCE(t.compte,'')='tabac' AND t.type='debit' {W} {C}")
+        cantine = q("SELECT COALESCE(SUM(t.montant_net),0) FROM transactions t WHERE COALESCE(t.compte,'')='cantine' AND t.type='debit' {W} {C}")
+    dettes_pos = 0.0; depots = 0.0
+    for c in db.get_clients():
+        if cid and str(c.get("id")) != str(cid): continue
+        s = float(c.get("solde_euro") or 0)
+        if s > 0: dettes_pos += s
+        elif s < 0: depots += -s
+    encaisse_total = sum(float(m["total"] or 0) for m in modes)
+    ca_net_remises = ca_total - float(remises[0] or 0)
+    return ok({
+        "ca_total": ca_total, "ca_comptant": ca_comptant, "ca_credit": ca_credit,
+        "remboursements": float(remb[0] or 0), "remises": float(remises[0] or 0),
+        "cogs": float(cogs[0] or 0), "achats": float(achats[0] or 0), "achats_nb": int(achats[1] or 0),
+        "encaisse_total": encaisse_total,
+        "modes": [{"mode": m["mode"], "total": m["total"], "nb": m["nb"]} for m in modes],
+        "benefice_brut": ca_net_remises - float(cogs[0] or 0),
+        "tresorerie": encaisse_total - float(achats[0] or 0),
+        "tabac_paquets": float(tabac[0] or 0), "cantine": float(cantine[0] or 0),
+        "dettes_en_cours": dettes_pos, "depots_dus": depots
+    })
+
 @app.route("/api/convertir", methods=["POST"])
 @require_auth
 def convertir_produit():

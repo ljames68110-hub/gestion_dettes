@@ -777,13 +777,13 @@ select option{background:var(--bg3)}
           <span style="font-size:13px;color:var(--text3)">au</span>
           <input type="date" id="comptaAu" onchange="computeCompta()" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">
           <select id="comptaClient" onchange="computeCompta()" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);min-width:160px"><option value="">Tous les clients</option></select>
-          <button class="btn primary" onclick="exportComptaPDF()" style="margin-left:auto">🧾 Export PDF</button>
+          <button class="btn" onclick="exportComptaCSV()" style="margin-left:auto">&#8681; CSV</button><button class="btn primary" onclick="exportComptaPDF()" style="margin-left:8px">🧾 Export PDF</button>
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px">
-          <div class="stat-card green"><div class="stat-label">Ventes (periode)</div><div class="stat-value" id="comptaVentes">—</div></div>
+          <div class="stat-card green"><div class="stat-label">CA ventes (periode)</div><div class="stat-value" id="comptaVentes">—</div></div>
           <div class="stat-card blue"><div class="stat-label">Encaisse (periode)</div><div class="stat-value" id="comptaEncaisse">—</div></div>
-          <div class="stat-card gold"><div class="stat-label">Benefice estime</div><div class="stat-value" id="comptaBenef">—</div></div>
-          <div class="stat-card red"><div class="stat-label">Dette totale</div><div class="stat-value" id="comptaDette">—</div></div>
+          <div class="stat-card gold"><div class="stat-label">Benefice brut</div><div class="stat-value" id="comptaBenef">—</div></div>
+          <div class="stat-card red"><div class="stat-label">Dettes en cours</div><div class="stat-value" id="comptaDette">—</div></div>
         </div>
         <div class="table-wrap">
           <div class="table-header"><span>Operations de la periode</span></div>
@@ -4922,7 +4922,7 @@ async function computeCompta(){
     else{encaisse+=net;}
     rows.push(t);
   });
-  document.getElementById('comptaVentes').textContent=fmt(ventes);
+  if(typeof loadComptaSheet==='function')loadComptaSheet(du,au,cidf);document.getElementById('comptaVentes').textContent=fmt(ventes);
   document.getElementById('comptaEncaisse').textContent=fmt(encaisse);
   document.getElementById('comptaBenef').textContent=fmt(benef);
   document.getElementById('comptaDette').textContent=fmt(detteTotale);
@@ -6039,6 +6039,48 @@ async function autoCheckUpdate(){
     var res=await api('/api/update/check');
     if(res&&res.ok&&res.data&&res.data.available&&typeof checkUpdate==='function'){checkUpdate();}
   }catch(e){}
+}
+</script>
+<script>
+async function loadComptaSheet(du,au,cid){
+  var qs=[];if(du)qs.push('du='+du);if(au)qs.push('au='+au);if(cid)qs.push('client_id='+cid);
+  var r=await api('/api/compta'+(qs.length?('?'+qs.join('&')):''));
+  if(!r||!r.ok||!r.data)return;var d=r.data;window._comptaSheetData=d;
+  function F(x){return (parseFloat(x)||0).toFixed(2)+' EUR';}
+  var ve=document.getElementById('comptaVentes');if(ve)ve.textContent=F(d.ca_total);
+  var en=document.getElementById('comptaEncaisse');if(en)en.textContent=F(d.encaisse_total);
+  var be=document.getElementById('comptaBenef');if(be)be.textContent=F(d.benefice_brut);
+  var de=document.getElementById('comptaDette');if(de)de.textContent=F(d.dettes_en_cours);
+  var sheet=document.getElementById('comptaSheet');
+  if(!sheet){
+    sheet=document.createElement('div');sheet.id='comptaSheet';
+    var tb=document.getElementById('comptaTbody');
+    var wrap=tb?tb.closest('.table-wrap'):null;
+    if(wrap&&wrap.parentNode)wrap.parentNode.insertBefore(sheet,wrap);else return;
+  }
+  function row(l,v,strong,color){return '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;'+(strong?'font-weight:700;border-top:1px solid var(--border);margin-top:4px;padding-top:8px;':'')+'"><span style="color:'+(strong?'var(--text)':'var(--text2)')+'">'+l+'</span><span class="mono" style="'+(color?('color:'+color+';'):'')+(strong?'font-weight:800':'')+'">'+v+'</span></div>';}
+  var modesH=(d.modes||[]).map(function(m){return row((m.mode||'?')+' <span style="color:var(--text3);font-size:11px">('+m.nb+')</span>',F(m.total));}).join('')||'<div style="color:var(--text3);font-size:12px">Aucun encaissement</div>';
+  function card(title,inner){return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px"><div style="font-size:11px;color:var(--gold2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">'+title+'</div>'+inner+'</div>';}
+  sheet.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:16px';
+  sheet.innerHTML=
+    card('&#128181; Recettes encaissees',modesH+row('TOTAL ENCAISSE',F(d.encaisse_total),true,'var(--green)'))+
+    card('&#128722; Ventes',row('Ventes comptant',F(d.ca_comptant))+row('Ventes a credit (dettes creees)',F(d.ca_credit))+row('Remises accordees','-'+F(d.remises))+row('CA NET',F(d.ca_total-d.remises),true))+
+    card('&#128184; Charges',row('Achats de stock ('+(d.achats_nb||0)+' lot(s))',F(d.achats))+row('Cout des ventes (prix achat)',F(d.cogs))+row('TOTAL CHARGES (achats)',F(d.achats),true,'var(--red)'))+
+    card('&#128200; Resultat',row('Benefice brut (CA net - cout des ventes)',F(d.benefice_brut),false,(d.benefice_brut>=0?'var(--green)':'var(--red)'))+row('Tresorerie nette (encaisse - achats)',F(d.tresorerie),false,(d.tresorerie>=0?'var(--green)':'var(--red)'))+row('Dettes clients en cours',F(d.dettes_en_cours))+row('Depots dus (associes)',F(d.depots_dus))+row('&#128684; Tabac recu (periode)',(d.tabac_paquets||0)+' pq')+(d.cantine?row('&#127860; Cantine (periode)',F(d.cantine)):''));
+}
+function exportComptaCSV(){
+  var d=window._comptaSheetData;if(!d){notify('Charge d abord la periode','error');return;}
+  var du=(document.getElementById('comptaDu')||{}).value||'debut';
+  var au=(document.getElementById('comptaAu')||{}).value||'aujourdhui';
+  var L=[['Feuille comptable','du '+du+' au '+au],[],['RECETTES ENCAISSEES','']];
+  (d.modes||[]).forEach(function(m){L.push([m.mode||'?',(m.total||0).toFixed(2)]);});
+  L.push(['TOTAL ENCAISSE',(d.encaisse_total||0).toFixed(2)],[]);
+  L.push(['VENTES',''],['Ventes comptant',(d.ca_comptant||0).toFixed(2)],['Ventes a credit',(d.ca_credit||0).toFixed(2)],['Remises accordees',(-(d.remises||0)).toFixed(2)],['CA NET',((d.ca_total||0)-(d.remises||0)).toFixed(2)],[]);
+  L.push(['CHARGES',''],['Achats de stock',(d.achats||0).toFixed(2)],['Cout des ventes',(d.cogs||0).toFixed(2)],[]);
+  L.push(['RESULTAT',''],['Benefice brut',(d.benefice_brut||0).toFixed(2)],['Tresorerie nette',(d.tresorerie||0).toFixed(2)],['Dettes en cours',(d.dettes_en_cours||0).toFixed(2)],['Depots dus',(d.depots_dus||0).toFixed(2)],['Tabac recu (paquets)',String(d.tabac_paquets||0)],['Cantine',(d.cantine||0).toFixed(2)]);
+  var csv=L.map(function(r){return r.map(function(x){return '"'+String(x==null?'':x).replace(/"/g,'""')+'"';}).join(';');}).join('\r\n');
+  var blob=new Blob(["\ufeff"+csv],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='compta_'+du+'_'+au+'.csv';a.click();
 }
 </script>
 </body>
