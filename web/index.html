@@ -6066,7 +6066,7 @@ async function loadComptaSheet(du,au,cid){
     card('&#128181; Recettes encaissees',modesH+row('TOTAL ENCAISSE',F(d.encaisse_total),true,'var(--green)'))+
     card('&#128722; Ventes',row('Ventes comptant',F(d.ca_comptant))+row('Ventes a credit (dettes creees)',F(d.ca_credit))+row('Remises accordees','-'+F(d.remises))+row('CA NET',F(d.ca_total-d.remises),true))+
     card('&#128184; Charges',row('Achats de stock ('+(d.achats_nb||0)+' lot(s))',F(d.achats))+row('Cout des ventes (prix achat)',F(d.cogs))+row('TOTAL CHARGES (achats)',F(d.achats),true,'var(--red)'))+
-    card('&#128200; Resultat',row('Benefice brut (CA net - cout des ventes)',F(d.benefice_brut),false,(d.benefice_brut>=0?'var(--green)':'var(--red)'))+row('Tresorerie nette (encaisse - achats)',F(d.tresorerie),false,(d.tresorerie>=0?'var(--green)':'var(--red)'))+row('Dettes clients en cours',F(d.dettes_en_cours))+row('Depots dus (associes)',F(d.depots_dus))+row('&#128684; Tabac recu (periode)',(d.tabac_paquets||0)+' pq')+(d.cantine?row('&#127860; Cantine (periode)',F(d.cantine)):''));
+    card('&#128200; Resultat',row('Benefice brut (CA net - cout des ventes)',F(d.benefice_brut),false,(d.benefice_brut>=0?'var(--green)':'var(--red)'))+row('Tresorerie nette (encaisse - achats)',F(d.tresorerie),false,(d.tresorerie>=0?'var(--green)':'var(--red)'))+row('Dettes clients en cours',F(d.dettes_en_cours))+row('Depots dus (associes)',F(d.depots_dus))+row('&#128684; Tabac recu (periode)',(d.tabac_paquets||0)+' pq')+(d.cantine?row('&#127860; Cantine (periode)',F(d.cantine)):''))+((d.depots_detail&&d.depots_detail.length)?card('&#9888;&#65039; Tu dois a...',d.depots_detail.map(function(x){return row(x.nom,F(x.montant),false,'var(--red)');}).join('')+row('TOTAL A RENDRE',F(d.depots_dus),true,'var(--red)')):'');
 }
 function exportComptaCSV(){
   var d=window._comptaSheetData;if(!d){notify('Charge d abord la periode','error');return;}
@@ -6077,7 +6077,7 @@ function exportComptaCSV(){
   L.push(['TOTAL ENCAISSE',(d.encaisse_total||0).toFixed(2)],[]);
   L.push(['VENTES',''],['Ventes comptant',(d.ca_comptant||0).toFixed(2)],['Ventes a credit',(d.ca_credit||0).toFixed(2)],['Remises accordees',(-(d.remises||0)).toFixed(2)],['CA NET',((d.ca_total||0)-(d.remises||0)).toFixed(2)],[]);
   L.push(['CHARGES',''],['Achats de stock',(d.achats||0).toFixed(2)],['Cout des ventes',(d.cogs||0).toFixed(2)],[]);
-  L.push(['RESULTAT',''],['Benefice brut',(d.benefice_brut||0).toFixed(2)],['Tresorerie nette',(d.tresorerie||0).toFixed(2)],['Dettes en cours',(d.dettes_en_cours||0).toFixed(2)],['Depots dus',(d.depots_dus||0).toFixed(2)],['Tabac recu (paquets)',String(d.tabac_paquets||0)],['Cantine',(d.cantine||0).toFixed(2)]);
+  L.push(['RESULTAT',''],['Benefice brut',(d.benefice_brut||0).toFixed(2)],['Tresorerie nette',(d.tresorerie||0).toFixed(2)],['Dettes en cours',(d.dettes_en_cours||0).toFixed(2)],['Depots dus',(d.depots_dus||0).toFixed(2)],['Tabac recu (paquets)',String(d.tabac_paquets||0)],['Cantine',(d.cantine||0).toFixed(2)]);if(d.depots_detail&&d.depots_detail.length){L.push([],['TU DOIS A','']);d.depots_detail.forEach(function(x){L.push([x.nom,(x.montant||0).toFixed(2)]);});L.push(['TOTAL A RENDRE',(d.depots_dus||0).toFixed(2)]);}
   var csv=L.map(function(r){return r.map(function(x){return '"'+String(x==null?'':x).replace(/"/g,'""')+'"';}).join(';');}).join('\r\n');
   var blob=new Blob(["\ufeff"+csv],{type:'text/csv;charset=utf-8'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='compta_'+du+'_'+au+'.csv';a.click();

@@ -1564,12 +1564,12 @@ def compta_sheet():
         achats = conn.execute("SELECT COALESCE(SUM(prix_achat),0), COUNT(*) FROM entrees_materiel WHERE COALESCE(notes,'') NOT LIKE 'Conversion depuis%'"+w2, pa).fetchone()
         tabac = q("SELECT COALESCE(SUM(t.quantite),0) FROM transactions t WHERE COALESCE(t.compte,'')='tabac' AND t.type='debit' {W} {C}")
         cantine = q("SELECT COALESCE(SUM(t.montant_net),0) FROM transactions t WHERE COALESCE(t.compte,'')='cantine' AND t.type='debit' {W} {C}")
-    dettes_pos = 0.0; depots = 0.0
+    dettes_pos = 0.0; depots = 0.0; depots_detail = []
     for c in db.get_clients():
         if cid and str(c.get("id")) != str(cid): continue
         s = float(c.get("solde_euro") or 0)
         if s > 0: dettes_pos += s
-        elif s < 0: depots += -s
+        elif s < 0: depots += -s; depots_detail.append({"nom": c.get("nom",""), "montant": round(-s,2)})
     encaisse_total = sum(float(m["total"] or 0) for m in modes)
     ca_net_remises = ca_total - float(remises[0] or 0)
     return ok({
@@ -1581,7 +1581,7 @@ def compta_sheet():
         "benefice_brut": ca_net_remises - float(cogs[0] or 0),
         "tresorerie": encaisse_total - float(achats[0] or 0),
         "tabac_paquets": float(tabac[0] or 0), "cantine": float(cantine[0] or 0),
-        "dettes_en_cours": dettes_pos, "depots_dus": depots
+        "dettes_en_cours": dettes_pos, "depots_dus": depots, "depots_detail": sorted(depots_detail, key=lambda x: -x["montant"])
     })
 
 @app.route("/api/convertir", methods=["POST"])
