@@ -1532,6 +1532,40 @@ def recap_jour():
     total_cash = sum(m["total"] for m in modes)
     return ok({"date": date, "modes": modes, "total_encaisse": total_cash, "tabac_paquets": tabac, "cantine": cantine, "credit": credit})
 
+@app.route("/api/compta-articles")
+@require_auth
+def compta_articles():
+    du = (request.args.get("du") or "").strip()[:10]
+    au = (request.args.get("au") or "").strip()[:10]
+    w1 = ""; p1 = []
+    if du: w1 += " AND substr(date,1,10)>=?"; p1.append(du)
+    if au: w1 += " AND substr(date,1,10)<=?"; p1.append(au)
+    w2 = ""; p2 = []
+    if du: w2 += " AND substr(t.date,1,10)>=?"; p2.append(du)
+    if au: w2 += " AND substr(t.date,1,10)<=?"; p2.append(au)
+    arts = {}
+    def slot(key, nom):
+        if key not in arts:
+            arts[key] = {"nom": nom, "achete": 0.0, "achete_qte": 0.0, "vendu_qte": 0.0, "ca": 0.0, "cogs": 0.0, "benefice": 0.0, "stock": None}
+        return arts[key]
+    with db.get_conn() as conn:
+        for r in conn.execute("SELECT LOWER(TRIM(description)) k, MIN(description) nom, COALESCE(SUM(prix_achat),0) tot, COALESCE(SUM(quantite),0) q FROM entrees_materiel WHERE COALESCE(notes,'') NOT LIKE 'Conversion depuis%'"+w1+" GROUP BY LOWER(TRIM(description))", p1).fetchall():
+            a = slot(r["k"], r["nom"]); a["achete"] = float(r["tot"] or 0); a["achete_qte"] = float(r["q"] or 0)
+        for r in conn.execute("SELECT LOWER(TRIM(t.motif)) k, MIN(t.motif) nom, COALESCE(SUM(t.quantite),0) q, COALESCE(SUM(t.montant_net),0) ca FROM transactions t WHERE COALESCE(t.compte,'euro')='euro' AND t.type='debit' AND instr(COALESCE(t.notes,''),'Retrait associe')=0"+w2+" GROUP BY LOWER(TRIM(t.motif))", p2).fetchall():
+            a = slot(r["k"], r["nom"]); a["vendu_qte"] = float(r["q"] or 0); a["ca"] = float(r["ca"] or 0)
+        for r in conn.execute("SELECT LOWER(TRIM(nom)) k, nom, COALESCE(prix_achat,0) pa, COALESCE(stock,0) st FROM catalogue WHERE actif=1").fetchall():
+            if r["k"] in arts:
+                a = arts[r["k"]]
+                a["stock"] = float(r["st"] or 0)
+                a["cogs"] = round(a["vendu_qte"] * float(r["pa"] or 0), 2)
+    out = []
+    for a in arts.values():
+        a["benefice"] = round(a["ca"] - a["cogs"], 2)
+        if a["achete"] or a["ca"] or a["vendu_qte"]:
+            out.append(a)
+    out.sort(key=lambda x: -x["ca"])
+    return ok({"articles": out})
+
 @app.route("/api/compta")
 @require_auth
 def compta_sheet():

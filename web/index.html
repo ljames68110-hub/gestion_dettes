@@ -4922,7 +4922,7 @@ async function computeCompta(){
     else{encaisse+=net;}
     rows.push(t);
   });
-  if(typeof loadComptaSheet==='function')loadComptaSheet(du,au,cidf);document.getElementById('comptaVentes').textContent=fmt(ventes);
+  if(typeof loadComptaSheet==='function')loadComptaSheet(du,au,cidf);if(typeof loadComptaArticles==='function')loadComptaArticles(du,au);document.getElementById('comptaVentes').textContent=fmt(ventes);
   document.getElementById('comptaEncaisse').textContent=fmt(encaisse);
   document.getElementById('comptaBenef').textContent=fmt(benef);
   document.getElementById('comptaDette').textContent=fmt(detteTotale);
@@ -6078,9 +6078,40 @@ function exportComptaCSV(){
   L.push(['VENTES',''],['Ventes comptant',(d.ca_comptant||0).toFixed(2)],['Ventes a credit',(d.ca_credit||0).toFixed(2)],['Remises accordees',(-(d.remises||0)).toFixed(2)],['CA NET',((d.ca_total||0)-(d.remises||0)).toFixed(2)],[]);
   L.push(['CHARGES',''],['Achats de stock',(d.achats||0).toFixed(2)],['Cout des ventes',(d.cogs||0).toFixed(2)],['Retraits associes',(d.retraits||0).toFixed(2)],[]);
   L.push(['RESULTAT',''],['Benefice brut',(d.benefice_brut||0).toFixed(2)],['Tresorerie nette',(d.tresorerie||0).toFixed(2)],['Dettes en cours',(d.dettes_en_cours||0).toFixed(2)],['Depots dus',(d.depots_dus||0).toFixed(2)],['Frais recus',(d.frais_recus||0).toFixed(2)],['Valeur du stock',(d.stock_valeur||0).toFixed(2)],['Tabac recu (paquets)',String(d.tabac_paquets||0)],['Cantine',(d.cantine||0).toFixed(2)]);if(d.depots_detail&&d.depots_detail.length){L.push([],['TU DOIS A','']);d.depots_detail.forEach(function(x){L.push([x.nom,(x.montant||0).toFixed(2)]);});L.push(['TOTAL A RENDRE',(d.depots_dus||0).toFixed(2)]);}
-  var csv=L.map(function(r){return r.map(function(x){return '"'+String(x==null?'':x).replace(/"/g,'""')+'"';}).join(';');}).join('\r\n');
+  var arts=window._comptaArticlesData||[];if(arts.length){L.push([],['PAR ARTICLE','Achete EUR','Achete qte','Vendu qte','CA','Cout ventes','Benefice','Stock']);arts.forEach(function(a){L.push([a.nom,(a.achete||0).toFixed(2),String(a.achete_qte||0),String(a.vendu_qte||0),(a.ca||0).toFixed(2),(a.cogs||0).toFixed(2),(a.benefice||0).toFixed(2),(a.stock==null?'':String(a.stock))]);});}var csv=L.map(function(r){return r.map(function(x){return '"'+String(x==null?'':x).replace(/"/g,'""')+'"';}).join(';');}).join('\r\n');
   var blob=new Blob(["\ufeff"+csv],{type:'text/csv;charset=utf-8'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='compta_'+du+'_'+au+'.csv';a.click();
+}
+</script>
+<script>
+async function loadComptaArticles(du,au){
+  var qs=[];if(du)qs.push('du='+du);if(au)qs.push('au='+au);
+  var r=await api('/api/compta-articles'+(qs.length?('?'+qs.join('&')):''));
+  if(!r||!r.ok||!r.data)return;
+  var arts=r.data.articles||[];window._comptaArticlesData=arts;
+  var box=document.getElementById('comptaArticles');
+  if(!box){
+    box=document.createElement('div');box.id='comptaArticles';box.className='table-wrap';box.style.marginBottom='16px';
+    var sheet=document.getElementById('comptaSheet');
+    if(sheet&&sheet.parentNode)sheet.parentNode.insertBefore(box,sheet.nextSibling);else return;
+  }
+  function F(x){return (parseFloat(x)||0).toFixed(2);}
+  var rows=arts.map(function(a){
+    var b=parseFloat(a.benefice)||0;
+    return '<tr><td style="font-weight:600;color:var(--text)">'+a.nom+'</td>'
+      +'<td class="mono" style="text-align:right;color:var(--red)">'+F(a.achete)+' <span style="color:var(--text3);font-size:11px">('+(a.achete_qte||0)+')</span></td>'
+      +'<td class="mono" style="text-align:right">'+(a.vendu_qte||0)+'</td>'
+      +'<td class="mono" style="text-align:right">'+F(a.ca)+'</td>'
+      +'<td class="mono" style="text-align:right;color:var(--text3)">'+F(a.cogs)+'</td>'
+      +'<td class="mono" style="text-align:right;font-weight:700;color:'+(b>=0?'var(--green)':'var(--red)')+'">'+F(b)+'</td>'
+      +'<td class="mono" style="text-align:right">'+(a.stock==null?'&mdash;':a.stock)+'</td></tr>';
+  }).join('');
+  var tot={ach:0,ca:0,cogs:0,ben:0};
+  arts.forEach(function(a){tot.ach+=parseFloat(a.achete)||0;tot.ca+=parseFloat(a.ca)||0;tot.cogs+=parseFloat(a.cogs)||0;tot.ben+=parseFloat(a.benefice)||0;});
+  var totRow='<tr style="border-top:2px solid var(--border2)"><td style="font-weight:800">TOTAL</td><td class="mono" style="text-align:right;font-weight:800;color:var(--red)">'+F(tot.ach)+'</td><td></td><td class="mono" style="text-align:right;font-weight:800">'+F(tot.ca)+'</td><td class="mono" style="text-align:right;font-weight:800;color:var(--text3)">'+F(tot.cogs)+'</td><td class="mono" style="text-align:right;font-weight:800;color:'+(tot.ben>=0?'var(--green)':'var(--red)')+'">'+F(tot.ben)+'</td><td></td></tr>';
+  box.innerHTML='<div class="table-header"><span>&#128230; Par article (periode)</span></div>'
+    +'<table><thead><tr><th>Article</th><th style="text-align:right">Achete (qte)</th><th style="text-align:right">Vendu</th><th style="text-align:right">CA</th><th style="text-align:right">Cout ventes</th><th style="text-align:right">Benefice</th><th style="text-align:right">Stock</th></tr></thead><tbody>'
+    +(rows||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:16px">Aucun mouvement sur la periode</td></tr>')+totRow+'</tbody></table>';
 }
 </script>
 </body>
