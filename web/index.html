@@ -5977,18 +5977,32 @@ function convertirProduit(){
 async function assoArticleLibre(){
   var cid=parseInt((document.getElementById('posClient')||{}).value);
   if(!cid){notify('Choisis un associe','error');return;}
-  var nom=prompt('Article libre \u2014 nom / motif :','');
-  if(nom===null)return;nom=(nom||'').trim();if(!nom){notify('Nom requis','error');return;}
-  var pxs=prompt('Montant unitaire (EUR) :','0');if(pxs===null)return;
-  var px=parseFloat((pxs||'').replace(',','.'))||0;if(px<=0){notify('Montant invalide','error');return;}
-  var qs=prompt('Quantite :','1');if(qs===null)return;
-  var q=parseFloat((qs||'').replace(',','.'))||1;if(q<=0)q=1;
-  if(!confirm(nom+' : '+q+' x '+px.toFixed(2)+' = '+(q*px).toFixed(2)+' EUR ajoute a la dette de l associe. Confirmer ?'))return;
-  var body={client_id:cid,type:'debit',motif:nom,quantite:q,unite:'piece',prix_unitaire:px,mode_paiement:'Associe',notes:'[CAISSE] Article libre associe',compte:'euro',frais_deduits:0};
-  var _d=(document.getElementById('posDate')||{}).value;if(_d)body.date=_d;
-  var r=await api('/api/transactions',{method:'POST',body:body});
-  if(r&&r.ok){notify('Ajoute a la dette associe');if(typeof onPosClientChange==='function')onPosClientChange();if(typeof loadClients==='function')loadClients();}
-  else notify((r&&r.error)||'Erreur','error');
+  var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100003;padding:16px';
+  var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:380px;max-width:94vw';
+  var inp='width:100%;padding:9px 10px;margin:4px 0 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box';
+  box.innerHTML='<div style="font-weight:700;font-size:16px;margin-bottom:12px">Article libre (a la dette)</div>'
+    +'<label style="font-size:12px;color:var(--text3)">Nom / motif</label><input type="text" id="_alNom" style="'+inp+'">'
+    +'<label style="font-size:12px;color:var(--text3)">Montant unitaire (EUR)</label><input type="number" id="_alPx" value="0" step="0.01" min="0" style="'+inp+'">'
+    +'<label style="font-size:12px;color:var(--text3)">Quantite</label><input type="number" id="_alQ" value="1" step="1" min="1" style="'+inp+'">'
+    +'<div id="_alTot" style="font-size:13px;color:var(--gold2);font-weight:700;margin-bottom:14px"></div>'
+    +'<div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_alGo" style="flex:1">Ajouter a la dette</button><button type="button" class="btn" id="_alNo" style="background:var(--bg3)">Annuler</button></div>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  var nomI=box.querySelector('#_alNom'),pxI=box.querySelector('#_alPx'),qI=box.querySelector('#_alQ'),tot=box.querySelector('#_alTot');
+  function recalc(){var px=parseFloat((pxI.value||'0').replace(',','.'))||0;var q=parseFloat(qI.value||'1')||1;tot.textContent='Total : '+(px*q).toFixed(2)+' EUR';return {px:px,q:q};}
+  pxI.addEventListener('input',recalc);qI.addEventListener('input',recalc);recalc();
+  function close(){ov.remove();}
+  box.querySelector('#_alNo').onclick=close;ov.onclick=function(e){if(e.target===ov)close();};
+  box.querySelector('#_alGo').onclick=async function(){
+    var nom=(nomI.value||'').trim();if(!nom){notify('Nom requis','error');return;}
+    var v=recalc();if(v.px<=0){notify('Montant invalide','error');return;}
+    if(!confirm(nom+' : '+v.q+' x '+v.px.toFixed(2)+' = '+(v.q*v.px).toFixed(2)+' EUR ajoute a la dette de l associe. Confirmer ?'))return;
+    var body={client_id:cid,type:'debit',motif:nom,quantite:v.q,unite:'piece',prix_unitaire:v.px,mode_paiement:'Associe',notes:'[CAISSE] Article libre associe',compte:'euro',frais_deduits:0};
+    var _d=(document.getElementById('posDate')||{}).value;if(_d)body.date=_d;
+    var r=await api('/api/transactions',{method:'POST',body:body});
+    if(r&&r.ok){close();notify('Ajoute a la dette associe');if(typeof onPosClientChange==='function')onPosClientChange();if(typeof loadClients==='function')loadClients();}
+    else notify((r&&r.error)||'Erreur','error');
+  };
+  setTimeout(function(){nomI.focus();},60);
 }
 </script>
 <script>
@@ -6112,6 +6126,37 @@ async function loadComptaArticles(du,au){
   box.innerHTML='<div class="table-header"><span>&#128230; Par article (periode)</span></div>'
     +'<table><thead><tr><th>Article</th><th style="text-align:right">Achete (qte)</th><th style="text-align:right">Vendu</th><th style="text-align:right">CA</th><th style="text-align:right">Cout ventes</th><th style="text-align:right">Benefice</th><th style="text-align:right">Stock</th></tr></thead><tbody>'
     +(rows||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:16px">Aucun mouvement sur la periode</td></tr>')+totRow+'</tbody></table>';
+}
+</script>
+<script>
+async function solderDette(cid){
+  var r=await api('/api/clients/'+cid+'/stats-comptes');
+  var solde=(r&&r.ok&&r.data&&r.data.euro)?(parseFloat(r.data.euro.solde)||0):0;
+  if(solde<=0.009){notify('Pas de dette euro a solder','info');return;}
+  var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100003;padding:16px';
+  var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:380px;max-width:94vw';
+  box.innerHTML='<div style="font-weight:700;font-size:16px;margin-bottom:6px">Solder / Remise</div>'
+    +'<div style="font-size:13px;color:var(--text3);margin-bottom:14px">Dette actuelle : <b style="color:var(--green)" class="mono">'+solde.toFixed(2)+' EUR</b></div>'
+    +'<label style="font-size:12px;color:var(--text3)">Combien le client paie-t-il vraiment ?</label>'
+    +'<input type="number" id="_sdPay" value="0" step="0.01" min="0" style="width:100%;padding:9px 10px;margin:4px 0 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box;font-size:15px">'
+    +'<div id="_sdInfo" style="font-size:13px;margin-bottom:14px;color:var(--gold2)"></div>'
+    +'<div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_sdGo" style="flex:1">Solder</button><button type="button" class="btn" id="_sdNo" style="background:var(--bg3)">Annuler</button></div>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  var inp=box.querySelector('#_sdPay'),info=box.querySelector('#_sdInfo');
+  function recalc(){var pay=parseFloat((inp.value||'0').replace(',','.'))||0;if(pay<0)pay=0;if(pay>solde)pay=solde;var rem=Math.round((solde-pay)*100)/100;info.innerHTML='Paye : <b class="mono">'+pay.toFixed(2)+'</b> EUR &mdash; Remise effacee : <b class="mono" style="color:var(--red)">'+rem.toFixed(2)+'</b> EUR';return {pay:pay,rem:rem};}
+  inp.addEventListener('input',recalc);recalc();
+  function close(){ov.remove();}
+  box.querySelector('#_sdNo').onclick=close;ov.onclick=function(e){if(e.target===ov)close();};
+  box.querySelector('#_sdGo').onclick=async function(){
+    var v=recalc();
+    if(!confirm('Paye : '+v.pay.toFixed(2)+' EUR\nRemise (effacee) : '+v.rem.toFixed(2)+' EUR\n\nLa dette euro passera a 0. Confirmer ?'))return;
+    if(v.pay>0.009){await api('/api/transactions',{method:'POST',body:{client_id:cid,type:'credit',motif:'Remboursement',quantite:1,prix_unitaire:v.pay,mode_paiement:'Liquide',compte:'euro',notes:'[CAISSE] Solde partiel',frais_deduits:0,no_facture:true}});}
+    if(v.rem>0.009){await api('/api/transactions',{method:'POST',body:{client_id:cid,type:'credit',motif:'Remise',quantite:1,prix_unitaire:v.rem,mode_paiement:'Remise',compte:'euro',notes:'[REMISE] Geste commercial',frais_deduits:0,no_facture:true}});}
+    close();notify('Dette soldee');
+    if(typeof openClientSolde==='function')openClientSolde(cid);
+    if(typeof loadClients==='function')loadClients();
+  };
+  setTimeout(function(){inp.focus();inp.select();},60);
 }
 </script>
 </body>
