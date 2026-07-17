@@ -1549,7 +1549,7 @@ def compta_sheet():
             if cid: p.append(cid)
             return conn.execute(sql.replace("{W}", w_date).replace("{C}", w_cid), p).fetchone()
         base = "FROM transactions t WHERE COALESCE(t.compte,'euro')='euro' {W} {C}"
-        ca = q("SELECT COALESCE(SUM(t.montant_net),0), COALESCE(SUM(CASE WHEN instr(COALESCE(t.notes,''),'[CAISSE PAYE]')>0 THEN t.montant_net ELSE 0 END),0) "+base+" AND t.type='debit'")
+        ca = q("SELECT COALESCE(SUM(t.montant_net),0), COALESCE(SUM(CASE WHEN instr(COALESCE(t.notes,''),'[CAISSE PAYE]')>0 THEN t.montant_net ELSE 0 END),0) "+base+" AND t.type='debit' AND instr(COALESCE(t.notes,''),'Retrait associe')=0")
         ca_total, ca_comptant = float(ca[0] or 0), float(ca[1] or 0)
         ca_credit = ca_total - ca_comptant
         remb = q("SELECT COALESCE(SUM(t.montant_net),0) "+base+" AND t.type='credit' AND instr(COALESCE(t.notes,''),'[REMISE]')=0")
@@ -1562,6 +1562,9 @@ def compta_sheet():
         if du: w2 += " AND substr(date,1,10)>=?"; pa.append(du)
         if au: w2 += " AND substr(date,1,10)<=?"; pa.append(au)
         achats = conn.execute("SELECT COALESCE(SUM(prix_achat),0), COUNT(*) FROM entrees_materiel WHERE COALESCE(notes,'') NOT LIKE 'Conversion depuis%'"+w2, pa).fetchone()
+        retraits = q("SELECT COALESCE(SUM(t.montant_net),0) "+base+" AND t.type='debit' AND instr(COALESCE(t.notes,''),'Retrait associe')>0")
+        frais_recus = q("SELECT COALESCE(SUM(COALESCE(t.frais,0)),0) "+base+" AND t.type='credit' AND instr(COALESCE(t.notes,''),'[REMISE]')=0")
+        stock_val = conn.execute("SELECT COALESCE(SUM(COALESCE(stock,0)*COALESCE(prix_achat,0)),0) FROM catalogue WHERE actif=1 AND COALESCE(stock,0)>0").fetchone()
         tabac = q("SELECT COALESCE(SUM(t.quantite),0) FROM transactions t WHERE COALESCE(t.compte,'')='tabac' AND t.type='debit' {W} {C}")
         cantine = q("SELECT COALESCE(SUM(t.montant_net),0) FROM transactions t WHERE COALESCE(t.compte,'')='cantine' AND t.type='debit' {W} {C}")
     dettes_pos = 0.0; depots = 0.0; depots_detail = []
@@ -1578,8 +1581,9 @@ def compta_sheet():
         "cogs": float(cogs[0] or 0), "achats": float(achats[0] or 0), "achats_nb": int(achats[1] or 0),
         "encaisse_total": encaisse_total,
         "modes": [{"mode": m["mode"], "total": m["total"], "nb": m["nb"]} for m in modes],
-        "benefice_brut": ca_net_remises - float(cogs[0] or 0),
-        "tresorerie": encaisse_total - float(achats[0] or 0),
+        "benefice_brut": ca_net_remises - float(cogs[0] or 0) + float(frais_recus[0] or 0),
+        "tresorerie": encaisse_total - float(achats[0] or 0) - float(retraits[0] or 0),
+        "retraits": float(retraits[0] or 0), "frais_recus": float(frais_recus[0] or 0), "stock_valeur": float(stock_val[0] or 0),
         "tabac_paquets": float(tabac[0] or 0), "cantine": float(cantine[0] or 0),
         "dettes_en_cours": dettes_pos, "depots_dus": depots, "depots_detail": sorted(depots_detail, key=lambda x: -x["montant"])
     })
