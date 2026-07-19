@@ -306,6 +306,11 @@ def transactions_create():
                            WHERE id=?""", (entree_id, linked_debit_id, unite, compte, tid))
             conn.commit()
 
+    if data.get("signature"):
+        with db.get_conn() as conn:
+            conn.execute("UPDATE transactions SET signature=? WHERE id=?", (data.get("signature"), tid))
+            conn.commit()
+
     # Mettre à jour le stock si vente liée à une entrée
     if entree_id and type_ == "debit":
         db.update_stock(int(entree_id), qty)
