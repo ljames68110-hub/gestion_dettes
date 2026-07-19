@@ -2081,6 +2081,16 @@ def transaction_set_photo(tid):
     return ok({"id": tid})
 
 
+@app.route("/api/transactions/<int:tid>/signature", methods=["POST"])
+@require_auth
+def transaction_signature(tid):
+    data = request.json or {}
+    sig = data.get("signature", "")
+    with db.get_conn() as conn:
+        conn.execute("UPDATE transactions SET signature=? WHERE id=?", (sig, tid))
+        conn.commit()
+    return ok({"ok": True})
+
 @app.route("/api/ocr-bordereau", methods=["POST"])
 @require_auth
 def ocr_bordereau_route():

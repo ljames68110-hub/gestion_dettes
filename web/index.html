@@ -704,7 +704,7 @@ select option{background:var(--bg3)}
                 <button class="pos-paybtn" id="posPayCredit" onclick="setPosPay('credit')">A credit (dette)</button>
               </div>
               <select class="pos-mode" id="posMode" onchange="posModeChanged();updatePosTotals();posTicketToggle()">
-                <option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS</option><option value="Paysafecard">Paysafecard</option><option value="Transcash">Transcash</option><option value="WesternUnion">Western Union</option><option value="Cantine">🍽 Cantine</option>
+                <option value="Liquide">Liquide</option><option value="Virement">Virement</option><option value="PCS">PCS</option><option value="Paysafecard">Paysafecard</option><option value="Transcash">Transcash</option><option value="WesternUnion">Western Union</option><option value="Cantine">🍽 Cantine</option><option value="Produits">🔄 Produits (troc)</option>
               </select>
               <div id="posTicketWrap" style="display:none;margin-top:8px"><label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Code(s) du ticket</label><div id="posTicketList"></div><button type="button" class="btn" onclick="addTicketRow('posTicketList')" style="margin-top:6px;font-size:12px;padding:5px 10px">+ Ajouter un code</button><div style="margin-top:10px"><label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Photo du ticket</label><input type="file" accept="image/*" multiple id="posTicketPhotoFile" onchange="onTicketPhotoPick(this,'pos')" style="font-size:12px;color:var(--text3)"><div id="posTicketPhotoList" style="margin-top:6px"></div></div><button type="button" class="btn" onclick="lireTicketOCR('pos')" style="margin-top:10px;margin-right:6px;font-size:12px;padding:5px 10px;background:var(--gold);color:#1a1a1a">Lire le ticket</button><button type="button" class="btn" onclick="lireTicketOCR('pos',true)" style="margin-top:10px;margin-right:6px;font-size:12px;padding:5px 10px;background:var(--bg3);color:var(--gold2)">Lire (manuscrit)</button><button type="button" class="btn" onclick="clearTicketCaisse('pos','posTicketList')" style="margin-top:10px;font-size:12px;padding:5px 10px;background:var(--bg3);color:var(--red)">Supprimer le ticket</button></div><div id="posTabacQtyWrap" style="display:none;align-items:center;gap:8px;margin-top:4px">
                 <span style="font-size:13px;color:var(--gold2);flex:1">Nombre de paquets</span>
@@ -4503,7 +4503,7 @@ async function posEncaisser(){
     try{var r2=await api('/api/transactions',{method:'POST',body:bodyR});if(r2&&r2.ok)ok++;else fail++;}catch(e){fail++;}
   }
   btn.disabled=false;btn.textContent='Encaisser';
-  if(fail===0){
+  if(fail===0){if(mode==='Produits'&&typeof posProduitsRecus==='function'){window._posVenteTids=venteTids.slice();setTimeout(function(){posProduitsRecus(cid);},400);}
     var _tkData={items:posCart.map(function(l){return {nom:(l.motif&&l.motif.length?l.motif:l.nom),qty:l.qty,unite:l.unite,prix:((l.gratuit||_conso)?0:Math.round(l.prix*facteurReduc*100)/100),gratuit:l.gratuit};}),total:venteTotal,remb:remb,mode:mode,payMode:posPayMode,cid:cid,date:_posDate};
     var msg=[];
     if(venteTotal>0)msg.push('vente '+venteTotal.toFixed(2)+' EUR');
@@ -6409,6 +6409,47 @@ async function assoDepot(){
       if(cat){for(var i=0;i<restock.length;i++){var _c=cat.find(function(a){return (a.nom||'').trim().toLowerCase()===restock[i].mode.trim().toLowerCase();});if(_c){try{await api('/api/catalogue/'+_c.id+'/adjust-stock',{method:'POST',body:{delta:restock[i].q}});}catch(er){}}}}
       close();notify('Depot enregistre');if(typeof onPosClientChange==='function')onPosClientChange();if(typeof loadClients==='function')loadClients();
     } else notify((res&&res.error)||'Erreur','error');
+  };
+}
+</script>
+<script>
+async function posProduitsRecus(cid){
+  var cat=[];try{var _rc=await api('/api/catalogue');if(_rc&&_rc.ok&&_rc.data)cat=_rc.data;}catch(e){}
+  var opts='<option value="">-- produit recu --</option>'+cat.map(function(x){return '<option value="'+x.id+'">'+((x.nom||'')+'').replace(/</g,'&lt;')+'</option>';}).join('');
+  var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:flex-start;justify-content:center;z-index:100003;padding:30px 16px;overflow:auto';
+  var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:440px;max-width:96vw';
+  box.innerHTML='<div style="font-weight:700;font-size:16px;margin-bottom:4px">Produits recus en paiement</div>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:12px">Ajoute a ton stock ce que le client t a donne (pot de tabac, Marlboro...).</div>'
+    +'<div id="_prRows"></div>'
+    +'<button type="button" id="_prAdd" class="btn" style="font-size:12px;margin:2px 0 12px">+ Ajouter un produit</button>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><label style="font-size:12px;color:var(--text3)">Signature du client (optionnel)</label><button type="button" id="_prSigClear" class="btn" style="font-size:11px;padding:3px 8px;background:var(--bg3)">Effacer</button></div>'
+    +'<canvas id="_prSig" width="400" height="120" style="border:1px solid var(--border);border-radius:8px;background:#fff;touch-action:none;width:100%;display:block;margin-bottom:14px"></canvas>'
+    +'<div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_prGo" style="flex:1">Valider</button><button type="button" class="btn" id="_prNo" style="background:var(--bg3)">Passer</button></div>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  var rowsDiv=box.querySelector('#_prRows');
+  function addRow(){
+    var row=document.createElement('div');row.className='_prRow';row.style.cssText='display:flex;gap:6px;margin-bottom:6px;align-items:center';
+    row.innerHTML='<select class="_prSel" style="flex:1;padding:7px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">'+opts+'</select><input type="number" class="_prQ" value="1" step="1" min="0" style="width:70px;padding:7px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)"><button type="button" class="_prDel btn" style="background:var(--bg3);padding:5px 9px">x</button>';
+    rowsDiv.appendChild(row);row.querySelector('._prDel').onclick=function(){row.remove();};
+  }
+  box.querySelector('#_prAdd').onclick=addRow;addRow();
+  var canvas=box.querySelector('#_prSig'),ctx=canvas.getContext('2d'),_drawn=false,_draw=false;
+  ctx.strokeStyle='#111';ctx.lineWidth=2;ctx.lineCap='round';ctx.lineJoin='round';
+  function _pos(ev){var r=canvas.getBoundingClientRect();var t2=ev.touches&&ev.touches[0];return {x:((t2?t2.clientX:ev.clientX)-r.left)*(canvas.width/r.width),y:((t2?t2.clientY:ev.clientY)-r.top)*(canvas.height/r.height)};}
+  function _sd(ev){ev.preventDefault();_draw=true;var p=_pos(ev);ctx.beginPath();ctx.moveTo(p.x,p.y);}
+  function _mv(ev){if(!_draw)return;ev.preventDefault();var p=_pos(ev);ctx.lineTo(p.x,p.y);ctx.stroke();_drawn=true;}
+  function _en(){_draw=false;}
+  canvas.addEventListener('mousedown',_sd);canvas.addEventListener('mousemove',_mv);window.addEventListener('mouseup',_en);
+  canvas.addEventListener('touchstart',_sd,{passive:false});canvas.addEventListener('touchmove',_mv,{passive:false});canvas.addEventListener('touchend',_en);
+  box.querySelector('#_prSigClear').onclick=function(){ctx.clearRect(0,0,canvas.width,canvas.height);_drawn=false;};
+  function close(){window.removeEventListener('mouseup',_en);ov.remove();}
+  box.querySelector('#_prNo').onclick=close;ov.onclick=function(ev){if(ev.target===ov)close();};
+  box.querySelector('#_prGo').onclick=async function(){
+    var n=0;var rows=box.querySelectorAll('._prRow');
+    for(var i=0;i<rows.length;i++){var id=parseInt(rows[i].querySelector('._prSel').value||'0');var q=parseFloat(rows[i].querySelector('._prQ').value||0)||0;if(id&&q>0){try{await api('/api/catalogue/'+id+'/adjust-stock',{method:'POST',body:{delta:q}});n++;}catch(e){}}}
+    if(_drawn){try{var sig=canvas.toDataURL('image/png');var tids=window._posVenteTids||[];if(tids.length){await api('/api/transactions/'+tids[0]+'/signature',{method:'POST',body:{signature:sig}});}}catch(e){}}
+    window._posVenteTids=null;close();notify(n+' produit(s) ajoute(s) au stock');
+    if(typeof loadCatalogue==='function')loadCatalogue();if(typeof loadStock==='function')loadStock();if(typeof onPosClientChange==='function')onPosClientChange();
   };
 }
 </script>
