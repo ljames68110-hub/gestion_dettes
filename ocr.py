@@ -85,6 +85,61 @@ def _google_vision_ocr(photo, api_key):
     return fta.get("text", "") or ""
 
 
+def _bd_norm(s):
+    import unicodedata
+    s = unicodedata.normalize("NFD", s or "")
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    return s.upper()
+
+
+def parse_bordereaux(text):
+    import re as _re
+    up = _bd_norm(text).replace("GPTICKET", "GP-TICKET").replace("GP TICKET", "GP-TICKET")
+    parts = _re.split(r"GP-TICKET", up)
+    tickets = []
+    for blk in parts[1:]:
+        lines = [l.strip() for l in blk.split("\n") if l.strip()]
+        nom, typ, code, montant = "", "", "", None
+        for ln in lines:
+            flat = ln.replace(":", " ").replace(".", " ")
+            if not nom and _re.match(r"^\s*NOM\b", flat):
+                v = _re.sub(r"^\s*NOM\b", "", flat).strip(" -_|")
+                if len(v) >= 2: nom = v.title()
+            if not typ and "TYPE" in flat:
+                cand = []
+                for key, label in (("TRANSCASH","Transcash"),("PAYSAFECARD","Paysafecard"),("PSC","Paysafecard"),("PCS","PCS"),("TC","Transcash")):
+                    p = flat.find(key)
+                    if p >= 0: cand.append((p, key, label))
+                marks = [mm.start() for mm in _re.finditer(r"[X\u2713\u2714]", flat)]
+                if cand and marks:
+                    cand.sort(); best, bestd = None, 9999
+                    for mp in marks:
+                        for p, key, label in cand:
+                            dd = p - mp
+                            if 0 < dd < bestd: bestd, best = dd, label
+                    if best: typ = best
+            if not code and "CODE" in flat:
+                v = _re.sub(r"[^A-Z0-9]", "", flat.split("CODE", 1)[1])
+                if len(v) >= 6: code = v
+            if montant is None and "MONTANT" in flat:
+                mm = _re.search(r"(\d+(?:\.\d{1,2})?)", flat.split("MONTANT", 1)[1].replace(",", "."))
+                if mm:
+                    try: montant = float(mm.group(1))
+                    except Exception: montant = None
+        if nom or code or montant: tickets.append({"nom": nom, "type": typ, "code": code, "montant": montant})
+    return tickets
+
+
+def lire_bordereaux(photo, api_key=""):
+    if not api_key:
+        return {"ok": False, "error": "Cle Google Vision requise (Parametres) pour lire les bordereaux."}
+    try: txt = _google_vision_ocr(photo, api_key) or ""
+    except Exception as ex: return {"ok": False, "error": "Vision: " + str(ex)[:120]}
+    if not txt.strip(): return {"ok": False, "error": "Aucun texte detecte (photo floue ?)"}
+    tickets = parse_bordereaux(txt)
+    if not tickets: return {"ok": False, "error": "Aucun bordereau reconnu. Texte: " + txt.replace("\n", " / ")[:180]}
+    return {"ok": True, "tickets": tickets, "text": txt}
+
 def lire_ticket(photo, lang="fra", hint="", api_key="", prefer_cloud=False):
     txt, err, img, cloud_err = "", "", None, ""
     if prefer_cloud and api_key:

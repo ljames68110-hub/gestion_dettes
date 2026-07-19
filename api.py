@@ -2076,6 +2076,19 @@ def transaction_set_photo(tid):
     return ok({"id": tid})
 
 
+@app.route("/api/ocr-bordereau", methods=["POST"])
+@require_auth
+def ocr_bordereau_route():
+    data = request.json or {}
+    photo = data.get("photo", "")
+    if not photo: return ok({"ok": False, "error": "Photo manquante"})
+    try:
+        import ocr
+        _vkey = db.get_setting("google_vision_key", "") or ""
+        res = ocr.lire_bordereaux(photo, api_key=_vkey)
+    except Exception as ex: return ok({"ok": False, "error": str(ex)[:160]})
+    return ok(res)
+
 @app.route("/api/ocr-ticket", methods=["POST"])
 @require_auth
 def ocr_ticket_route():

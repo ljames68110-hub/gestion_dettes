@@ -727,7 +727,7 @@ select option{background:var(--bg3)}
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px" id="catalogueGrid"><div class="loading"><div class="spinner"></div> Chargement...</div></div>
       </div>
 
-      <div class="page" id="pg-factures">
+      <div class="page" id="pg-factures"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn" onclick="openBordereaux()" style="background:var(--gold2);color:#1a1a1a">&#128424; Imprimer des bordereaux</button><button class="btn" onclick="lireBordereau()">&#128247; Lire un bordereau rempli</button></div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <select id="facturesClientFilter" onchange="renderFactures(0)" style="padding:8px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;font-family:Outfit,sans-serif;min-width:180px"><option value="">Tous les clients</option></select>
           <select id="facturesTypeFilter" onchange="renderFactures(0)" style="padding:8px 12px;border-radius:var(--radius2);border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;font-family:Outfit,sans-serif"><option value="">Tous types</option><option value="vente">Factures vente</option><option value="remboursement">Bons remboursement</option></select>
@@ -6165,53 +6165,167 @@ async function posRembDetteChoix(debitId){
   var rest=Math.round((parseFloat(d.restant)||0)*100)/100;
   var pu=parseFloat(d.prix_unitaire)||0;
   var cid=parseInt((document.getElementById('posClient')||{}).value);if(!cid)return;
-  var types=(typesTabacCache||[]).map(function(x){return {nom:x.nom,prix:parseFloat(x.prix)||0,paquet:true};});
-  var euroModes=[{nom:'Liquide',paquet:false},{nom:'PCS',paquet:false},{nom:'Paysafecard',paquet:false},{nom:'Transcash',paquet:false}];
-  var modes=types.concat(euroModes);
+  var types=(typesTabacCache||[]).map(function(x){return x.nom;});
+  var allModes=types.concat(['Liquide','PCS','Paysafecard','Transcash','Autre']);
   var qReste=pu>0?(rest/pu):0;
-  var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100003;padding:16px';
-  var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:400px;max-width:95vw';
-  var inp='width:100%;padding:9px 10px;margin:4px 0 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box';
+  var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:flex-start;justify-content:center;z-index:100003;padding:30px 16px;overflow:auto';
+  var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:440px;max-width:96vw';
+  var inp='width:100%;padding:9px 10px;margin:4px 0 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box';
   box.innerHTML='<div style="font-weight:700;font-size:16px;margin-bottom:4px">Rembourser la dette</div>'
-    +'<div style="font-size:13px;color:var(--text3);margin-bottom:12px">'+(d.motif||'')+' &mdash; reste <b class="mono">'+_fmtQte(qReste)+' '+_uniteLabel(d.unite,2)+'</b> ('+rest.toFixed(2)+' EUR)</div>'
-    +'<label style="font-size:12px;color:var(--text3)">Le client rend en :</label><select id="_rdMode" style="'+inp+'">'+modes.map(function(m,i){return '<option value="'+i+'">'+m.nom+(m.paquet?(' ('+m.prix+' EUR/pq)'):' (EUR)')+'</option>';}).join('')+'</select>'
-    +'<div id="_rdPqWrap"><label style="font-size:12px;color:var(--text3)">Combien de paquets ?</label><input type="number" id="_rdQty" value="1" step="1" min="0" style="'+inp+'"><label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);margin:0 0 10px"><input type="checkbox" id="_rdParPq"> Paquet pour paquet (au prix de la dette : '+pu.toFixed(2)+' EUR/pq)</label></div>'
-    +'<div id="_rdEuWrap" style="display:none"><label style="font-size:12px;color:var(--text3)">Montant recu (EUR)</label><input type="number" id="_rdAmt" value="'+rest.toFixed(2)+'" step="0.01" min="0" style="'+inp+'"></div>'
-    +'<div id="_rdInfo" style="font-size:13px;color:var(--gold2);font-weight:600;margin-bottom:14px"></div>'
+    +'<div style="font-size:13px;color:var(--text3);margin-bottom:14px">'+(d.motif||'')+' &mdash; reste <b class="mono">'+_fmtQte(qReste)+' '+_uniteLabel(d.unite,2)+'</b> ('+rest.toFixed(2)+' EUR)</div>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:4px">Ce que le client a rendu :</div>'
+    +'<div id="_rdRows"></div>'
+    +'<button type="button" id="_rdAdd" class="btn" style="font-size:12px;margin:2px 0 12px">+ Ajouter un produit</button>'
+    +'<label style="font-size:12px;color:var(--gold2);font-weight:600">Montant a deduire de la dette (EUR) &mdash; tu decides :</label>'
+    +'<input type="number" id="_rdMontant" value="'+rest.toFixed(2)+'" step="0.01" min="0" style="'+inp+'">'
+    +'<div id="_rdInfo" style="font-size:13px;color:var(--text2);margin-bottom:14px"></div>'
     +'<div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_rdGo" style="flex:1">Rembourser</button><button type="button" class="btn" id="_rdNo" style="background:var(--bg3)">Annuler</button></div>';
   ov.appendChild(box);document.body.appendChild(ov);
-  function close(){ov.remove();}
-  box.querySelector('#_rdNo').onclick=close;ov.onclick=function(e){if(e.target===ov)close();};
-  var selEl=box.querySelector('#_rdMode'),qtyEl=box.querySelector('#_rdQty'),parpqEl=box.querySelector('#_rdParPq'),amtEl=box.querySelector('#_rdAmt'),info=box.querySelector('#_rdInfo');
-  function curMode(){return modes[parseInt(selEl.value)||0];}
-  function recalc(){
-    var m=curMode(),val=0,qty=0;
-    if(m.paquet){box.querySelector('#_rdPqWrap').style.display='';box.querySelector('#_rdEuWrap').style.display='none';
-      qty=parseFloat(qtyEl.value||0)||0;val=(parpqEl.checked?(qty*pu):(qty*m.prix));}
-    else{box.querySelector('#_rdPqWrap').style.display='none';box.querySelector('#_rdEuWrap').style.display='';
-      val=parseFloat((amtEl.value||'0').replace(',','.'))||0;}
-    val=Math.round(val*100)/100;
-    info.innerHTML='Reduit la dette de '+val.toFixed(2)+' EUR &mdash; restera '+Math.max(0,Math.round((rest-val)*100)/100).toFixed(2)+' EUR';
-    return {m:m,val:val,qty:qty};
+  var rowsDiv=box.querySelector('#_rdRows'),montEl=box.querySelector('#_rdMontant'),info=box.querySelector('#_rdInfo');
+  function opts(){return '<option value="">-- produit --</option>'+allModes.map(function(m){return '<option value="'+m+'">'+m+'</option>';}).join('');}
+  function addRow(){
+    var row=document.createElement('div');row.className='_rdRow';row.style.cssText='display:flex;gap:6px;margin-bottom:6px;align-items:center';
+    row.innerHTML='<select class="_rdSel" style="flex:1;padding:7px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">'+opts()+'</select><input type="number" class="_rdQ" value="1" step="1" min="0" style="width:70px;padding:7px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)"><button type="button" class="_rdDel btn" style="background:var(--bg3);padding:5px 9px">x</button>';
+    rowsDiv.appendChild(row);row.querySelector('._rdDel').onclick=function(){row.remove();};
   }
-  selEl.addEventListener('change',recalc);qtyEl.addEventListener('input',recalc);parpqEl.addEventListener('change',recalc);amtEl.addEventListener('input',recalc);
-  recalc();
+  box.querySelector('#_rdAdd').onclick=addRow;addRow();
+  function recalc(){var m=parseFloat((montEl.value||'0').replace(',','.'))||0;info.innerHTML='Restera '+Math.max(0,Math.round((rest-m)*100)/100).toFixed(2)+' EUR sur cette dette.';}
+  montEl.addEventListener('input',recalc);recalc();
+  function close(){ov.remove();}
+  box.querySelector('#_rdNo').onclick=close;ov.onclick=function(ev){if(ev.target===ov)close();};
   box.querySelector('#_rdGo').onclick=async function(){
-    var v=recalc(),m=v.m;
-    if(v.val<=0){notify('Rien a rembourser','error');return;}
-    var catId=null;
-    if(m.paquet&&v.qty>0){try{var _rc=await api('/api/catalogue');if(_rc&&_rc.ok&&_rc.data){var _c=_rc.data.find(function(a){return (a.nom||'').trim().toLowerCase()===m.nom.trim().toLowerCase();});if(_c)catId=_c.id;}}catch(e){}}
-    var stk=(catId&&v.qty>0)?(' [STK '+catId+':+'+v.qty+']'):'';
-    var qte=m.paquet?v.qty:1;
-    var prixU=m.paquet?(parpqEl.checked?pu:m.prix):v.val;
-    if(qte<=0){notify('Quantite invalide','error');return;}
-    var body={client_id:cid,type:'credit',motif:'Remboursement',quantite:qte,unite:(m.paquet?(d.unite||'paquet'):'piece'),prix_unitaire:prixU,mode_paiement:m.nom,notes:'[CAISSE] Remboursement dette ('+m.nom+')'+stk,frais_deduits:0,compte:d.compte,linked_debit_id:debitId};
+    var montant=Math.round((parseFloat((montEl.value||'0').replace(',','.'))||0)*100)/100;
+    if(montant<=0){notify('Indique le montant a deduire','error');return;}
+    var detailParts=[],restock=[];
+    Array.prototype.forEach.call(box.querySelectorAll('._rdRow'),function(r){
+      var mode=r.querySelector('._rdSel').value;var q=parseFloat(r.querySelector('._rdQ').value||0)||0;
+      if(mode&&q>0){detailParts.push(_fmtQte(q)+' '+mode);if(types.indexOf(mode)>=0)restock.push({mode:mode,q:q});}
+    });
+    var modeLbl=detailParts.length?(detailParts.length===1?detailParts[0].replace(/^[0-9.,]+\s/,''):'Mixte'):(d.mode_paiement||'Liquide');
+    var detail=detailParts.length?(' ['+detailParts.join(' + ')+']'):'';
+    var cat=null;
+    if(restock.length){try{var _rc=await api('/api/catalogue');if(_rc&&_rc.ok&&_rc.data)cat=_rc.data;}catch(er){}}
+    var stk='';
+    if(cat){restock.forEach(function(x){var _c=cat.find(function(a){return (a.nom||'').trim().toLowerCase()===x.mode.trim().toLowerCase();});if(_c)stk+=' [STK '+_c.id+':+'+x.q+']';});}
+    var body={client_id:cid,type:'credit',motif:'Remboursement',quantite:1,unite:(d.unite||'paquet'),prix_unitaire:montant,mode_paiement:modeLbl,notes:'[CAISSE] Remboursement dette'+detail+stk,frais_deduits:0,compte:d.compte,linked_debit_id:debitId};
     var _dt=(document.getElementById('posDate')||{}).value;if(_dt)body.date=_dt;
     var res=await api('/api/transactions',{method:'POST',body:body});
-    if(res&&res.ok){if(catId&&v.qty>0){try{await api('/api/catalogue/'+catId+'/adjust-stock',{method:'POST',body:{delta:v.qty}});}catch(e){}}close();notify('Remboursement enregistre');if(typeof onPosClientChange==='function')onPosClientChange();if(typeof loadClients==='function')loadClients();}
-    else notify((res&&res.error)||'Erreur','error');
+    if(res&&res.ok){
+      if(cat){for(var i=0;i<restock.length;i++){var _c=cat.find(function(a){return (a.nom||'').trim().toLowerCase()===restock[i].mode.trim().toLowerCase();});if(_c){try{await api('/api/catalogue/'+_c.id+'/adjust-stock',{method:'POST',body:{delta:restock[i].q}});}catch(er){}}}}
+      close();notify('Remboursement enregistre');if(typeof onPosClientChange==='function')onPosClientChange();if(typeof loadClients==='function')loadClients();
+    } else notify((res&&res.error)||'Erreur','error');
   };
-  setTimeout(function(){selEl.focus();},60);
+}
+</script>
+<div id="bordereauxPrint"></div>
+<style>
+#bordereauxPrint{display:none;}
+@media print{
+  body.print-bd>*:not(#bordereauxPrint){display:none!important;}
+  body.print-bd #labelsPrint{display:none!important;}
+  body.print-bd #bordereauxPrint{display:block!important;background:#fff;color:#000;padding:0;margin:0;}
+  .bd-sheet{width:100%;page-break-after:always;}
+  .bd-sheet:last-child{page-break-after:auto;}
+  .bd-t{border:2px solid #000;border-radius:4px;padding:6mm;margin:0 0 4mm 0;page-break-inside:avoid;font-family:Arial,sans-serif;color:#000;}
+  .bd-h{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #000;padding-bottom:2mm;margin-bottom:3mm;}
+  .bd-id{font-size:15pt;font-weight:bold;letter-spacing:1px;}
+  .bd-brand{font-size:9pt;}
+  .bd-row{margin-bottom:3.4mm;font-size:11pt;}
+  .bd-lbl{font-weight:bold;font-size:10pt;}
+  .bd-line{display:inline-block;border-bottom:1px solid #000;min-width:60mm;height:6mm;}
+  .bd-cb{display:inline-block;width:5mm;height:5mm;border:1.5px solid #000;vertical-align:middle;margin:0 1mm 0 4mm;}
+  .bd-code{display:flex;gap:1.2mm;margin-top:1.5mm;}
+  .bd-box{width:7mm;height:9mm;border:1.5px solid #000;border-radius:2px;}
+  .bd-sign{border:1px solid #000;height:16mm;width:55mm;display:inline-block;}
+}
+</style>
+<script>
+function _bdTicket(n){
+  var boxes='';for(var i=0;i<16;i++)boxes+='<div class="bd-box"></div>';
+  return '<div class="bd-t"><div class="bd-h"><span class="bd-id">GP-TICKET '+n+'</span><span class="bd-brand">GESTION PERSO</span></div>'
+    +'<div class="bd-row"><span class="bd-lbl">NOM :</span> <span class="bd-line"></span></div>'
+    +'<div class="bd-row"><span class="bd-lbl">TYPE :</span><span class="bd-cb"></span>PCS<span class="bd-cb"></span>PAYSAFECARD<span class="bd-cb"></span>TRANSCASH</div>'
+    +'<div class="bd-row"><span class="bd-lbl">CODE :</span><div class="bd-code">'+boxes+'</div></div>'
+    +'<div class="bd-row"><span class="bd-lbl">MONTANT :</span> <span class="bd-line" style="min-width:30mm"></span> EUR&nbsp;&nbsp;<span class="bd-lbl">DATE :</span> <span class="bd-line" style="min-width:28mm"></span></div>'
+    +'<div class="bd-row"><span class="bd-lbl">SIGNATURE :</span> <span class="bd-sign"></span></div></div>';
+}
+function openBordereaux(){
+  var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100003;padding:16px';
+  var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:360px;max-width:94vw';
+  box.innerHTML='<div style="font-weight:700;font-size:16px;margin-bottom:6px">Imprimer des bordereaux</div><div style="font-size:12px;color:var(--text3);margin-bottom:14px">3 tickets par feuille A4. Le client remplit et signe ; l app pourra les relire ensuite.</div><label style="font-size:12px;color:var(--text3)">Nombre de feuilles</label><input type="number" id="_bdN" value="1" min="1" max="20" step="1" style="width:100%;padding:9px 10px;margin:4px 0 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box"><div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_bdGo" style="flex:1">Imprimer</button><button type="button" class="btn" id="_bdNo" style="background:var(--bg3)">Annuler</button></div>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  function close(){ov.remove();}
+  box.querySelector('#_bdNo').onclick=close;ov.onclick=function(ev){if(ev.target===ov)close();};
+  box.querySelector('#_bdGo').onclick=function(){
+    var n=parseInt(box.querySelector('#_bdN').value||'1')||1;if(n<1)n=1;if(n>20)n=20;
+    var cont=document.getElementById('bordereauxPrint');if(!cont)return;
+    var html='',num=1;
+    for(var s=0;s<n;s++){html+='<div class="bd-sheet">';for(var k=0;k<3;k++){html+=_bdTicket(num);num++;}html+='</div>';}
+    cont.innerHTML=html;close();
+    document.body.classList.add('print-bd');
+    setTimeout(function(){window.print();setTimeout(function(){document.body.classList.remove('print-bd');},600);},250);
+  };
+}
+async function lireBordereau(){
+  var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+  inp.onchange=function(){
+    var file=inp.files&&inp.files[0];if(!file)return;
+    var rd=new FileReader();
+    rd.onload=async function(){
+      notify('Lecture du bordereau...');
+      var r;try{r=await api('/api/ocr-bordereau',{method:'POST',body:{photo:rd.result}});}catch(er){notify('Erreur OCR','error');return;}
+      var d=(r&&r.ok)?r.data:null;
+      if(!d||!d.ok){notify((d&&d.error)||'Lecture impossible','error');return;}
+      _bdShowResults(d.tickets||[]);
+    };
+    rd.readAsDataURL(file);
+  };
+  inp.click();
+}
+function _bdShowResults(tickets){
+  if(!tickets.length){notify('Aucun bordereau reconnu','error');return;}
+  var cls=(clientsCache||[]).slice().sort(function(a,b){return (a.nom||'').localeCompare(b.nom||'');});
+  function optCli(nom){
+    var best='';if(nom){var q=nom.toLowerCase();var fnd=cls.find(function(c){return (c.nom||'').toLowerCase()===q;})||cls.find(function(c){return (c.nom||'').toLowerCase().indexOf(q)>=0||q.indexOf((c.nom||'').toLowerCase())>=0;});if(fnd)best=fnd.id;}
+    return '<option value="">-- choisir --</option>'+cls.map(function(c){return '<option value="'+c.id+'"'+(String(c.id)===String(best)?' selected':'')+'>'+c.nom+'</option>';}).join('');
+  }
+  var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:flex-start;justify-content:center;z-index:100003;padding:30px 16px;overflow:auto';
+  var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:640px;max-width:96vw';
+  var st='padding:7px 8px;border-radius:7px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;box-sizing:border-box';
+  var rows=tickets.map(function(tk){
+    return '<div class="_bdRow" style="display:grid;grid-template-columns:1.4fr 1fr 1.4fr 0.8fr 34px;gap:6px;margin-bottom:6px;align-items:center">'
+      +'<select class="_bdCli" style="'+st+'">'+optCli(tk.nom)+'</select>'
+      +'<select class="_bdTyp" style="'+st+'"><option value="PCS"'+(tk.type==='PCS'?' selected':'')+'>PCS</option><option value="Paysafecard"'+(tk.type==='Paysafecard'?' selected':'')+'>Paysafecard</option><option value="Transcash"'+(tk.type==='Transcash'?' selected':'')+'>Transcash</option></select>'
+      +'<input class="_bdCode" value="'+(tk.code||'')+'" placeholder="code" style="'+st+'">'
+      +'<input class="_bdMt" type="number" step="0.01" value="'+(tk.montant!=null?tk.montant:'')+'" placeholder="EUR" style="'+st+'">'
+      +'<button type="button" class="_bdDel btn" style="background:var(--bg3);padding:5px 8px">x</button></div>';
+  }).join('');
+  box.innerHTML='<div style="font-weight:700;font-size:16px;margin-bottom:4px">Bordereaux lus ('+tickets.length+')</div>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:12px">Verifie et corrige avant de valider. Chaque ligne creera un remboursement.</div>'
+    +'<div style="display:grid;grid-template-columns:1.4fr 1fr 1.4fr 0.8fr 34px;gap:6px;margin-bottom:4px;font-size:11px;color:var(--text3)"><span>CLIENT</span><span>TYPE</span><span>CODE</span><span>MONTANT</span><span></span></div>'
+    +'<div id="_bdRows">'+rows+'</div>'
+    +'<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);margin:12px 0"><input type="checkbox" id="_bdFrais" checked> Deduire les frais (comme un remboursement normal)</label>'
+    +'<div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_bdOk" style="flex:1">Creer les remboursements</button><button type="button" class="btn" id="_bdCancel" style="background:var(--bg3)">Annuler</button></div>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  function close(){ov.remove();}
+  box.querySelector('#_bdCancel').onclick=close;ov.onclick=function(ev){if(ev.target===ov)close();};
+  Array.prototype.forEach.call(box.querySelectorAll('._bdDel'),function(b){b.onclick=function(){b.closest('._bdRow').remove();};});
+  box.querySelector('#_bdOk').onclick=async function(){
+    var rws=box.querySelectorAll('._bdRow');if(!rws.length){notify('Rien a creer','error');return;}
+    var frais=box.querySelector('#_bdFrais').checked?1:0;var done=0,skip=0;
+    for(var i=0;i<rws.length;i++){
+      var r=rws[i];
+      var cid=parseInt(r.querySelector('._bdCli').value||'0');
+      var typ=r.querySelector('._bdTyp').value;
+      var code=(r.querySelector('._bdCode').value||'').trim();
+      var mt=parseFloat((r.querySelector('._bdMt').value||'0').replace(',','.'))||0;
+      if(!cid||mt<=0){skip++;continue;}
+      var body={client_id:cid,type:'credit',motif:'Remboursement',quantite:1,unite:'piece',prix_unitaire:mt,mode_paiement:typ,compte:'euro',frais_deduits:frais,notes:'[CAISSE] Bordereau'+(code?(' [TICKET code='+code+']'):''),no_facture:true};
+      try{var rr=await api('/api/transactions',{method:'POST',body:body});if(rr&&rr.ok)done++;else skip++;}catch(er){skip++;}
+    }
+    close();notify(done+' remboursement(s) cree(s)'+(skip?(' - '+skip+' ignore(s)'):''));
+    if(typeof loadClients==='function')loadClients();if(typeof loadTransactions==='function')loadTransactions();
+  };
 }
 </script>
 </body>
