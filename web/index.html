@@ -4396,7 +4396,7 @@ async function posRembourserDette(debitId){
   var rest=parseFloat(d.restant)||0;
   var pu=parseFloat(d.prix_unitaire)||0;
   var isUnit=(d.compte==='tabac'||d.compte==='cantine')&&pu>0;
-  if(isUnit){
+  if(isUnit){if(typeof posRembDetteChoix==='function'){posRembDetteChoix(debitId);return;}
     var qReste=rest/pu;
     var v=await askMontant('Combien de '+_uniteLabel(d.unite,2)+' rembourse ? (reste '+_fmtQte(qReste)+')',_fmtQte(qReste));
     if(v===null||v==='')return;
@@ -6157,6 +6157,61 @@ async function solderDette(cid){
     if(typeof loadClients==='function')loadClients();
   };
   setTimeout(function(){inp.focus();inp.select();},60);
+}
+</script>
+<script>
+async function posRembDetteChoix(debitId){
+  var d=(window._posDettes||{})[debitId];if(!d)return;
+  var rest=Math.round((parseFloat(d.restant)||0)*100)/100;
+  var pu=parseFloat(d.prix_unitaire)||0;
+  var cid=parseInt((document.getElementById('posClient')||{}).value);if(!cid)return;
+  var types=(typesTabacCache||[]).map(function(x){return {nom:x.nom,prix:parseFloat(x.prix)||0,paquet:true};});
+  var euroModes=[{nom:'Liquide',paquet:false},{nom:'PCS',paquet:false},{nom:'Paysafecard',paquet:false},{nom:'Transcash',paquet:false}];
+  var modes=types.concat(euroModes);
+  var qReste=pu>0?(rest/pu):0;
+  var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100003;padding:16px';
+  var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:400px;max-width:95vw';
+  var inp='width:100%;padding:9px 10px;margin:4px 0 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box';
+  box.innerHTML='<div style="font-weight:700;font-size:16px;margin-bottom:4px">Rembourser la dette</div>'
+    +'<div style="font-size:13px;color:var(--text3);margin-bottom:12px">'+(d.motif||'')+' &mdash; reste <b class="mono">'+_fmtQte(qReste)+' '+_uniteLabel(d.unite,2)+'</b> ('+rest.toFixed(2)+' EUR)</div>'
+    +'<label style="font-size:12px;color:var(--text3)">Le client rend en :</label><select id="_rdMode" style="'+inp+'">'+modes.map(function(m,i){return '<option value="'+i+'">'+m.nom+(m.paquet?(' ('+m.prix+' EUR/pq)'):' (EUR)')+'</option>';}).join('')+'</select>'
+    +'<div id="_rdPqWrap"><label style="font-size:12px;color:var(--text3)">Combien de paquets ?</label><input type="number" id="_rdQty" value="1" step="1" min="0" style="'+inp+'"><label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);margin:0 0 10px"><input type="checkbox" id="_rdParPq"> Paquet pour paquet (au prix de la dette : '+pu.toFixed(2)+' EUR/pq)</label></div>'
+    +'<div id="_rdEuWrap" style="display:none"><label style="font-size:12px;color:var(--text3)">Montant recu (EUR)</label><input type="number" id="_rdAmt" value="'+rest.toFixed(2)+'" step="0.01" min="0" style="'+inp+'"></div>'
+    +'<div id="_rdInfo" style="font-size:13px;color:var(--gold2);font-weight:600;margin-bottom:14px"></div>'
+    +'<div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_rdGo" style="flex:1">Rembourser</button><button type="button" class="btn" id="_rdNo" style="background:var(--bg3)">Annuler</button></div>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  function close(){ov.remove();}
+  box.querySelector('#_rdNo').onclick=close;ov.onclick=function(e){if(e.target===ov)close();};
+  var selEl=box.querySelector('#_rdMode'),qtyEl=box.querySelector('#_rdQty'),parpqEl=box.querySelector('#_rdParPq'),amtEl=box.querySelector('#_rdAmt'),info=box.querySelector('#_rdInfo');
+  function curMode(){return modes[parseInt(selEl.value)||0];}
+  function recalc(){
+    var m=curMode(),val=0,qty=0;
+    if(m.paquet){box.querySelector('#_rdPqWrap').style.display='';box.querySelector('#_rdEuWrap').style.display='none';
+      qty=parseFloat(qtyEl.value||0)||0;val=(parpqEl.checked?(qty*pu):(qty*m.prix));}
+    else{box.querySelector('#_rdPqWrap').style.display='none';box.querySelector('#_rdEuWrap').style.display='';
+      val=parseFloat((amtEl.value||'0').replace(',','.'))||0;}
+    val=Math.round(val*100)/100;
+    info.innerHTML='Reduit la dette de '+val.toFixed(2)+' EUR &mdash; restera '+Math.max(0,Math.round((rest-val)*100)/100).toFixed(2)+' EUR';
+    return {m:m,val:val,qty:qty};
+  }
+  selEl.addEventListener('change',recalc);qtyEl.addEventListener('input',recalc);parpqEl.addEventListener('change',recalc);amtEl.addEventListener('input',recalc);
+  recalc();
+  box.querySelector('#_rdGo').onclick=async function(){
+    var v=recalc(),m=v.m;
+    if(v.val<=0){notify('Rien a rembourser','error');return;}
+    var catId=null;
+    if(m.paquet&&v.qty>0){try{var _rc=await api('/api/catalogue');if(_rc&&_rc.ok&&_rc.data){var _c=_rc.data.find(function(a){return (a.nom||'').trim().toLowerCase()===m.nom.trim().toLowerCase();});if(_c)catId=_c.id;}}catch(e){}}
+    var stk=(catId&&v.qty>0)?(' [STK '+catId+':+'+v.qty+']'):'';
+    var qte=m.paquet?v.qty:1;
+    var prixU=m.paquet?(parpqEl.checked?pu:m.prix):v.val;
+    if(qte<=0){notify('Quantite invalide','error');return;}
+    var body={client_id:cid,type:'credit',motif:'Remboursement',quantite:qte,unite:(m.paquet?(d.unite||'paquet'):'piece'),prix_unitaire:prixU,mode_paiement:m.nom,notes:'[CAISSE] Remboursement dette ('+m.nom+')'+stk,frais_deduits:0,compte:d.compte,linked_debit_id:debitId};
+    var _dt=(document.getElementById('posDate')||{}).value;if(_dt)body.date=_dt;
+    var res=await api('/api/transactions',{method:'POST',body:body});
+    if(res&&res.ok){if(catId&&v.qty>0){try{await api('/api/catalogue/'+catId+'/adjust-stock',{method:'POST',body:{delta:v.qty}});}catch(e){}}close();notify('Remboursement enregistre');if(typeof onPosClientChange==='function')onPosClientChange();if(typeof loadClients==='function')loadClients();}
+    else notify((res&&res.error)||'Erreur','error');
+  };
+  setTimeout(function(){selEl.focus();},60);
 }
 </script>
 </body>
