@@ -2081,6 +2081,18 @@ def transaction_set_photo(tid):
     return ok({"id": tid})
 
 
+@app.route("/api/transactions/<int:tid>/note-append", methods=["POST"])
+@require_auth
+def transaction_note_append(tid):
+    data = request.json or {}
+    add = data.get("text", "") or ""
+    with db.get_conn() as conn:
+        row = conn.execute("SELECT notes FROM transactions WHERE id=?", (tid,)).fetchone()
+        cur = (row[0] if row and row[0] else "")
+        conn.execute("UPDATE transactions SET notes=? WHERE id=?", ((cur + " " + add).strip(), tid))
+        conn.commit()
+    return ok({"ok": True})
+
 @app.route("/api/transactions/<int:tid>/signature", methods=["POST"])
 @require_auth
 def transaction_signature(tid):
