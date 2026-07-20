@@ -6180,7 +6180,7 @@ async function posRembDetteChoix(debitId){
     +'<input type="number" id="_rdMontant" value="'+rest.toFixed(2)+'" step="0.01" min="0" style="'+inp+'">'
     +'<div id="_rdInfo" style="font-size:13px;color:var(--text2);margin-bottom:10px"></div>'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><label style="font-size:12px;color:var(--text3)">Signature du client (optionnel)</label><button type="button" id="_rdSigClear" class="btn" style="font-size:11px;padding:3px 8px;background:var(--bg3)">Effacer</button></div>'
-    +'<canvas id="_rdSig" width="400" height="130" style="border:1px solid var(--border);border-radius:8px;background:#fff;touch-action:none;width:100%;display:block;margin-bottom:14px"></canvas>'
+    +'<canvas id="_rdSig" width="400" height="130" style="border:1px solid var(--border);border-radius:8px;background:#fff;touch-action:none;user-select:none;-webkit-user-select:none;overscroll-behavior:contain;width:100%;display:block;margin-bottom:14px"></canvas>'
     +'<div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_rdGo" style="flex:1">Rembourser</button><button type="button" class="btn" id="_rdNo" style="background:var(--bg3)">Annuler</button></div>';
   ov.appendChild(box);document.body.appendChild(ov);
   var rowsDiv=box.querySelector('#_rdRows'),montEl=box.querySelector('#_rdMontant'),info=box.querySelector('#_rdInfo');
@@ -6199,8 +6199,8 @@ async function posRembDetteChoix(debitId){
   function _s(ev){ev.preventDefault();_draw=true;var p=_pos(ev);ctx.beginPath();ctx.moveTo(p.x,p.y);}
   function _m(ev){if(!_draw)return;ev.preventDefault();var p=_pos(ev);ctx.lineTo(p.x,p.y);ctx.stroke();_drawn=true;}
   function _e(){_draw=false;}
-  canvas.addEventListener('mousedown',_s);canvas.addEventListener('mousemove',_m);window.addEventListener('mouseup',_e);
-  canvas.addEventListener('touchstart',_s,{passive:false});canvas.addEventListener('touchmove',_m,{passive:false});canvas.addEventListener('touchend',_e);
+  canvas.addEventListener('pointerdown',function(_ev){try{canvas.setPointerCapture(_ev.pointerId);}catch(_x){}_s(_ev);});canvas.addEventListener('pointermove',_m);canvas.addEventListener('pointerup',function(_ev){_e();try{canvas.releasePointerCapture(_ev.pointerId);}catch(_x){}});
+  
   box.querySelector('#_rdSigClear').onclick=function(){ctx.clearRect(0,0,canvas.width,canvas.height);_drawn=false;};
   function close(){window.removeEventListener('mouseup',_e);ov.remove();}
   box.querySelector('#_rdNo').onclick=close;ov.onclick=function(ev){if(ev.target===ov)close();};
@@ -6365,7 +6365,7 @@ async function assoDepot(){
     +'<label style="font-size:12px;color:var(--gold2);font-weight:600">Montant du depot (EUR) &mdash; tu decides :</label>'
     +'<input type="number" id="_adMontant" value="0" step="0.01" min="0" style="'+inp+'">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><label style="font-size:12px;color:var(--text3)">Signature du client (optionnel)</label><button type="button" id="_adSigClear" class="btn" style="font-size:11px;padding:3px 8px;background:var(--bg3)">Effacer</button></div>'
-    +'<canvas id="_adSig" width="400" height="130" style="border:1px solid var(--border);border-radius:8px;background:#fff;touch-action:none;width:100%;display:block;margin-bottom:14px"></canvas>'
+    +'<canvas id="_adSig" width="400" height="130" style="border:1px solid var(--border);border-radius:8px;background:#fff;touch-action:none;user-select:none;-webkit-user-select:none;overscroll-behavior:contain;width:100%;display:block;margin-bottom:14px"></canvas>'
     +'<div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_adGo" style="flex:1">Enregistrer le depot</button><button type="button" class="btn" id="_adNo" style="background:var(--bg3)">Annuler</button></div>';
   ov.appendChild(box);document.body.appendChild(ov);
   var rowsDiv=box.querySelector('#_adRows'),montEl=box.querySelector('#_adMontant');
@@ -6382,8 +6382,8 @@ async function assoDepot(){
   function _sd(ev){ev.preventDefault();_draw=true;var p=_pos(ev);ctx.beginPath();ctx.moveTo(p.x,p.y);}
   function _mv(ev){if(!_draw)return;ev.preventDefault();var p=_pos(ev);ctx.lineTo(p.x,p.y);ctx.stroke();_drawn=true;}
   function _en(){_draw=false;}
-  canvas.addEventListener('mousedown',_sd);canvas.addEventListener('mousemove',_mv);window.addEventListener('mouseup',_en);
-  canvas.addEventListener('touchstart',_sd,{passive:false});canvas.addEventListener('touchmove',_mv,{passive:false});canvas.addEventListener('touchend',_en);
+  canvas.addEventListener('pointerdown',function(_ev){try{canvas.setPointerCapture(_ev.pointerId);}catch(_x){}_sd(_ev);});canvas.addEventListener('pointermove',_mv);canvas.addEventListener('pointerup',function(_ev){_en();try{canvas.releasePointerCapture(_ev.pointerId);}catch(_x){}});
+  
   box.querySelector('#_adSigClear').onclick=function(){ctx.clearRect(0,0,canvas.width,canvas.height);_drawn=false;};
   function close(){window.removeEventListener('mouseup',_en);ov.remove();}
   box.querySelector('#_adNo').onclick=close;ov.onclick=function(ev){if(ev.target===ov)close();};
@@ -6423,7 +6423,7 @@ async function posProduitsRecus(cid){
     +'<div id="_prRows"></div>'
     +'<button type="button" id="_prAdd" class="btn" style="font-size:12px;margin:2px 0 12px">+ Ajouter un produit</button>'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><label style="font-size:12px;color:var(--text3)">Signature du client (optionnel)</label><button type="button" id="_prSigClear" class="btn" style="font-size:11px;padding:3px 8px;background:var(--bg3)">Effacer</button></div>'
-    +'<canvas id="_prSig" width="400" height="120" style="border:1px solid var(--border);border-radius:8px;background:#fff;touch-action:none;width:100%;display:block;margin-bottom:14px"></canvas>'
+    +'<canvas id="_prSig" width="400" height="120" style="border:1px solid var(--border);border-radius:8px;background:#fff;touch-action:none;user-select:none;-webkit-user-select:none;overscroll-behavior:contain;width:100%;display:block;margin-bottom:14px"></canvas>'
     +'<div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_prGo" style="flex:1">Valider</button><button type="button" class="btn" id="_prNo" style="background:var(--bg3)">Passer</button></div>';
   ov.appendChild(box);document.body.appendChild(ov);
   var rowsDiv=box.querySelector('#_prRows');
@@ -6439,8 +6439,8 @@ async function posProduitsRecus(cid){
   function _sd(ev){ev.preventDefault();_draw=true;var p=_pos(ev);ctx.beginPath();ctx.moveTo(p.x,p.y);}
   function _mv(ev){if(!_draw)return;ev.preventDefault();var p=_pos(ev);ctx.lineTo(p.x,p.y);ctx.stroke();_drawn=true;}
   function _en(){_draw=false;}
-  canvas.addEventListener('mousedown',_sd);canvas.addEventListener('mousemove',_mv);window.addEventListener('mouseup',_en);
-  canvas.addEventListener('touchstart',_sd,{passive:false});canvas.addEventListener('touchmove',_mv,{passive:false});canvas.addEventListener('touchend',_en);
+  canvas.addEventListener('pointerdown',function(_ev){try{canvas.setPointerCapture(_ev.pointerId);}catch(_x){}_sd(_ev);});canvas.addEventListener('pointermove',_mv);canvas.addEventListener('pointerup',function(_ev){_en();try{canvas.releasePointerCapture(_ev.pointerId);}catch(_x){}});
+  
   box.querySelector('#_prSigClear').onclick=function(){ctx.clearRect(0,0,canvas.width,canvas.height);_drawn=false;};
   function close(){window.removeEventListener('mouseup',_en);ov.remove();}
   box.querySelector('#_prNo').onclick=close;ov.onclick=function(ev){if(ev.target===ov)close();};
