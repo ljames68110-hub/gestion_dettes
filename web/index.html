@@ -4477,7 +4477,7 @@ renderPosCart=function(){
 };
 async function posEncaisser(){
   var cid=parseInt(document.getElementById('posClient').value);
-  var _conso=!!((document.getElementById('posConsoPerso')||{}).checked);if(_conso){cid=await getConsoPersoClient();if(!cid){notify('Erreur client Conso perso','error');return;}}
+  var _conso=!!((document.getElementById('posConsoPerso')||{}).checked);if(_conso){cid=await getConsoPersoClient();if(!cid){notify('Erreur client Conso perso','error');return;}posPayMode='cash';var _pcC=document.getElementById('posPayCash'),_pcR=document.getElementById('posPayCredit');if(_pcC)_pcC.classList.add('active');if(_pcR)_pcR.classList.remove('active');}
   if(!cid){notify('Choisis un client','error');return;}
   var _tmode=document.getElementById('posMode').value;
   var _pc=document.getElementById('posPretChk');if(_pc&&_pc.checked){return posCreerPret(cid);}if(_tmode&&_tmode.indexOf('tabac:')===0){if(getRemb()>0)return posRembourserTabac(cid,_tmode);return posEncaisserTabac(cid,_tmode);}
@@ -6482,22 +6482,8 @@ async function posRembConfirm(debitId){
   if(attente){kind='troc';plannedTxt=attente;}
   else if(pu>0){kind='tabac';plannedTxt=_fmtQte(rest/pu)+' '+(d.mode_paiement||_uniteLabel(d.unite,2));}
   else{kind='euro';plannedTxt=rest.toFixed(2)+' EUR';}
-  var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:100003;padding:16px';
-  var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:400px;max-width:95vw';
-  box.innerHTML='<div style="font-weight:700;font-size:16px;margin-bottom:2px">Remboursement</div>'
-    +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px">'+(d.motif||'Dette')+'</div>'
-    +'<div style="font-size:12px;color:var(--text3)">Le client doit payer :</div>'
-    +'<div style="font-size:20px;font-weight:800;color:var(--gold2);margin:4px 0 2px">'+plannedTxt+'</div>'
-    +'<div style="font-size:12px;color:var(--text3);margin-bottom:16px">soit '+rest.toFixed(2)+' EUR</div>'
-    +'<button type="button" class="btn primary" id="_rcVal" style="width:100%;margin-bottom:8px">Valider (paye comme prevu)</button>'
-    +'<button type="button" class="btn" id="_rcAutre" style="width:100%;margin-bottom:8px;background:var(--gold2);color:#1a1a1a">Le client paie autrement</button>'
-    +'<button type="button" class="btn" id="_rcNo" style="width:100%;background:var(--bg3)">Annuler</button>';
-  ov.appendChild(box);document.body.appendChild(ov);
-  function close(){ov.remove();}
-  box.querySelector('#_rcNo').onclick=close;ov.onclick=function(ev){if(ev.target===ov)close();};
-  box.querySelector('#_rcAutre').onclick=function(){close();if(typeof posRembDetteChoix==='function')posRembDetteChoix(debitId);};
-  box.querySelector('#_rcVal').onclick=async function(){
-    var btn=this;btn.disabled=true;btn.textContent='...';
+  async function doValider(btn){
+    if(btn){btn.disabled=true;btn.textContent='...';}
     var cat=null;try{var _rc=await api('/api/catalogue');if(_rc&&_rc.ok&&_rc.data)cat=_rc.data;}catch(e){}
     function catByName(nm){if(!cat)return null;return cat.find(function(a){return (a.nom||'').trim().toLowerCase()===(nm||'').trim().toLowerCase();})||null;}
     var body,restock=[];
@@ -6515,9 +6501,27 @@ async function posRembConfirm(debitId){
     var res=await api('/api/transactions',{method:'POST',body:body});
     if(res&&res.ok){
       for(var i=0;i<restock.length;i++){try{await api('/api/catalogue/'+restock[i].id+'/adjust-stock',{method:'POST',body:{delta:restock[i].q}});}catch(e){}}
-      close();notify('Remboursement valide');if(typeof onPosClientChange==='function')onPosClientChange();if(typeof loadClients==='function')loadClients();if(typeof loadCatalogue==='function')loadCatalogue();
-    }else{btn.disabled=false;btn.textContent='Valider (paye comme prevu)';notify((res&&res.error)||'Erreur','error');}
-  };
+      notify('Remboursement valide');if(typeof onPosClientChange==='function')onPosClientChange();if(typeof loadClients==='function')loadClients();if(typeof loadCatalogue==='function')loadCatalogue();
+      return true;
+    }else{if(btn){btn.disabled=false;btn.textContent='Valider (paye comme prevu)';}notify((res&&res.error)||'Erreur','error');return false;}
+  }
+  var _cl=(clientsCache||[]).find(function(c){return String(c.id)===String(cid);});
+  if(_cl&&(_cl.nom||'').toLowerCase()==='conso perso'){await doValider(null);return;}
+  var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:100003;padding:16px';
+  var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:400px;max-width:95vw';
+  box.innerHTML='<div style="font-weight:700;font-size:16px;margin-bottom:2px">Remboursement</div>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px">'+(d.motif||'Dette')+'</div>'
+    +'<div style="font-size:12px;color:var(--text3)">Le client doit payer :</div>'
+    +'<div style="font-size:20px;font-weight:800;color:var(--gold2);margin:4px 0 2px">'+plannedTxt+'</div>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:16px">soit '+rest.toFixed(2)+' EUR</div>'
+    +'<button type="button" class="btn primary" id="_rcVal" style="width:100%;margin-bottom:8px">Valider (paye comme prevu)</button>'
+    +'<button type="button" class="btn" id="_rcAutre" style="width:100%;margin-bottom:8px;background:var(--gold2);color:#1a1a1a">Le client paie autrement</button>'
+    +'<button type="button" class="btn" id="_rcNo" style="width:100%;background:var(--bg3)">Annuler</button>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  function close(){ov.remove();}
+  box.querySelector('#_rcNo').onclick=close;ov.onclick=function(ev){if(ev.target===ov)close();};
+  box.querySelector('#_rcAutre').onclick=function(){close();if(typeof posRembDetteChoix==='function')posRembDetteChoix(debitId);};
+  box.querySelector('#_rcVal').onclick=async function(){var okk=await doValider(this);if(okk)close();};
 }
 </script>
 </body>
