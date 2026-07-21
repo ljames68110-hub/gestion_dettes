@@ -357,6 +357,10 @@ def _ensure_corbeille_table(conn):
         conn.execute("ALTER TABLE transactions_corbeille ADD COLUMN deleted_at TEXT")
         conn.execute("ALTER TABLE transactions_corbeille ADD COLUMN client_nom TEXT")
     else:
+        _tcols = [r[1] for r in conn.execute("PRAGMA table_info(transactions)").fetchall()]
+        for _c in _tcols:
+            if _c not in cols:
+                conn.execute("ALTER TABLE transactions_corbeille ADD COLUMN " + _c + " TEXT")
         if "deleted_at" not in cols:
             conn.execute("ALTER TABLE transactions_corbeille ADD COLUMN deleted_at TEXT")
         if "client_nom" not in cols:

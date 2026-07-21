@@ -3706,7 +3706,7 @@ async function exportClientPDF(){
     html += '<td class="'+(isV?'vente':'remb')+'">'+(isV?'+':'-')+parseFloat(t.montant_brut||0).toFixed(2)+' EUR</td>';
     html += '<td style="color:#c9a84c">'+(parseFloat(t.frais||0)>0?('-'+parseFloat(t.frais||0).toFixed(2)+' EUR'):'-')+'</td>';
     html += '<td class="'+(isV?'vente':'remb')+'">'+(isV?'+':'-')+(t.montant_net!=null?parseFloat(t.montant_net):(parseFloat(t.montant_brut||0)-parseFloat(t.frais||0))).toFixed(2)+' EUR</td>';
-    html += '<td style="color:#666">'+((t.notes||'').replace(/\[[^\]]*\]/g,'').replace(/\s{2,}/g,' ').trim())+'</td></tr>';
+    html += '<td style="color:#666">'+(function(){var _n=(t.notes||'');var _m=_n.match(/\[TICKET code=([^\]]*)\]/);var _c=_n.replace(/\[[^\]]*\]/g,'').replace(/\s{2,}/g,' ').trim();if(_m&&_m[1]){var _cd=_m[1].split('|').map(function(p){var k=p.lastIndexOf(':');return k<0?p:p.slice(0,k);}).join(', ');_c=(_c?_c+' &mdash; ':'')+'Code ticket: '+_cd;}return _c;})()+'</td></tr>';
   });
   html += '</tbody></table>';
   html += '<div class="footer">Gestion Perso - Fiche client '+nom+' - '+date_str+'</div>';
