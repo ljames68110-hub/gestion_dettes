@@ -112,6 +112,8 @@ def init_db():
             c.execute("UPDATE transactions SET compte='tabac' WHERE mode_paiement IN ('Tabac','Blonde','PotTabac')")
         if "signature" not in trans_cols:
             c.execute("ALTER TABLE transactions ADD COLUMN signature TEXT DEFAULT ''")
+        if "frais_absorbes" not in trans_cols:
+            c.execute("ALTER TABLE transactions ADD COLUMN frais_absorbes REAL DEFAULT 0")
 
         c.execute("""
         CREATE TABLE IF NOT EXISTS entrees_materiel (
