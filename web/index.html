@@ -6179,6 +6179,8 @@ async function posRembDetteChoix(debitId){
     +'<label style="font-size:12px;color:var(--gold2);font-weight:600">Montant a deduire de la dette (EUR) &mdash; tu decides :</label>'
     +'<input type="number" id="_rdMontant" value="'+rest.toFixed(2)+'" step="0.01" min="0" style="'+inp+'">'
     +'<div id="_rdInfo" style="font-size:13px;color:var(--text2);margin-bottom:10px"></div>'
+    +'<label style="font-size:12px;color:var(--text3)">Code ticket / bon (optionnel)</label>'
+    +'<input type="text" id="_rdCode" placeholder="ex: PCS 1234 5678..." style="'+inp+'">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><label style="font-size:12px;color:var(--text3)">Signature du client (optionnel)</label><button type="button" id="_rdSigClear" class="btn" style="font-size:11px;padding:3px 8px;background:var(--bg3)">Effacer</button></div>'
     +'<canvas id="_rdSig" width="400" height="130" style="border:1px solid var(--border);border-radius:8px;background:#fff;touch-action:none;user-select:none;-webkit-user-select:none;overscroll-behavior:contain;width:100%;display:block;margin-bottom:14px"></canvas>'
     +'<div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_rdGo" style="flex:1">Rembourser</button><button type="button" class="btn" id="_rdNo" style="background:var(--bg3)">Annuler</button></div>';
@@ -6218,7 +6220,7 @@ async function posRembDetteChoix(debitId){
     if(restock.length){try{var _rc=await api('/api/catalogue');if(_rc&&_rc.ok&&_rc.data)cat=_rc.data;}catch(er){}}
     var stk='';
     if(cat){restock.forEach(function(x){var _c=cat.find(function(a){return (a.nom||'').trim().toLowerCase()===x.mode.trim().toLowerCase();});if(_c)stk+=' [STK '+_c.id+':+'+x.q+']';});}
-    var body={client_id:cid,type:'credit',motif:'Remboursement',quantite:1,unite:(d.unite||'paquet'),prix_unitaire:montant,mode_paiement:modeLbl,notes:'[CAISSE] Remboursement dette'+detail+stk,frais_deduits:0,compte:d.compte,linked_debit_id:debitId};
+    var _rdCode=((box.querySelector('#_rdCode')||{}).value||'').trim();var _tkTag=_rdCode?(' [TICKET code='+_rdCode+']'):'';var body={client_id:cid,type:'credit',motif:'Remboursement',quantite:1,unite:(d.unite||'paquet'),prix_unitaire:montant,mode_paiement:modeLbl,notes:'[CAISSE] Remboursement dette'+detail+stk+_tkTag,frais_deduits:0,compte:d.compte,linked_debit_id:debitId};
     if(_drawn){try{body.signature=canvas.toDataURL('image/png');}catch(er){}}
     var _dt=(document.getElementById('posDate')||{}).value;if(_dt)body.date=_dt;
     var res=await api('/api/transactions',{method:'POST',body:body});
