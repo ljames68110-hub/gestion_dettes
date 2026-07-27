@@ -6180,7 +6180,8 @@ async function posRembDetteChoix(debitId){
     +'<input type="number" id="_rdMontant" value="'+rest.toFixed(2)+'" step="0.01" min="0" style="'+inp+'">'
     +'<div id="_rdInfo" style="font-size:13px;color:var(--text2);margin-bottom:10px"></div>'
     +'<label style="font-size:12px;color:var(--text3)">Code ticket / bon (optionnel)</label>'
-    +'<input type="text" id="_rdCode" placeholder="ex: PCS 1234 5678..." style="'+inp+'">'
+    +'<div style="display:flex;gap:6px;margin:4px 0 4px"><input type="text" id="_rdCode" placeholder="ex: PCS 1234 5678..." style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)"><button type="button" onclick="_rdOcr()" class="btn" style="white-space:nowrap;background:var(--gold2);color:#1a1a1a">&#128247; OCR / Photo</button></div>'
+    +'<div id="_rdPhotoNote" style="font-size:11px;color:var(--green);margin-bottom:12px"></div>'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><label style="font-size:12px;color:var(--text3)">Signature du client (optionnel)</label><button type="button" id="_rdSigClear" class="btn" style="font-size:11px;padding:3px 8px;background:var(--bg3)">Effacer</button></div>'
     +'<canvas id="_rdSig" width="400" height="130" style="border:1px solid var(--border);border-radius:8px;background:#fff;touch-action:none;user-select:none;-webkit-user-select:none;overscroll-behavior:contain;width:100%;display:block;margin-bottom:14px"></canvas>'
     +'<div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_rdGo" style="flex:1">Rembourser</button><button type="button" class="btn" id="_rdNo" style="background:var(--bg3)">Annuler</button></div>';
@@ -6226,7 +6227,7 @@ async function posRembDetteChoix(debitId){
     var res=await api('/api/transactions',{method:'POST',body:body});
     if(res&&res.ok){
       if(cat){for(var i=0;i<restock.length;i++){var _c=cat.find(function(a){return (a.nom||'').trim().toLowerCase()===restock[i].mode.trim().toLowerCase();});if(_c){try{await api('/api/catalogue/'+_c.id+'/adjust-stock',{method:'POST',body:{delta:restock[i].q}});}catch(er){}}}}
-      close();notify('Remboursement enregistre');if(typeof onPosClientChange==='function')onPosClientChange();if(typeof loadClients==='function')loadClients();
+      var _tid=(res&&res.data&&res.data.id)?res.data.id:null;var _ph=((box.querySelector('#_rdCode')||{}).dataset||{}).photo;if(_tid&&_ph){try{await api('/api/transactions/'+_tid+'/photo-ticket',{method:'POST',body:{photo:JSON.stringify([_ph])}});}catch(e){}}close();notify('Remboursement enregistre');if(typeof onPosClientChange==='function')onPosClientChange();if(typeof loadClients==='function')loadClients();
     } else notify((res&&res.error)||'Erreur','error');
   };
 }
@@ -6524,6 +6525,29 @@ async function posRembConfirm(debitId){
   box.querySelector('#_rcNo').onclick=close;ov.onclick=function(ev){if(ev.target===ov)close();};
   box.querySelector('#_rcAutre').onclick=function(){close();if(typeof posRembDetteChoix==='function')posRembDetteChoix(debitId);};
   box.querySelector('#_rcVal').onclick=async function(){var okk=await doValider(this);if(okk)close();};
+}
+</script>
+<script>
+function _rdOcr(){
+  var inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.capture='environment';
+  inp.onchange=function(){
+    var file=inp.files&&inp.files[0];if(!file)return;
+    var rd=new FileReader();
+    rd.onload=async function(){
+      var el=document.getElementById('_rdCode');if(el)el.dataset.photo=rd.result;
+      var note=document.getElementById('_rdPhotoNote');if(note)note.textContent='\uD83D\uDCCE Photo du ticket ajoutee (sera enregistree)';
+      notify('Lecture du ticket...');
+      var mode='';var _r0=document.querySelector('._rdSel');if(_r0)mode=_r0.value||'';
+      var r,d=null;
+      try{r=await api('/api/ocr-ticket',{method:'POST',body:{photo:rd.result,mode:mode,cloud:false}});d=(r&&r.ok)?r.data:null;}catch(e){}
+      if(!d||!d.ok||!d.code){try{r=await api('/api/ocr-ticket',{method:'POST',body:{photo:rd.result,mode:mode,cloud:true}});d=(r&&r.ok)?r.data:null;}catch(e){}}
+      if(!d||!d.ok||!d.code){notify('Photo gardee. Aucun code lu, saisis-le a la main.','error');return;}
+      if(el)el.value=d.code+(d.serie?(' / '+d.serie):'');
+      notify('Code lu : '+d.code);
+    };
+    rd.readAsDataURL(file);
+  };
+  inp.click();
 }
 </script>
 </body>
