@@ -6541,9 +6541,19 @@ function _rdOcr(){
       var r,d=null;
       try{r=await api('/api/ocr-ticket',{method:'POST',body:{photo:rd.result,mode:mode,cloud:false}});d=(r&&r.ok)?r.data:null;}catch(e){}
       if(!d||!d.ok||!d.code){try{r=await api('/api/ocr-ticket',{method:'POST',body:{photo:rd.result,mode:mode,cloud:true}});d=(r&&r.ok)?r.data:null;}catch(e){}}
-      if(!d||!d.ok||!d.code){notify('Photo gardee. Aucun code lu, saisis-le a la main.','error');return;}
-      if(el)el.value=d.code+(d.serie?(' / '+d.serie):'');
+      if(!d||!d.code){
+        if(note)note.innerHTML='\uD83D\uDCCE Photo gardee. Aucun code lu \u2014 saisis-le a la main.'+((d&&d.text)?('<br><span style="color:var(--text3);font-size:10px">Texte lu : '+((d.text||'')+'').replace(/</g,'&lt;')+'</span>'):'');
+        notify('Photo gardee, code non lu','error');return;
+      }
+      if(el)el.value=d.code;
       notify('Code lu : '+d.code);
+      if(note){
+        var cands=(d.candidates||[]).filter(function(c){return c!==d.code;});
+        var h='\uD83D\uDCCE Photo ajoutee \u2014 code : <b>'+d.code+'</b>';
+        if(cands.length){h+='<br><span style="color:var(--text3);font-size:11px">Pas le bon ? clique :</span><br>'+cands.map(function(cc){return '<button type="button" class="_rdCand btn" data-code="'+cc+'" style="font-size:11px;padding:2px 7px;margin:2px 2px 0 0">'+cc+'</button>';}).join('');}
+        note.innerHTML=h;
+        Array.prototype.forEach.call(note.querySelectorAll('._rdCand'),function(b){b.onclick=function(){var e2=document.getElementById('_rdCode');if(e2)e2.value=b.getAttribute('data-code');};});
+      }
     };
     rd.readAsDataURL(file);
   };

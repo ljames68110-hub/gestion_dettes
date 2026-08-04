@@ -347,7 +347,17 @@ def lire_ticket(photo, lang="fra", hint="", api_key="", prefer_cloud=False):
                     code = _tk
                     break
 
-    if prefer_cloud and api_key and not code:
-        _preview = (txt or "").replace("\r", " ").replace("\n", " / ")[:200]
-        return {"ok": False, "error": ("Vision a lu, mais code non reconnu. Texte: " + _preview)}
-    return {"ok": True, "code": code, "serie": serie, "montant": montant, "type": typ}
+    import re as _re
+    _cands = []
+    for _m in _re.findall(r"[0-9][0-9 ]{7,}[0-9]", txt or ""):
+        _c = _re.sub(r"\s", "", _m)
+        if len(_c) >= 8 and _c not in _cands:
+            _cands.append(_c)
+    _cands.sort(key=len, reverse=True)
+    _cd = _re.sub(r"\D", "", code or "")
+    if _cands and (not code or len(_cd) < 8):
+        code = _cands[0]
+    _preview = (txt or "").replace("\r", " ").replace("\n", " / ")[:300]
+    if not code and not _cands:
+        return {"ok": False, "error": ("Texte lu mais aucun code trouve: " + _preview), "text": _preview, "candidates": []}
+    return {"ok": True, "code": code, "serie": serie, "montant": montant, "type": typ, "text": _preview, "candidates": _cands[:6]}
