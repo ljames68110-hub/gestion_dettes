@@ -2080,6 +2080,16 @@ def rentabilite_list():
     inc = request.args.get("hidden") == "1"
     return ok(db.get_rentabilite(include_hidden=inc))
 
+@app.route("/api/catalogue/<int:cid>/rentab-reset", methods=["POST"])
+@require_auth
+def catalogue_rentab_reset(cid):
+    from datetime import datetime as _dt
+    now = _dt.utcnow().isoformat(sep=' ', timespec='seconds')
+    with db.get_conn() as conn:
+        conn.execute("UPDATE catalogue SET rentab_reset=? WHERE id=?", (now, cid))
+        conn.commit()
+    return ok({"ok": True, "reset": now})
+
 @app.route("/api/catalogue/<int:cid>/rentab-hide", methods=["POST"])
 @require_auth
 def catalogue_rentab_hide(cid):

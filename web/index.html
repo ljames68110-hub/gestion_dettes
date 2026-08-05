@@ -5245,8 +5245,9 @@ async function loadRentab(){
     var etat=r.rembourse?'<span style="color:var(--green);font-weight:600">\u2713 rembours\u00e9</span>':(r.investi>0?'<span style="color:var(--text3)">reste '+reste.toFixed(2)+' \u20ac</span>':'<span style="color:var(--text3)">-</span>');
     var att=(r.en_attente||0)>0?'<span style="color:var(--gold2)">'+r.en_attente.toFixed(2)+' \u20ac</span>':'<span style="color:var(--text3)">-</span>';
     var hideBtn=r.rentab_hide?('<button class="btn" style="font-size:11px;padding:3px 8px" onclick="rentabHide('+r.id+',0)">\uD83D\uDC41 Afficher</button>'):('<button class="btn" style="font-size:11px;padding:3px 8px;background:var(--bg3)" onclick="rentabHide('+r.id+',1)" title="Masquer de la rentabilite">\u2715</button>');
+    hideBtn='<button class="btn" style="font-size:11px;padding:3px 8px;background:var(--bg3);margin-right:4px" onclick="rentabReset('+r.id+',\''+String(r.nom).replace(/'/g,'')+'\')" title="Reinitialiser les compteurs">\u21BA</button>'+hideBtn;
     body.innerHTML+='<tr style="border-bottom:1px solid var(--border)'+(r.rentab_hide?';opacity:0.5':'')+'">'
-      +'<td style="padding:12px 10px;font-weight:600">'+r.nom+'</td>'
+      +'<td style="padding:12px 10px;font-weight:600">'+r.nom+(r.rentab_reset?('<div style="font-size:10px;color:var(--text3);font-weight:400">reinitialise le '+r.rentab_reset.split(' ')[0].split('-').reverse().join('/')+'</div>'):'')+'</td>'
       +'<td style="padding:12px 10px;text-align:center">'+(r.stock||0)+'</td>'
       +'<td style="padding:12px 10px;text-align:center">'+(r.qty_vendue||0)+'</td>'
       +'<td style="padding:12px 10px;text-align:right">'+r.investi.toFixed(2)+' \u20ac</td>'
@@ -6577,6 +6578,25 @@ function _rdOcr(){
     rd.readAsDataURL(file);
   };
   inp.click();
+}
+</script>
+<script>
+function rentabReset(id,nom){
+  var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:100004;padding:16px';
+  var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:380px;max-width:94vw';
+  box.innerHTML='<div style="font-weight:700;font-size:16px;margin-bottom:8px">Reinitialiser \u00ab '+nom+' \u00bb ?</div>'
+    +'<div style="font-size:13px;color:var(--text2);margin-bottom:6px">Les compteurs de rentabilite (vendu, investi, recupere, benefice) repartent de zero a partir de maintenant.</div>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:16px">Les transactions et l historique des clients ne sont PAS touches. L investi repart du stock actuel.</div>'
+    +'<div style="display:flex;gap:8px"><button type="button" class="btn primary" id="_rrGo" style="flex:1">Reinitialiser</button><button type="button" class="btn" id="_rrNo" style="background:var(--bg3)">Annuler</button></div>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  function close(){ov.remove();}
+  box.querySelector('#_rrNo').onclick=close;ov.onclick=function(ev){if(ev.target===ov)close();};
+  box.querySelector('#_rrGo').onclick=async function(){
+    var r=await api('/api/catalogue/'+id+'/rentab-reset',{method:'POST',body:{}});
+    close();
+    if(r&&r.ok){notify('Compteurs reinitialises pour '+nom);loadRentab();}
+    else notify('Erreur','error');
+  };
 }
 </script>
 </body>
