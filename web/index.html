@@ -628,8 +628,8 @@ select option{background:var(--bg3)}
         <thead><tr style="background:var(--bg3);color:var(--text3);text-align:left">
         <th style="padding:10px">Article</th><th style="padding:10px;text-align:center">Stock</th>
         <th style="padding:10px;text-align:center">Vendu</th><th style="padding:10px;text-align:right">Investi</th>
-        <th style="padding:10px;text-align:right">R&eacute;cup&eacute;r&eacute;</th><th style="padding:10px;text-align:right">B&eacute;n&eacute;fice</th>
-        <th style="padding:10px">&Eacute;tat</th></tr></thead>
+        <th style="padding:10px;text-align:right">R&eacute;cup&eacute;r&eacute;</th><th style="padding:10px;text-align:right">En attente</th><th style="padding:10px;text-align:right">B&eacute;n&eacute;fice</th>
+        <th style="padding:10px">&Eacute;tat</th><th style="padding:10px"></th></tr></thead>
         <tbody id="rentabBody"></tbody></table></div></div>
         </div>
         <div class="page" id="pg-stock">
@@ -5225,33 +5225,49 @@ function zoomTile(el){var im=el.parentNode.querySelector('img');if(im&&typeof op
 function posToggleGratuit(id){var l=posCart.find(function(x){return x.id===id;});if(!l)return;l.gratuit=!l.gratuit;renderPosCart();updatePosTotals();}
 async function getConsoPersoClient(){var f=(clientsCache||[]).find(function(c){return (c.nom||'').toLowerCase()==='conso perso';});if(f)return f.id;var r=await api('/api/clients',{method:'POST',body:{nom:'Conso perso'}});if(r&&r.ok&&r.data){if(typeof loadClients==='function'){try{await loadClients();}catch(e){}}return r.data.id;}return null;}
 async function loadRentab(){
-  var res=await api('/api/rentabilite');
+  var res=await api('/api/rentabilite'+(window._rentabShowHidden?'?hidden=1':''));
   var body=document.getElementById('rentabBody');
   var sum=document.getElementById('rentabSummary');
   if(!body)return;
   var list=(res&&res.ok)?res.data:[];
-  var tInv=0,tRec=0,tBen=0,nbOk=0;
+  var tInv=0,tRec=0,tBen=0,tAtt=0,nbOk=0;
   body.innerHTML='';
-  if(!list.length){ body.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:24px">Aucun article</td></tr>'; }
+  if(!list.length){ body.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:24px">Aucun article</td></tr>'; }
+  var lastCat=null;
   list.forEach(function(r){
-    tInv+=r.investi; tRec+=r.recupere; tBen+=r.benefice; if(r.rembourse)nbOk++;
+    tInv+=r.investi; tRec+=r.recupere; tBen+=r.benefice; tAtt+=(r.en_attente||0); if(r.rembourse)nbOk++;
+    if(r.categorie!==lastCat){
+      lastCat=r.categorie;
+      body.innerHTML+='<tr><td colspan="9" style="padding:14px 10px 6px;font-weight:700;color:var(--gold2);font-size:13px;text-transform:uppercase;letter-spacing:0.5px">'+(r.categorie||'Sans categorie')+'</td></tr>';
+    }
     var col=r.benefice>=0?'var(--green)':'var(--red)';
     var reste=(r.investi-r.recupere);
     var etat=r.rembourse?'<span style="color:var(--green);font-weight:600">\u2713 rembours\u00e9</span>':(r.investi>0?'<span style="color:var(--text3)">reste '+reste.toFixed(2)+' \u20ac</span>':'<span style="color:var(--text3)">-</span>');
-    body.innerHTML+='<tr style="border-bottom:1px solid var(--border)">'
-      +'<td style="padding:9px 10px">'+r.nom+'</td>'
-      +'<td style="padding:9px 10px;text-align:center">'+(r.stock||0)+'</td>'
-      +'<td style="padding:9px 10px;text-align:center">'+(r.qty_vendue||0)+'</td>'
-      +'<td style="padding:9px 10px;text-align:right">'+r.investi.toFixed(2)+' \u20ac</td>'
-      +'<td style="padding:9px 10px;text-align:right">'+r.recupere.toFixed(2)+' \u20ac</td>'
-      +'<td style="padding:9px 10px;text-align:right;color:'+col+';font-weight:600">'+(r.benefice>=0?'+':'')+r.benefice.toFixed(2)+' \u20ac</td>'
-      +'<td style="padding:9px 10px">'+etat+'</td></tr>';
+    var att=(r.en_attente||0)>0?'<span style="color:var(--gold2)">'+r.en_attente.toFixed(2)+' \u20ac</span>':'<span style="color:var(--text3)">-</span>';
+    var hideBtn=r.rentab_hide?('<button class="btn" style="font-size:11px;padding:3px 8px" onclick="rentabHide('+r.id+',0)">\uD83D\uDC41 Afficher</button>'):('<button class="btn" style="font-size:11px;padding:3px 8px;background:var(--bg3)" onclick="rentabHide('+r.id+',1)" title="Masquer de la rentabilite">\u2715</button>');
+    body.innerHTML+='<tr style="border-bottom:1px solid var(--border)'+(r.rentab_hide?';opacity:0.5':'')+'">'
+      +'<td style="padding:12px 10px;font-weight:600">'+r.nom+'</td>'
+      +'<td style="padding:12px 10px;text-align:center">'+(r.stock||0)+'</td>'
+      +'<td style="padding:12px 10px;text-align:center">'+(r.qty_vendue||0)+'</td>'
+      +'<td style="padding:12px 10px;text-align:right">'+r.investi.toFixed(2)+' \u20ac</td>'
+      +'<td style="padding:12px 10px;text-align:right">'+r.recupere.toFixed(2)+' \u20ac</td>'
+      +'<td style="padding:12px 10px;text-align:right">'+att+'</td>'
+      +'<td style="padding:12px 10px;text-align:right;color:'+col+';font-weight:600">'+(r.benefice>=0?'+':'')+r.benefice.toFixed(2)+' \u20ac</td>'
+      +'<td style="padding:12px 10px">'+etat+'</td>'
+      +'<td style="padding:12px 6px;text-align:right">'+hideBtn+'</td></tr>';
   });
   var bc=tBen>=0?'var(--green)':'var(--red)';
   sum.innerHTML=_rcard('Investi total',tInv.toFixed(2)+' \u20ac','var(--gold2)')
     +_rcard('R\u00e9cup\u00e9r\u00e9 total',tRec.toFixed(2)+' \u20ac','var(--text)')
+    +_rcard('En attente (cr\u00e9dit)',tAtt.toFixed(2)+' \u20ac','var(--gold2)')
     +_rcard('B\u00e9n\u00e9fice total',(tBen>=0?'+':'')+tBen.toFixed(2)+' \u20ac',bc)
-    +_rcard('Articles rembours\u00e9s',nbOk+' / '+list.length,'var(--text)');
+    +_rcard('Articles rembours\u00e9s',nbOk+' / '+list.length,'var(--text)')
+    +'<div style="display:flex;align-items:flex-end"><button class="btn" style="font-size:12px" onclick="window._rentabShowHidden=!window._rentabShowHidden;loadRentab();">'+(window._rentabShowHidden?'Masquer les articles masqu\u00e9s':'Voir les articles masqu\u00e9s')+'</button></div>';
+}
+async function rentabHide(id,h){
+  var r=await api('/api/catalogue/'+id+'/rentab-hide',{method:'POST',body:{hide:h}});
+  if(r&&r.ok){notify(h?'Article masqu\u00e9 de la rentabilite':'Article de nouveau visible');loadRentab();}
+  else notify('Erreur','error');
 }
 function _rcard(label,val,col){
   return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:13px 18px;min-width:150px">'

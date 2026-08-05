@@ -2077,7 +2077,18 @@ def sim_cards_sold(sid):
 @app.route("/api/rentabilite")
 @require_auth
 def rentabilite_list():
-    return ok(db.get_rentabilite())
+    inc = request.args.get("hidden") == "1"
+    return ok(db.get_rentabilite(include_hidden=inc))
+
+@app.route("/api/catalogue/<int:cid>/rentab-hide", methods=["POST"])
+@require_auth
+def catalogue_rentab_hide(cid):
+    data = request.json or {}
+    h = 1 if data.get("hide") else 0
+    with db.get_conn() as conn:
+        conn.execute("UPDATE catalogue SET rentab_hide=? WHERE id=?", (h, cid))
+        conn.commit()
+    return ok({"ok": True, "hide": h})
 
 
 @app.route("/api/transactions/<int:tid>/photo-ticket", methods=["POST"])

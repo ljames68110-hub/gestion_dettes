@@ -862,6 +862,9 @@ def _ensure_catalogue_table():
         if "stock" not in cols:
             conn.execute("ALTER TABLE catalogue ADD COLUMN stock REAL DEFAULT 0")
             conn.commit()
+        if "rentab_hide" not in cols:
+            conn.execute("ALTER TABLE catalogue ADD COLUMN rentab_hide INTEGER DEFAULT 0")
+            conn.commit()
         if "photo" not in cols:
             conn.execute("ALTER TABLE catalogue ADD COLUMN photo TEXT DEFAULT ''")
             conn.commit()
@@ -1414,25 +1417,41 @@ def mark_sim_sold(sim_id, transaction_id=None, client_id=None, date_vente=None):
         return dict(conn.execute("SELECT * FROM sim_cards WHERE id=?", (sim_id,)).fetchone())
 
 
-def get_rentabilite():
-    """Rentabilite par article: investi=(stock+vendu)*prix_achat, recupere=CA des ventes."""
+def get_rentabilite(include_hidden=False):
+    """Rentabilite par article: investi=(stock+vendu)*prix_achat, recupere=comptant + credits rembourses."""
     _ensure_catalogue_table()
     with get_conn() as conn:
         arts = conn.execute(
             "SELECT id,nom,categorie,COALESCE(prix_achat,0) AS prix_achat,"
             "COALESCE(prix_vente,0) AS prix_vente,COALESCE(stock,0) AS stock,"
-            "COALESCE(unite,'piece') AS unite FROM catalogue WHERE actif=1 "
-            "ORDER BY categorie,nom"
+            "COALESCE(unite,'piece') AS unite,COALESCE(rentab_hide,0) AS rentab_hide "
+            "FROM catalogue WHERE actif=1 " + ("" if include_hidden else "AND COALESCE(rentab_hide,0)=0 ")
+            + "ORDER BY categorie,nom"
         ).fetchall()
         out = []
         for a in arts:
             r = conn.execute(
-                "SELECT COALESCE(SUM(quantite),0) AS q, COALESCE(SUM(CASE WHEN instr(COALESCE(notes,''),'[CAISSE CREDIT]')=0 THEN montant_brut ELSE 0 END),0) AS rev "
+                "SELECT COALESCE(SUM(CASE WHEN montant_brut>0 THEN quantite ELSE 0 END),0) AS q, "
+                "COALESCE(SUM(CASE WHEN instr(COALESCE(notes,''),'[CAISSE CREDIT]')=0 THEN montant_brut ELSE 0 END),0) AS rev_cash, "
+                "COALESCE(SUM(CASE WHEN instr(COALESCE(notes,''),'[CAISSE CREDIT]')>0 THEN montant_brut ELSE 0 END),0) AS rev_credit "
                 "FROM transactions WHERE type='debit' AND motif=?",
                 (a["nom"],)
             ).fetchone()
             qv = r["q"] or 0
-            recupere = round(r["rev"] or 0, 2)
+            rev_cash = round(r["rev_cash"] or 0, 2)
+            rev_credit = round(r["rev_credit"] or 0, 2)
+            rembourse_credit = 0.0
+            if rev_credit > 0:
+                rc = conn.execute(
+                    "SELECT COALESCE(SUM(c.montant_brut),0) FROM transactions c "
+                    "JOIN transactions d ON c.linked_debit_id=d.id "
+                    "WHERE c.type='credit' AND d.type='debit' AND d.motif=? "
+                    "AND instr(COALESCE(d.notes,''),'[CAISSE CREDIT]')>0",
+                    (a["nom"],)
+                ).fetchone()
+                rembourse_credit = round(min(float(rc[0] or 0), rev_credit), 2)
+            recupere = round(rev_cash + rembourse_credit, 2)
+            en_attente = round(max(0.0, rev_credit - rembourse_credit), 2)
             pa = a["prix_achat"] or 0
             investi = round((a["stock"] + qv) * pa, 2)
             benefice = round(recupere - investi, 2)
@@ -1441,7 +1460,8 @@ def get_rentabilite():
                 "id": a["id"], "nom": a["nom"], "categorie": a["categorie"],
                 "prix_achat": pa, "prix_vente": a["prix_vente"], "stock": a["stock"],
                 "qty_vendue": qv, "investi": investi, "recupere": recupere,
-                "benefice": benefice, "rembourse": rembourse,
+                "en_attente": en_attente, "benefice": benefice, "rembourse": rembourse,
+                "rentab_hide": int(a["rentab_hide"] or 0),
             })
         return out
 
