@@ -112,6 +112,7 @@ def _unlock_db():
                 _SALT = f.read()
         except Exception:
             print("[Gestion Perso] Sel introuvable, base illisible."); sys.exit(1)
+    _preserve_crash_db()
     _msg = "Entrez votre mot de passe :"
     for _ in range(5):
         pwd = _ask_password(_msg)
@@ -120,6 +121,7 @@ def _unlock_db():
         try:
             crypto_db.decrypt_file(ENC_PATH, DB_PATH, pwd, _SALT)
             DB_PASSWORD = pwd
+            _rescue_crash_db()
             print("[Gestion Perso] Base dechiffree.")
             return
         except InvalidToken:
@@ -240,12 +242,91 @@ def _start_phone_server():
     threading.Thread(target=_run, daemon=True).start()
     print("[Gestion Perso] Serveur scan telephone (HTTPS) demarre.")
 
+_AUTOSAVE_ON = False
+
+def _snapshot_encrypt(tag=""):
+    """Rechiffre la base courante (copie coherente SQLite) vers le .enc. Atomique."""
+    import sqlite3, tempfile
+    if DB_PASSWORD is None or _SALT is None or not os.path.exists(DB_PATH):
+        return False
+    import crypto_db
+    fd, tmpdb = tempfile.mkstemp(suffix=".db", dir=DATA_DIR, prefix=".gp_save_")
+    os.close(fd)
+    try:
+        src = sqlite3.connect(DB_PATH)
+        dst = sqlite3.connect(tmpdb)
+        with dst:
+            src.backup(dst)
+        dst.close(); src.close()
+        crypto_db.encrypt_file(tmpdb, ENC_PATH, DB_PASSWORD, _SALT)
+        return True
+    finally:
+        try:
+            os.remove(tmpdb)
+        except Exception:
+            pass
+
+def _autosave_loop(interval=180):
+    import time
+    while True:
+        time.sleep(interval)
+        try:
+            if _snapshot_encrypt("auto"):
+                print("[Gestion Perso] Sauvegarde auto OK")
+        except Exception as e:
+            print("[Gestion Perso] Sauvegarde auto echouee :", e)
+
+def _start_autosave():
+    global _AUTOSAVE_ON
+    if _AUTOSAVE_ON or DB_PASSWORD is None:
+        return
+    _AUTOSAVE_ON = True
+    threading.Thread(target=_autosave_loop, daemon=True).start()
+    print("[Gestion Perso] Sauvegarde automatique activee (3 min)")
+
+def _preserve_crash_db():
+    """Si un dettes.db en clair est plus recent que le .enc : arret brutal -> on le met de cote."""
+    try:
+        if not (os.path.exists(DB_PATH) and os.path.exists(ENC_PATH)):
+            return
+        if os.path.getmtime(DB_PATH) > os.path.getmtime(ENC_PATH) + 2:
+            os.replace(DB_PATH, DB_PATH + ".crash")
+            print("[Gestion Perso] Arret brutal detecte : base non rechiffree mise de cote.")
+    except Exception as e:
+        print("[Gestion Perso] Preservation crash echouee :", e)
+
+def _rescue_crash_db():
+    """Apres deverrouillage : chiffre la base rescapee dans backups/ puis efface le clair."""
+    src = DB_PATH + ".crash"
+    if not os.path.exists(src) or DB_PASSWORD is None or _SALT is None:
+        return
+    try:
+        import crypto_db, datetime, sqlite3
+        sqlite3.connect(src).close()
+        bdir = os.path.join(DATA_DIR, "backups")
+        os.makedirs(bdir, exist_ok=True)
+        stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        dst = os.path.join(bdir, "dettes-CRASH-" + stamp + ".db.enc")
+        crypto_db.encrypt_file(src, dst, DB_PASSWORD, _SALT)
+        print("[Gestion Perso] Base rescapee sauvegardee :", dst)
+    except Exception as e:
+        print("[Gestion Perso] Sauvegarde rescapee echouee :", e)
+    finally:
+        try:
+            os.remove(src)
+        except Exception:
+            pass
+
 def _ensure_flask_started():
     global _FLASK_STARTED
     if _FLASK_STARTED:
         return
     _FLASK_STARTED = True
     threading.Thread(target=start_flask, daemon=True).start()
+    try:
+        _start_autosave()
+    except Exception as _e:
+        print("[Gestion Perso] Autosave non demarre:", _e)
     try:
         _start_phone_server()
     except Exception as e:
@@ -363,8 +444,10 @@ def _do_unlock(pwd):
     except Exception:
         InvalidToken = ()
     try:
+        _preserve_crash_db()
         crypto_db.decrypt_file(ENC_PATH, DB_PATH, pwd, _SALT)
         DB_PASSWORD = pwd
+        _rescue_crash_db()
     except InvalidToken:
         return {"ok": False, "error": "Mot de passe incorrect"}
     except (PermissionError, OSError):
