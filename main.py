@@ -18,25 +18,30 @@ def base_dir():
 
 def data_dir():
     if getattr(sys, "frozen", False):
-        home = os.path.expanduser("~")
-        docs = os.path.join(home, "Documents")
-        if not os.path.isdir(docs):
-            docs = home
-        d = os.path.join(docs, "GestionPerso")
+        appdata = os.environ.get("APPDATA", "") or os.path.join(os.path.expanduser("~"), "AppData", "Roaming")
+        d = os.path.join(appdata, "GestionPerso")
         os.makedirs(d, exist_ok=True)
+        # Migration unique depuis Documents\GestionPerso (ancien emplacement)
         try:
-            new_db = os.path.join(d, "dettes.db")
-            if not os.path.exists(new_db):
-                appdata = os.environ.get("APPDATA", "")
-                if appdata:
-                    old_dir = os.path.join(appdata, "GestionPerso")
-                    old_db = os.path.join(old_dir, "dettes.db")
-                    if os.path.exists(old_db):
-                        import shutil
-                        shutil.copy2(old_db, new_db)
-                        old_bak = os.path.join(old_dir, "dettes_backup.db")
-                        if os.path.exists(old_bak):
-                            shutil.copy2(old_bak, os.path.join(d, "dettes_backup.db"))
+            if not os.path.exists(os.path.join(d, "dettes.db.enc")) and not os.path.exists(os.path.join(d, "dettes.db")):
+                home = os.path.expanduser("~")
+                old_dir = os.path.join(home, "Documents", "GestionPerso")
+                if os.path.isdir(old_dir):
+                    import shutil
+                    for _n in ("dettes.db.enc", "dettes.salt", "dettes.db", "dettes_backup.db"):
+                        _s = os.path.join(old_dir, _n)
+                        if os.path.exists(_s):
+                            shutil.copy2(_s, os.path.join(d, _n))
+                    _ob = os.path.join(old_dir, "backups")
+                    if os.path.isdir(_ob):
+                        _nb = os.path.join(d, "backups")
+                        os.makedirs(_nb, exist_ok=True)
+                        for _n in os.listdir(_ob):
+                            try:
+                                shutil.copy2(os.path.join(_ob, _n), os.path.join(_nb, _n))
+                            except Exception:
+                                pass
+                    print("[Gestion Perso] Donnees migrees depuis Documents vers AppData")
         except Exception:
             pass
         return d
