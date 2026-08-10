@@ -14,3 +14,4 @@ dettes.db.enc
 dettes.salt
 dettes_*.db
 *.bak
+_archive_*/
