@@ -408,6 +408,56 @@ def _boot_app_after_unlock():
 
 
 class _GpApi:
+    def screens(self):
+        try:
+            mons = _monitors()
+            cur = _win_cfg().get("screen", None)
+            return {"ok": True, "current": cur,
+                    "screens": [{"index": i, "w": m["w"], "h": m["h"], "primary": m["primary"]}
+                                for i, m in enumerate(mons)]}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def set_screen(self, i):
+        try:
+            i = int(i)
+            cfg = _win_cfg(); cfg["screen"] = i; _win_cfg_save(cfg)
+            import webview as _wv
+            wins = list(getattr(_wv, "windows", []) or [])
+            if wins:
+                _place_window(wins[0], i)
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def open_second(self, i=None, page=""):
+        try:
+            import webview as _wv
+            mons = _monitors()
+            if not mons:
+                return {"ok": False, "error": "Aucun ecran detecte"}
+            try:
+                idx = int(i)
+            except Exception:
+                idx = None
+            if idx is None or not (0 <= idx < len(mons)):
+                main_i, _ = _screen_index(None)
+                idx = next((k for k in range(len(mons)) if k != main_i), main_i)
+            w2 = _wv.create_window(
+                title            = "Gestion Perso - 2e ecran",
+                url              = URL + (page or ""),
+                frameless        = True,
+                easy_drag        = False,
+                width            = 1280,
+                height           = 800,
+                background_color = "#0a0a0f",
+                js_api           = _GpApi(),
+            )
+            threading.Timer(1.0, lambda: _place_window(w2, idx)).start()
+            return {"ok": True, "screen": idx}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
     def minimize(self):
         try:
             import webview as _wv
@@ -480,7 +530,7 @@ def _open_main_window():
         webview.create_window(
             title            = "Gestion Perso",
             frameless        = True,
-            easy_drag        = True,
+            easy_drag        = False,
             url              = URL,
             width            = 1280,
             height           = 800,
@@ -490,20 +540,101 @@ def _open_main_window():
             background_color = "#0a0a0f",
             js_api           = _GpApi(),
         )
-        webview.start(debug=False, icon=icon, gui="edgechromium")
+        def _pw1():
+            try:
+                import webview as _wv
+                _ws = list(getattr(_wv, "windows", []) or [])
+                if _ws:
+                    _place_window(_ws[0])
+            except Exception:
+                pass
+        webview.start(_pw1, debug=False, icon=icon, gui="edgechromium")
         _save_backup_on_exit()
     except ImportError:
         print("[Gestion Perso] PyWebView absent - navigateur")
         import webbrowser; webbrowser.open(URL)
 
 
-def _place_window(win):
-    """Place la fenetre frameless sur la zone de travail (plein ecran hors barre des taches)."""
+WIN_CFG_PATH = os.path.join(DATA_DIR, "window.json")
+
+def _win_cfg():
+    try:
+        import json
+        with open(WIN_CFG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f) or {}
+    except Exception:
+        return {}
+
+def _win_cfg_save(d):
+    try:
+        import json
+        with open(WIN_CFG_PATH, "w", encoding="utf-8") as f:
+            json.dump(d, f)
+    except Exception:
+        pass
+
+def _monitors():
+    out = []
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        class RECT(ctypes.Structure):
+            _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
+                        ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+        class MONITORINFO(ctypes.Structure):
+            _fields_ = [("cbSize", ctypes.c_ulong), ("rcMonitor", RECT),
+                        ("rcWork", RECT), ("dwFlags", ctypes.c_ulong)]
+        PROC = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p,
+                                  ctypes.POINTER(RECT), ctypes.c_void_p)
+        def _cb(hmon, hdc, lprc, lparam):
+            try:
+                mi = MONITORINFO()
+                mi.cbSize = ctypes.sizeof(MONITORINFO)
+                if user32.GetMonitorInfoW(ctypes.c_void_p(hmon), ctypes.byref(mi)):
+                    w = mi.rcWork
+                    out.append({"x": int(w.left), "y": int(w.top),
+                                "w": int(w.right - w.left), "h": int(w.bottom - w.top),
+                                "primary": bool(mi.dwFlags & 1)})
+            except Exception:
+                pass
+            return 1
+        user32.EnumDisplayMonitors(None, None, PROC(_cb), 0)
+    except Exception as e:
+        print("[Gestion Perso] Detection ecrans impossible :", e)
+    return out
+
+def _screen_index(idx=None):
+    mons = _monitors()
+    if not mons:
+        return None, []
+    if idx is None:
+        try:
+            idx = int(_win_cfg().get("screen", -1))
+        except Exception:
+            idx = -1
+    if not (0 <= idx < len(mons)):
+        idx = next((i for i, m in enumerate(mons) if m.get("primary")), 0)
+    return idx, mons
+
+def _place_window(win, idx=None):
+    """Place la fenetre plein ecran sur l'ecran choisi (hors barre des taches)."""
     try:
         try:
             win.restore()
         except Exception:
             pass
+        _i, _mons = _screen_index(idx)
+        if _mons:
+            m = _mons[_i]
+            try:
+                win.resize(m["w"], m["h"])
+            except Exception:
+                pass
+            try:
+                win.move(m["x"], m["y"])
+            except Exception:
+                pass
+            return
         import ctypes
         class _RECT(ctypes.Structure):
             _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
@@ -553,7 +684,7 @@ def main():
                     _win = webview.create_window(
                         title            = "Gestion Perso",
                         frameless        = True,
-                        easy_drag        = True,
+                        easy_drag        = False,
                         url              = URL + "/login.html?v=" + str(int(time.time())),
                         width            = 1280,
                         height           = 800,
