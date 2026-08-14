@@ -348,15 +348,38 @@ def lire_ticket(photo, lang="fra", hint="", api_key="", prefer_cloud=False):
                     break
 
     import re as _re
-    _cands = []
+    _up = (txt or "").upper()
+    _upc = _re.sub(r"[^A-Z0-9]", "", _up)
+    _JUNK = ("MYPCS","MONTANT","MASTERCARD","RECHARGE","TICKET","SECRET","VALABLE","SERIENR","INFINITY","ABSOLUT","NEOSURF","TRANSCASH","PAYSAFE")
+    def _isjunk(_tk):
+        return any(_j[:6] in _tk for _j in _JUNK)
+    # PCS = M + 9 caracteres (10 au total), au moins 4 chiffres
+    _mcands = []
+    for _tk in _re.findall(r"M[A-Z0-9]{9}", _upc):
+        if _isjunk(_tk):
+            continue
+        if len(_re.sub(r"[^0-9]", "", _tk)) >= 4 and _tk not in _mcands:
+            _mcands.append(_tk)
+    _mcands.sort(key=lambda c: len(_re.sub(r"[^0-9]", "", c)), reverse=True)
+    # suites de chiffres pures (Transcash, Paysafecard...)
+    _dcands = []
     for _m in _re.findall(r"[0-9][0-9 ]{7,}[0-9]", txt or ""):
         _c = _re.sub(r"\s", "", _m)
-        if len(_c) >= 8 and _c not in _cands:
-            _cands.append(_c)
-    _cands.sort(key=len, reverse=True)
+        if len(_c) >= 8 and _c not in _dcands:
+            _dcands.append(_c)
+    _dcands.sort(key=len, reverse=True)
+    _ispcs = ("PCS" in (hint or "").upper()) or ("PCS" in _up)
+    if _ispcs:
+        _cands = _mcands + [c for c in _dcands if c not in _mcands]
+    else:
+        _cands = _dcands + [c for c in _mcands if c not in _dcands]
     _cd = _re.sub(r"\D", "", code or "")
-    if _cands and (not code or len(_cd) < 8):
-        code = _cands[0]
+    _code_ok = bool(code) and ((code[:1].upper() == "M" and len(code) == 10 and len(_cd) >= 4) or (code[:1].upper() != "M" and len(_cd) >= 8))
+    if not _code_ok:
+        if _ispcs and _mcands:
+            code = _mcands[0]
+        elif _cands:
+            code = _cands[0]
     _preview = (txt or "").replace("\r", " ").replace("\n", " / ")[:300]
     if not code and not _cands:
         return {"ok": False, "error": ("Texte lu mais aucun code trouve: " + _preview), "text": _preview, "candidates": []}
