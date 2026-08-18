@@ -2253,7 +2253,7 @@ function openTransDetail(id){
   document.getElementById('detailSub').innerHTML='<span class="badge '+t.type+'">'+(t.type==='credit'?'Remboursement':'Vente')+'</span>';
   const col=t.type==='debit'?'var(--green)':'var(--red)';
   document.getElementById('detailBody').innerHTML='<div style="background:var(--bg3);border-radius:var(--radius2);padding:20px;text-align:center;margin-bottom:16px"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">'+(t.type==='debit'?'Montant vendu':'Remboursement reçu')+'</div><div style="font-size:36px;font-weight:600;font-family:DM Mono,monospace;color:'+col+'">'+(t.type==='debit'?'+':'-')+fmt(t.montant_net)+'</div></div>'+drRow('Client',t.client_nom||'—',null)+drRow('Date',fmtDate(t.date),null)+drRow('Motif',t.motif,null)+(t.type==='debit'?'':drRow('Mode',t.mode_paiement,null))+drRow('Quantite',(t.quantite||1)+' '+(t.unite==='gramme'?'g':'pcs'),null)+drRow('Prix unitaire',fmt(t.prix_unitaire),null)+drRow('Montant brut',fmt(t.montant_brut),null)+drRow('Frais',fmt(t.frais),t.frais>0?'var(--red)':null)+drRow('Montant net',fmt(t.montant_net),col)+(t.entree_description?drRow('Entree materiel','📦 '+t.entree_description+(t.entree_date?' — '+fmtDate(t.entree_date):''),'var(--gold2)'):'')+(_sim?drRow('Carte SIM','Tel '+_sim.puce+(_sim.last4?(' / serie '+_sim.last4):'')+(_sim.puk?(' / PUK '+_sim.puk):''),'var(--gold2)'):'')+(_tk?drRow('Code ticket',_tk,'var(--gold2)'):'')+(_ech?drRow('Remboursement prevu',_ech.split('-').reverse().join('/'),'var(--gold2)'):'')+(_notesC&&_notesC.trim()?drRow('Notes',_notesC,'var(--text3)'):'')+(t.reference?drRow('Reference',t.reference,null):'')+_ticketPhotoBlock(t);
-  if(t&&t.signature){try{document.getElementById('detailBody').innerHTML+='<div style="margin-top:10px"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">Signature client</div><img src="'+t.signature+'" style="max-width:100%;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer" onclick="_sigView(this.src)"></div>';}catch(e){}}document.getElementById('modalDetail').classList.add('open');
+  if(t&&t.signature){try{document.getElementById('detailBody').innerHTML+='<div style="margin-top:10px"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">Signature client</div><img src="'+t.signature+'" style="max-width:100%;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer" onclick="_sigView(this.src)"></div>';}catch(e){}}if(t.type==='debit'){var _isP=(t.notes||'').indexOf('[CAISSE PAYE]')>=0;var _lb=_isP?'Vente <b>comptant (pay\u00e9e)</b> \u2014 ne compte pas dans la dette':'Vente <b>\u00e0 cr\u00e9dit (dette)</b> \u2014 compte dans la dette';var _bt=_isP?'\u21bb Basculer en dette (\u00e0 cr\u00e9dit)':'\u21bb Basculer en comptant (pay\u00e9)';var _db=document.getElementById('detailBody');if(_db)_db.innerHTML+='<div style="background:var(--bg3);border-radius:10px;padding:12px;margin-top:8px"><div style="font-size:12px;color:var(--text3);margin-bottom:8px">'+_lb+'</div><button class="btn" style="width:100%;background:var(--gold2);color:#1a1a1a" onclick="toggleDettePaye('+t.id+','+(_isP?'false':'true')+')">'+_bt+'</button></div>';}document.getElementById('modalDetail').classList.add('open');
 }
 function drRow(label,val,color){return '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;color:var(--text3)">'+label+'</span><span style="font-size:13px;font-weight:500;'+(color?'color:'+color+';':'')+'font-family:DM Mono,monospace">'+val+'</span></div>';}
 function deleteTransFromDetail(){closeModal('detail');setTimeout(()=>deleteTrans(currentDetailId),200);}
@@ -6658,6 +6658,22 @@ async function ouvrirDeuxiemeEcran(){
   }catch(e){notify('Erreur : '+e,'error');}
 }
 document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){try{if(document.getElementById('ecransList'))chargerEcrans();}catch(e){}},1500);});
+</script>
+<script>
+async function toggleDettePaye(id,paye){
+  var r=await api('/api/transactions/'+id+'/set-paye',{method:'POST',body:{paye:paye}});
+  if(r&&r.ok){
+    var x=(typeof allTransactions!=='undefined'?allTransactions.find(function(y){return y.id===parseInt(id);}):null);
+    if(x)x.notes=r.data.notes;
+    if(typeof clientTransactions!=='undefined'&&clientTransactions[id])clientTransactions[id].notes=r.data.notes;
+    notify(paye?'Vente marquee comptant (payee)':'Vente marquee a credit (dette)','success');
+    closeModal('detail');
+    if(typeof loadSolde==='function')loadSolde();
+    if(typeof loadClients==='function')loadClients();
+    if(typeof loadTransactions==='function')loadTransactions();
+    if(typeof loadDettesOuvertes==='function')loadDettesOuvertes();
+  } else notify((r&&r.error)||'Erreur','error');
+}
 </script>
 </body>
 </html>

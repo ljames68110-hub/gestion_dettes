@@ -2080,6 +2080,26 @@ def rentabilite_list():
     inc = request.args.get("hidden") == "1"
     return ok(db.get_rentabilite(include_hidden=inc))
 
+@app.route("/api/transactions/<int:tid>/set-paye", methods=["POST"])
+@require_auth
+def transaction_set_paye(tid):
+    data = request.json or {}
+    paye = bool(data.get("paye"))
+    with db.get_conn() as conn:
+        row = conn.execute("SELECT notes, type FROM transactions WHERE id=?", (tid,)).fetchone()
+        if not row:
+            return err("Transaction introuvable", 404)
+        if row["type"] != "debit":
+            return err("Seule une vente (debit) peut etre basculee")
+        notes = row["notes"] or ""
+        notes = notes.replace("[CAISSE PAYE]", "").replace("[CAISSE CREDIT]", "")
+        notes = " ".join(notes.split())
+        tag = "[CAISSE PAYE]" if paye else "[CAISSE CREDIT]"
+        notes = (tag + " " + notes).strip()
+        conn.execute("UPDATE transactions SET notes=? WHERE id=?", (notes, tid))
+        conn.commit()
+    return ok({"ok": True, "paye": paye, "notes": notes})
+
 @app.route("/api/catalogue/<int:cid>/rentab-reset", methods=["POST"])
 @require_auth
 def catalogue_rentab_reset(cid):
