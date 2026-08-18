@@ -1445,7 +1445,7 @@ async function loadDashboard(){
     barChart=new Chart(document.getElementById('chartBar'),{type:'bar',data:{labels:mois.map(m=>m.mois),datasets:[{label:'Débit',data:mois.map(m=>m.debit),backgroundColor:'rgba(46,204,113,.6)',borderColor:'#2ecc71',borderWidth:1,borderRadius:4},{label:'Crédit',data:mois.map(m=>m.credit),backgroundColor:'rgba(231,76,60,.5)',borderColor:'#e74c3c',borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6b6985'},grid:{color:'rgba(42,42,58,.8)'}},y:{ticks:{color:'#6b6985'},grid:{color:'rgba(42,42,58,.8)'}}}}});
     const modes=d.par_mode||[];
     if(doughnutChart)doughnutChart.destroy();
-    if(modes.length)doughnutChart=new Chart(document.getElementById('chartDoughnut'),{type:'doughnut',data:{labels:modes.map(m=>m.mode),datasets:[{data:modes.map(m=>m.total),backgroundColor:['#c9a84c','#4a90d9','#2ecc71','#8b5cf6','#e74c3c'],borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'72%',plugins:{legend:{position:'bottom',labels:{color:'#9b99b0',font:{size:11},boxWidth:10}}}}});
+    if(modes.length)doughnutChart=new Chart(document.getElementById('chartDoughnut'),{type:'doughnut',data:{labels:modes.map(m=>m.mode),datasets:[{data:modes.map(m=>m.total),backgroundColor:_modeColors(modes.map(m=>m.mode)),borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'72%',plugins:{legend:{position:'bottom',labels:{color:'#9b99b0',font:{size:11},boxWidth:10}}}}});
   }
   loadMensual();
   const tres=await api('/api/transactions?limit=10');
@@ -6673,6 +6673,18 @@ async function toggleDettePaye(id,paye){
     if(typeof loadTransactions==='function')loadTransactions();
     if(typeof loadDettesOuvertes==='function')loadDettesOuvertes();
   } else notify((r&&r.error)||'Erreur','error');
+}
+</script>
+<script>
+function _modeColors(labels){
+  var M={'Liquide':'#2ecc71','PCS':'#e74c3c','Paysafecard':'#16a085','Transcash':'#e67e22','Virement':'#3498db','Mixte':'#8b5cf6','Associe':'#c9a84c','Associ\u00e9':'#c9a84c','Cantine':'#00acc1','Remise':'#e91e63','Produits':'#1abc9c','Paquet de blonde':'#dab600','Paquet de tabac':'#795548','Pot de tabac':'#a1723b','Autre':'#95a5a6'};
+  var P=['#9b59b6','#34495e','#ff7043','#27ae60','#c0392b','#7f8c8d','#2980b9','#f39c12','#8e44ad','#d81b60'];
+  var used={},pi=0;
+  return (labels||[]).map(function(lb){
+    var c=M[lb];
+    if(!c||used[c]){while(pi<P.length&&used[P[pi]])pi++;if(pi<P.length){c=P[pi++];}else{var h=0,i;for(i=0;i<(lb||'').length;i++){h=((h<<5)-h+lb.charCodeAt(i))|0;}c='#'+('00000'+(Math.abs(h)&0xffffff).toString(16)).slice(-6);}}
+    used[c]=1;return c;
+  });
 }
 </script>
 </body>
