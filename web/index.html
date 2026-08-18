@@ -1411,7 +1411,7 @@ function goPage(name,el){
   document.getElementById('searchInput').value='';
   if(name==='dashboard')loadDashboard();
   if(name==='clients')loadClients();
-  if(name==='transactions')loadTransactions();
+  if(name==='transactions'){window._transModeFilter=window._transModeFilterPending||null;window._transModeFilterPending=null;loadTransactions();}
   if(name==='soldes')initSoldes();
   if(name==='settings'){initSettings();loadMotifs();loadTarifs();loadVisionKey();}
   if(name==='rappels')loadRappels();
@@ -1445,7 +1445,7 @@ async function loadDashboard(){
     barChart=new Chart(document.getElementById('chartBar'),{type:'bar',data:{labels:mois.map(m=>m.mois),datasets:[{label:'Débit',data:mois.map(m=>m.debit),backgroundColor:'rgba(46,204,113,.6)',borderColor:'#2ecc71',borderWidth:1,borderRadius:4},{label:'Crédit',data:mois.map(m=>m.credit),backgroundColor:'rgba(231,76,60,.5)',borderColor:'#e74c3c',borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6b6985'},grid:{color:'rgba(42,42,58,.8)'}},y:{ticks:{color:'#6b6985'},grid:{color:'rgba(42,42,58,.8)'}}}}});
     const modes=d.par_mode||[];
     if(doughnutChart)doughnutChart.destroy();
-    if(modes.length)doughnutChart=new Chart(document.getElementById('chartDoughnut'),{type:'doughnut',data:{labels:modes.map(m=>m.mode),datasets:[{data:modes.map(m=>m.total),backgroundColor:_modeColors(modes.map(m=>m.mode)),borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'72%',plugins:{legend:{position:'bottom',labels:{color:'#9b99b0',font:{size:11},boxWidth:10}}}}});
+    if(modes.length)doughnutChart=new Chart(document.getElementById('chartDoughnut'),{type:'doughnut',data:{labels:modes.map(m=>m.mode),datasets:[{data:modes.map(m=>m.total),backgroundColor:_modeColors(modes.map(m=>m.mode)),borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'72%',onClick:function(evt,els){if(els&&els.length){var _m=modes[els[0].index];if(_m&&typeof openTransByMode==='function')openTransByMode(_m.mode);}},plugins:{legend:{position:'bottom',onClick:function(e,item){var _m=modes[item.index];if(_m&&typeof openTransByMode==='function')openTransByMode(_m.mode);},labels:{color:'#9b99b0',font:{size:11},boxWidth:10}}}}});
   }
   loadMensual();
   const tres=await api('/api/transactions?limit=10');
@@ -1580,8 +1580,10 @@ function renderTransactions(){
   if(fc)list=list.filter(t=>String(t.client_id)===fc);
   if(ft)list=list.filter(t=>t.type===ft);
   if(fco)list=list.filter(t=>(t.compte||'euro')===fco);
-  const tbody=document.getElementById('transTbody');tbody.innerHTML='';
-  if(!list.length){tbody.innerHTML='<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:24px">Aucune transaction</td></tr>';return;}
+  if(window._transModeFilter)list=list.filter(t=>(t.mode_paiement||'')===window._transModeFilter);
+  var _tbn=window._transModeFilter?('<tr><td colspan="11" style="padding:10px;background:rgba(212,175,55,0.14)">Filtre mode : <b>'+window._transModeFilter+'</b> <button class="btn" style="font-size:11px;padding:2px 8px;margin-left:6px" onclick="clearTransMode()">\u2715 enlever</button></td></tr>'):'';
+  const tbody=document.getElementById('transTbody');tbody.innerHTML=(typeof _tbn!=='undefined'?_tbn:'');
+  if(!list.length){tbody.innerHTML=(typeof _tbn!=='undefined'?_tbn:'')+'<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:24px">Aucune transaction</td></tr>';return;}
   list.forEach(t=>{
     const tr=document.createElement('tr');tr.style.cursor='pointer';
     tr.onclick=(e)=>{if(!e.target.closest('button'))openTransDetail(t.id);};
@@ -6726,6 +6728,14 @@ document.addEventListener('keydown',function(e){
   if(ls&&ls.style.display!=='none')return;
   e.preventDefault();openQuickClient();
 });
+</script>
+<script>
+function openTransByMode(mode){
+  window._transModeFilterPending=mode;
+  var el=document.querySelector('.nav-item[onclick*="transactions"]');
+  if(typeof goPage==='function')goPage('transactions',el);
+}
+function clearTransMode(){window._transModeFilter=null;if(typeof renderTransactions==='function')renderTransactions();}
 </script>
 </body>
 </html>
