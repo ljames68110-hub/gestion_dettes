@@ -1421,7 +1421,7 @@ def mark_sim_sold(sim_id, transaction_id=None, client_id=None, date_vente=None):
 
 
 def get_rentabilite(include_hidden=False):
-    """Rentabilite par article ET par lot (entree). Chaque vente est reliee a un lot via entree_id."""
+    """Rentabilite par article ET par lot. investi = total du lot (sauf creation/conversion = unitaire)."""
     _ensure_catalogue_table()
     with get_conn() as conn:
         arts = conn.execute(
@@ -1450,17 +1450,23 @@ def get_rentabilite(include_hidden=False):
             ).fetchone()
             return round(float(rc[0] or 0), 2)
 
+        def lot_investi(e):
+            _en = (e["notes"] or "").strip().lower()
+            if _en.startswith("creation article") or _en.startswith("conversion"):
+                return round((e["quantite"] or 0) * (e["prix_achat"] or 0), 2)
+            return round(e["prix_achat"] or 0, 2)
+
         out = []
         for a in arts:
             nom = a["nom"]; pa_def = a["prix_achat"] or 0; reset = a["rentab_reset"] or ""
             if reset:
                 ents = conn.execute(
-                    "SELECT id,date,COALESCE(quantite,0) AS quantite,COALESCE(prix_achat,0) AS prix_achat "
+                    "SELECT id,date,COALESCE(quantite,0) AS quantite,COALESCE(prix_achat,0) AS prix_achat,COALESCE(notes,'') AS notes "
                     "FROM entrees_materiel WHERE description=? AND date(date) >= date(?) ORDER BY date,id",
                     (nom, reset)).fetchall()
             else:
                 ents = conn.execute(
-                    "SELECT id,date,COALESCE(quantite,0) AS quantite,COALESCE(prix_achat,0) AS prix_achat "
+                    "SELECT id,date,COALESCE(quantite,0) AS quantite,COALESCE(prix_achat,0) AS prix_achat,COALESCE(notes,'') AS notes "
                     "FROM entrees_materiel WHERE description=? ORDER BY date,id", (nom,)).fetchall()
             lots = []
             tot_inv = tot_rec = tot_att = tot_ben = tot_vendu = 0.0
@@ -1471,7 +1477,7 @@ def get_rentabilite(include_hidden=False):
                     remb = min(reimbursed("d.entree_id=? AND instr(COALESCE(d.notes,''),'[CAISSE CREDIT]')>0", (e["id"],)), rev_credit)
                 recupere = round(rev_cash + remb, 2)
                 en_attente = round(max(0.0, rev_credit - remb), 2)
-                investi = round(e["quantite"] * e["prix_achat"], 2)
+                investi = lot_investi(e)
                 benefice = round(recupere - investi, 2)
                 lots.append({"entree_id": e["id"], "date": e["date"], "quantite": e["quantite"],
                              "prix_achat": e["prix_achat"], "investi": investi, "vendu": q,
