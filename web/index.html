@@ -5267,7 +5267,7 @@ async function loadRentab(){
       var latt=(l.en_attente||0)>0?('<span style="color:var(--gold2)">'+l.en_attente.toFixed(2)+' \u20ac</span>'):'<span style="color:var(--text3)">-</span>';
       var letat=l.rembourse?'<span style="color:var(--green)">\u2713</span>':(l.investi>0?'<span style="color:var(--text3)">reste '+(l.investi-l.recupere).toFixed(2)+'</span>':'-');
       H+='<tr class="_rlot _rlot'+ri+'" style="display:none;background:rgba(255,255,255,0.02);border-bottom:1px solid var(--border)">'
-        +'<td style="padding:8px 10px 8px 34px;font-size:12px;color:var(--text2)">'+lbl+(l.quantite?(' <span style="color:var(--text3)">('+l.quantite+' \u00d7 '+(l.prix_achat||0).toFixed(2)+' \u20ac)</span>'):'')+'</td>'
+        +'<td style="padding:8px 10px 8px 34px;font-size:12px;color:var(--text2)">'+lbl+(l.quantite?(' <span style="color:var(--text3)">('+l.quantite+' \u2014 co\u00fbt '+l.investi.toFixed(2)+' \u20ac)</span>'):'')+'</td>'
         +'<td></td>'
         +'<td style="padding:8px 10px;text-align:center;font-size:12px">'+(l.vendu||0)+'</td>'
         +'<td style="padding:8px 10px;text-align:right;font-size:12px">'+l.investi.toFixed(2)+' \u20ac</td>'
