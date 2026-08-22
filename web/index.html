@@ -4299,7 +4299,7 @@ function renderPosCart(){
     var row=document.createElement('div');row.className='pos-line';
     var priceHtml=l.gratuit
       ?'<span style="font-size:11px;color:var(--gold2)">Gratuit</span>'
-      :'<input type="number" value="'+l.prix.toFixed(2)+'" step="0.5" min="0" onclick="event.stopPropagation()" onchange="posSetPrice('+l.id+',this.value)" style="width:74px;font-size:11px;padding:2px 5px;border-radius:5px;border:1px solid var(--border);background:var(--bg2);color:var(--text)"> <span style="font-size:10px;color:var(--text3)">EUR</span>';
+      :'<input type="number" value="'+(Math.round(l.prix*10000)/10000)+'" step="any" min="0" inputmode="decimal" onclick="event.stopPropagation()" onchange="posSetPrice('+l.id+',this.value)" style="width:74px;font-size:11px;padding:2px 5px;border-radius:5px;border:1px solid var(--border);background:var(--bg2);color:var(--text)"> <span style="font-size:10px;color:var(--text3)">EUR</span> <button onclick="event.stopPropagation();posGramPrice('+l.id+')" title="Prix par grammage" style="font-size:10px;padding:2px 6px;border-radius:5px;border:1px solid var(--border);background:var(--gold2);color:#1a1a1a;cursor:pointer">&#8364;/g</button>';
     row.innerHTML='<div class="lname">'+l.nom+'<br>'+priceHtml+'</div><div class="lqty"><button onclick="posChangeQty('+l.id+',-1)">-</button><input type="number" value="'+l.qty+'" min="0" step="1" onchange="posSetQty('+l.id+',this.value)"><button onclick="posChangeQty('+l.id+',1)">+</button></div><div class="lsub">'+sub.toFixed(2)+'</div>'+'<button onclick="posToggleGratuit('+l.id+')" style="border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;margin-right:4px;background:transparent;color:'+(l.gratuit?'var(--gold2)':'var(--text3)')+'">'+(l.gratuit?'Gratuit':'Offrir')+'</button>'+'<button class="ldel" onclick="posRemove('+l.id+')">x</button>';
     body.appendChild(row);
   });
@@ -6736,6 +6736,35 @@ function openTransByMode(mode){
   if(typeof goPage==='function')goPage('transactions',el);
 }
 function clearTransMode(){window._transModeFilter=null;if(typeof renderTransactions==='function')renderTransactions();}
+</script>
+<script>
+function posGramPrice(id){
+  var line=posCart.find(function(l){return l.id===id;});
+  if(!line)return;
+  var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100010;padding:16px';
+  var box=document.createElement('div');box.style.cssText='background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:20px;width:340px;max-width:94vw';
+  var ip='width:100%;padding:10px;margin:4px 0 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);box-sizing:border-box';
+  box.innerHTML='<div style="font-weight:700;margin-bottom:12px">Prix par grammage</div>'
+    +'<label style="font-size:12px;color:var(--text3)">Combien de grammes ?</label>'
+    +'<input type="number" id="_gpG" step="any" min="0" inputmode="decimal" placeholder="ex: 3.5" style="'+ip+'">'
+    +'<label style="font-size:12px;color:var(--text3)">Le client paie combien (EUR) ?</label>'
+    +'<input type="number" id="_gpT" step="any" min="0" inputmode="decimal" placeholder="ex: 25" style="'+ip+'">'
+    +'<div id="_gpInfo" style="font-size:12px;color:var(--gold2);margin-bottom:12px;min-height:16px"></div>'
+    +'<div style="display:flex;gap:8px"><button class="btn primary" id="_gpOk" style="flex:1">Valider</button><button class="btn" id="_gpNo" style="background:var(--bg3)">Annuler</button></div>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  var g=box.querySelector('#_gpG'),tt=box.querySelector('#_gpT'),info=box.querySelector('#_gpInfo');
+  function calc(){var G=parseFloat((g.value||'').replace(',','.'))||0;var T=parseFloat((tt.value||'').replace(',','.'))||0;info.textContent=(G>0&&T>0)?('Soit '+(Math.round(T/G*10000)/10000)+' EUR/g \u2014 total '+T.toFixed(2)+' EUR'):'';}
+  g.addEventListener('input',calc);tt.addEventListener('input',calc);
+  function close(){ov.remove();}
+  box.querySelector('#_gpNo').onclick=close;ov.onclick=function(e){if(e.target===ov)close();};
+  box.querySelector('#_gpOk').onclick=function(){
+    var G=parseFloat((g.value||'').replace(',','.'))||0;var T=parseFloat((tt.value||'').replace(',','.'))||0;
+    if(G<=0||T<=0){notify('Indique les grammes et le montant','error');return;}
+    line.qty=G;line.prix=T/G;
+    close();renderPosCart();notify('Prix : '+(Math.round(T/G*10000)/10000)+' EUR/g ('+T.toFixed(2)+' EUR)');
+  };
+  setTimeout(function(){try{g.focus();}catch(e){}},30);
+}
 </script>
 </body>
 </html>
