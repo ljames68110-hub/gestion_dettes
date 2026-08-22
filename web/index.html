@@ -5232,24 +5232,27 @@ async function loadRentab(){
   var sum=document.getElementById('rentabSummary');
   if(!body)return;
   var list=(res&&res.ok)?res.data:[];
+  window._rentabData=list;
   var tInv=0,tRec=0,tBen=0,tAtt=0,nbOk=0;
-  body.innerHTML='';
-  if(!list.length){ body.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:24px">Aucun article</td></tr>'; }
+  var H='';
+  if(!list.length){H='<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:24px">Aucun article</td></tr>';}
   var lastCat=null;
-  list.forEach(function(r){
+  list.forEach(function(r,ri){
     tInv+=r.investi; tRec+=r.recupere; tBen+=r.benefice; tAtt+=(r.en_attente||0); if(r.rembourse)nbOk++;
     if(r.categorie!==lastCat){
       lastCat=r.categorie;
-      body.innerHTML+='<tr><td colspan="9" style="padding:14px 10px 6px;font-weight:700;color:var(--gold2);font-size:13px;text-transform:uppercase;letter-spacing:0.5px">'+(r.categorie||'Sans categorie')+'</td></tr>';
+      H+='<tr><td colspan="9" style="padding:14px 10px 6px;font-weight:700;color:var(--gold2);font-size:13px;text-transform:uppercase;letter-spacing:0.5px">'+(r.categorie||'Sans categorie')+'</td></tr>';
     }
     var col=r.benefice>=0?'var(--green)':'var(--red)';
     var reste=(r.investi-r.recupere);
     var etat=r.rembourse?'<span style="color:var(--green);font-weight:600">\u2713 rembours\u00e9</span>':(r.investi>0?'<span style="color:var(--text3)">reste '+reste.toFixed(2)+' \u20ac</span>':'<span style="color:var(--text3)">-</span>');
     var att=(r.en_attente||0)>0?'<span style="color:var(--gold2)">'+r.en_attente.toFixed(2)+' \u20ac</span>':'<span style="color:var(--text3)">-</span>';
-    var hideBtn=r.rentab_hide?('<button class="btn" style="font-size:11px;padding:3px 8px" onclick="rentabHide('+r.id+',0)">\uD83D\uDC41 Afficher</button>'):('<button class="btn" style="font-size:11px;padding:3px 8px;background:var(--bg3)" onclick="rentabHide('+r.id+',1)" title="Masquer de la rentabilite">\u2715</button>');
-    hideBtn='<button class="btn" style="font-size:11px;padding:3px 8px;background:var(--bg3);margin-right:4px" onclick="rentabReset('+r.id+',\''+String(r.nom).replace(/'/g,'')+'\')" title="Reinitialiser les compteurs">\u21BA</button>'+hideBtn;
-    body.innerHTML+='<tr style="border-bottom:1px solid var(--border)'+(r.rentab_hide?';opacity:0.5':'')+'">'
-      +'<td style="padding:12px 10px;font-weight:600">'+r.nom+(r.rentab_reset?('<div style="font-size:10px;color:var(--text3);font-weight:400">reinitialise le '+r.rentab_reset.split(' ')[0].split('-').reverse().join('/')+'</div>'):'')+'</td>'
+    var nlots=(r.lots||[]).length;
+    var caret=nlots>0?('<span id="_rcar'+ri+'" style="display:inline-block;width:14px;color:var(--text3)">\u25B8</span> '):'<span style="display:inline-block;width:14px"></span> ';
+    var hideBtn=r.rentab_hide?('<button class="btn" style="font-size:11px;padding:3px 8px" onclick="event.stopPropagation();rentabHide('+r.id+',0)">\uD83D\uDC41 Afficher</button>'):('<button class="btn" style="font-size:11px;padding:3px 8px;background:var(--bg3)" onclick="event.stopPropagation();rentabHide('+r.id+',1)" title="Masquer de la rentabilite">\u2715</button>');
+    hideBtn='<button class="btn" style="font-size:11px;padding:3px 8px;background:var(--bg3);margin-right:4px" onclick="event.stopPropagation();rentabReset('+r.id+',\''+String(r.nom).replace(/'/g,'')+'\')" title="Reinitialiser (masquer les anciens lots)">\u21BA</button>'+hideBtn;
+    H+='<tr style="border-bottom:1px solid var(--border);cursor:'+(nlots>0?'pointer':'default')+(r.rentab_hide?';opacity:0.5':'')+'" '+(nlots>0?('onclick="rentabToggle('+ri+')"'):'')+'>'
+      +'<td style="padding:12px 10px;font-weight:600">'+caret+r.nom+(nlots>0?(' <span style="font-size:10px;color:var(--text3);font-weight:400">('+nlots+' lot'+(nlots>1?'s':'')+')</span>'):'')+(r.rentab_reset?('<div style="font-size:10px;color:var(--text3);font-weight:400;margin-left:18px">depuis le '+r.rentab_reset.split(' ')[0].split('-').reverse().join('/')+'</div>'):'')+'</td>'
       +'<td style="padding:12px 10px;text-align:center">'+(r.stock||0)+'</td>'
       +'<td style="padding:12px 10px;text-align:center">'+(r.qty_vendue||0)+'</td>'
       +'<td style="padding:12px 10px;text-align:right">'+r.investi.toFixed(2)+' \u20ac</td>'
@@ -5258,7 +5261,23 @@ async function loadRentab(){
       +'<td style="padding:12px 10px;text-align:right;color:'+col+';font-weight:600">'+(r.benefice>=0?'+':'')+r.benefice.toFixed(2)+' \u20ac</td>'
       +'<td style="padding:12px 10px">'+etat+'</td>'
       +'<td style="padding:12px 6px;text-align:right">'+hideBtn+'</td></tr>';
+    (r.lots||[]).forEach(function(l){
+      var lc=l.benefice>=0?'var(--green)':'var(--red)';
+      var lbl=l.sans_lot?'Ventes sans lot':('Lot du '+(((l.date||'').split(' ')[0].split('-').reverse().join('/'))||'?'));
+      var latt=(l.en_attente||0)>0?('<span style="color:var(--gold2)">'+l.en_attente.toFixed(2)+' \u20ac</span>'):'<span style="color:var(--text3)">-</span>';
+      var letat=l.rembourse?'<span style="color:var(--green)">\u2713</span>':(l.investi>0?'<span style="color:var(--text3)">reste '+(l.investi-l.recupere).toFixed(2)+'</span>':'-');
+      H+='<tr class="_rlot _rlot'+ri+'" style="display:none;background:rgba(255,255,255,0.02);border-bottom:1px solid var(--border)">'
+        +'<td style="padding:8px 10px 8px 34px;font-size:12px;color:var(--text2)">'+lbl+(l.quantite?(' <span style="color:var(--text3)">('+l.quantite+' \u00d7 '+(l.prix_achat||0).toFixed(2)+' \u20ac)</span>'):'')+'</td>'
+        +'<td></td>'
+        +'<td style="padding:8px 10px;text-align:center;font-size:12px">'+(l.vendu||0)+'</td>'
+        +'<td style="padding:8px 10px;text-align:right;font-size:12px">'+l.investi.toFixed(2)+' \u20ac</td>'
+        +'<td style="padding:8px 10px;text-align:right;font-size:12px">'+l.recupere.toFixed(2)+' \u20ac</td>'
+        +'<td style="padding:8px 10px;text-align:right;font-size:12px">'+latt+'</td>'
+        +'<td style="padding:8px 10px;text-align:right;font-size:12px;color:'+lc+'">'+(l.benefice>=0?'+':'')+l.benefice.toFixed(2)+' \u20ac</td>'
+        +'<td style="padding:8px 10px;font-size:12px">'+letat+'</td><td></td></tr>';
+    });
   });
+  body.innerHTML=H;
   var bc=tBen>=0?'var(--green)':'var(--red)';
   sum.innerHTML=_rcard('Investi total',tInv.toFixed(2)+' \u20ac','var(--gold2)')
     +_rcard('R\u00e9cup\u00e9r\u00e9 total',tRec.toFixed(2)+' \u20ac','var(--text)')
@@ -5266,6 +5285,14 @@ async function loadRentab(){
     +_rcard('B\u00e9n\u00e9fice total',(tBen>=0?'+':'')+tBen.toFixed(2)+' \u20ac',bc)
     +_rcard('Articles rembours\u00e9s',nbOk+' / '+list.length,'var(--text)')
     +'<div style="display:flex;align-items:flex-end"><button class="btn" style="font-size:12px" onclick="window._rentabShowHidden=!window._rentabShowHidden;loadRentab();">'+(window._rentabShowHidden?'Masquer les articles masqu\u00e9s':'Voir les articles masqu\u00e9s')+'</button></div>';
+}
+function rentabToggle(ri){
+  var rows=document.querySelectorAll('._rlot'+ri);
+  if(!rows.length)return;
+  var show=(rows[0].style.display==='none');
+  Array.prototype.forEach.call(rows,function(x){x.style.display=show?'table-row':'none';});
+  var car=document.getElementById('_rcar'+ri);
+  if(car)car.textContent=show?'\u25BE':'\u25B8';
 }
 async function rentabHide(id,h){
   var r=await api('/api/catalogue/'+id+'/rentab-hide',{method:'POST',body:{hide:h}});

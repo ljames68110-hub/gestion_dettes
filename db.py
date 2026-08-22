@@ -1421,51 +1421,88 @@ def mark_sim_sold(sim_id, transaction_id=None, client_id=None, date_vente=None):
 
 
 def get_rentabilite(include_hidden=False):
-    """Rentabilite par article: investi=(stock+vendu)*prix_achat, recupere=comptant + credits rembourses."""
+    """Rentabilite par article ET par lot (entree). Chaque vente est reliee a un lot via entree_id."""
     _ensure_catalogue_table()
     with get_conn() as conn:
         arts = conn.execute(
             "SELECT id,nom,categorie,COALESCE(prix_achat,0) AS prix_achat,"
             "COALESCE(prix_vente,0) AS prix_vente,COALESCE(stock,0) AS stock,"
-            "COALESCE(unite,'piece') AS unite,COALESCE(rentab_hide,0) AS rentab_hide,COALESCE(rentab_reset,'') AS rentab_reset "
+            "COALESCE(unite,'piece') AS unite,COALESCE(rentab_hide,0) AS rentab_hide,"
+            "COALESCE(rentab_reset,'') AS rentab_reset "
             "FROM catalogue WHERE actif=1 " + ("" if include_hidden else "AND COALESCE(rentab_hide,0)=0 ")
             + "ORDER BY categorie,nom"
         ).fetchall()
-        out = []
-        for a in arts:
+
+        def sales_stats(where_clause, params):
             r = conn.execute(
                 "SELECT COALESCE(SUM(CASE WHEN montant_brut>0 THEN quantite ELSE 0 END),0) AS q, "
                 "COALESCE(SUM(CASE WHEN instr(COALESCE(notes,''),'[CAISSE CREDIT]')=0 THEN montant_brut ELSE 0 END),0) AS rev_cash, "
                 "COALESCE(SUM(CASE WHEN instr(COALESCE(notes,''),'[CAISSE CREDIT]')>0 THEN montant_brut ELSE 0 END),0) AS rev_credit "
-                "FROM transactions WHERE type='debit' AND motif=? AND date > ?",
-                (a["nom"], a["rentab_reset"] or "")
+                "FROM transactions WHERE type='debit' AND " + where_clause, params
             ).fetchone()
-            qv = r["q"] or 0
-            rev_cash = round(r["rev_cash"] or 0, 2)
-            rev_credit = round(r["rev_credit"] or 0, 2)
-            rembourse_credit = 0.0
-            if rev_credit > 0:
-                rc = conn.execute(
-                    "SELECT COALESCE(SUM(c.montant_brut),0) FROM transactions c "
-                    "JOIN transactions d ON c.linked_debit_id=d.id "
-                    "WHERE c.type='credit' AND d.type='debit' AND d.motif=? AND d.date > ? "
-                    "AND instr(COALESCE(d.notes,''),'[CAISSE CREDIT]')>0",
-                    (a["nom"], a["rentab_reset"] or "")
-                ).fetchone()
-                rembourse_credit = round(min(float(rc[0] or 0), rev_credit), 2)
-            recupere = round(rev_cash + rembourse_credit, 2)
-            en_attente = round(max(0.0, rev_credit - rembourse_credit), 2)
-            pa = a["prix_achat"] or 0
-            investi = round((a["stock"] + qv) * pa, 2)
-            benefice = round(recupere - investi, 2)
-            rembourse = bool(investi > 0 and recupere >= investi)
-            out.append({
-                "id": a["id"], "nom": a["nom"], "categorie": a["categorie"],
-                "prix_achat": pa, "prix_vente": a["prix_vente"], "stock": a["stock"],
-                "qty_vendue": qv, "investi": investi, "recupere": recupere,
-                "en_attente": en_attente, "benefice": benefice, "rembourse": rembourse,
-                "rentab_hide": int(a["rentab_hide"] or 0), "rentab_reset": a["rentab_reset"] or "",
-            })
+            return (r["q"] or 0), round(r["rev_cash"] or 0, 2), round(r["rev_credit"] or 0, 2)
+
+        def reimbursed(where_clause, params):
+            rc = conn.execute(
+                "SELECT COALESCE(SUM(c.montant_brut),0) FROM transactions c "
+                "JOIN transactions d ON c.linked_debit_id=d.id "
+                "WHERE c.type='credit' AND d.type='debit' AND " + where_clause, params
+            ).fetchone()
+            return round(float(rc[0] or 0), 2)
+
+        out = []
+        for a in arts:
+            nom = a["nom"]; pa_def = a["prix_achat"] or 0; reset = a["rentab_reset"] or ""
+            if reset:
+                ents = conn.execute(
+                    "SELECT id,date,COALESCE(quantite,0) AS quantite,COALESCE(prix_achat,0) AS prix_achat "
+                    "FROM entrees_materiel WHERE description=? AND date(date) >= date(?) ORDER BY date,id",
+                    (nom, reset)).fetchall()
+            else:
+                ents = conn.execute(
+                    "SELECT id,date,COALESCE(quantite,0) AS quantite,COALESCE(prix_achat,0) AS prix_achat "
+                    "FROM entrees_materiel WHERE description=? ORDER BY date,id", (nom,)).fetchall()
+            lots = []
+            tot_inv = tot_rec = tot_att = tot_ben = tot_vendu = 0.0
+            for e in ents:
+                q, rev_cash, rev_credit = sales_stats("entree_id=?", (e["id"],))
+                remb = 0.0
+                if rev_credit > 0:
+                    remb = min(reimbursed("d.entree_id=? AND instr(COALESCE(d.notes,''),'[CAISSE CREDIT]')>0", (e["id"],)), rev_credit)
+                recupere = round(rev_cash + remb, 2)
+                en_attente = round(max(0.0, rev_credit - remb), 2)
+                investi = round(e["quantite"] * e["prix_achat"], 2)
+                benefice = round(recupere - investi, 2)
+                lots.append({"entree_id": e["id"], "date": e["date"], "quantite": e["quantite"],
+                             "prix_achat": e["prix_achat"], "investi": investi, "vendu": q,
+                             "recupere": recupere, "en_attente": en_attente, "benefice": benefice,
+                             "rembourse": bool(investi > 0 and recupere >= investi), "sans_lot": False})
+                tot_inv += investi; tot_rec += recupere; tot_att += en_attente; tot_ben += benefice; tot_vendu += q
+            if reset:
+                q0, rc0, rcr0 = sales_stats("motif=? AND entree_id IS NULL AND date > ?", (nom, reset))
+            else:
+                q0, rc0, rcr0 = sales_stats("motif=? AND entree_id IS NULL", (nom,))
+            if q0 > 0 or rc0 > 0 or rcr0 > 0:
+                remb0 = 0.0
+                if rcr0 > 0:
+                    if reset:
+                        remb0 = min(reimbursed("d.motif=? AND d.entree_id IS NULL AND d.date > ? AND instr(COALESCE(d.notes,''),'[CAISSE CREDIT]')>0", (nom, reset)), rcr0)
+                    else:
+                        remb0 = min(reimbursed("d.motif=? AND d.entree_id IS NULL AND instr(COALESCE(d.notes,''),'[CAISSE CREDIT]')>0", (nom,)), rcr0)
+                recup0 = round(rc0 + remb0, 2)
+                att0 = round(max(0.0, rcr0 - remb0), 2)
+                inv0 = round(q0 * pa_def, 2)
+                ben0 = round(recup0 - inv0, 2)
+                lots.append({"entree_id": None, "date": "", "quantite": q0, "prix_achat": pa_def,
+                             "investi": inv0, "vendu": q0, "recupere": recup0, "en_attente": att0,
+                             "benefice": ben0, "rembourse": bool(inv0 > 0 and recup0 >= inv0), "sans_lot": True})
+                tot_inv += inv0; tot_rec += recup0; tot_att += att0; tot_ben += ben0; tot_vendu += q0
+            out.append({"id": a["id"], "nom": nom, "categorie": a["categorie"],
+                        "prix_achat": pa_def, "prix_vente": a["prix_vente"], "stock": a["stock"],
+                        "qty_vendue": round(tot_vendu, 2), "investi": round(tot_inv, 2), "recupere": round(tot_rec, 2),
+                        "en_attente": round(tot_att, 2), "benefice": round(tot_ben, 2),
+                        "rembourse": bool(tot_inv > 0 and tot_rec >= tot_inv),
+                        "rentab_hide": int(a["rentab_hide"] or 0), "rentab_reset": reset, "lots": lots})
         return out
 
 
