@@ -15,3 +15,11 @@ dettes.salt
 dettes_*.db
 *.bak
 _archive_*/
+
+# --- ajouts 4.03 ---
+_archive/
+web/*.bak_pj_*
+*.db.crash
+# secrets TLS phone — NE JAMAIS committer
+phone.key
+phone.crt

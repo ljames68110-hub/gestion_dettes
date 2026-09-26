@@ -6,7 +6,7 @@ from datetime import datetime
 
 DB_FILE = "dettes.db"
 
-def get_conn():
+def _get_conn_raw():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row   # accès par nom de colonne
     conn.execute("PRAGMA foreign_keys = ON")
@@ -155,41 +155,6 @@ def init_db():
             if "auth_type" not in auth_cols:
                 c.execute("ALTER TABLE auth ADD COLUMN auth_type TEXT DEFAULT 'pin'")
 
-        # ── Migration table auth ──────────────────────────────────────────────
-        # Vérifie si la table auth existe et quelles colonnes elle a
-        cols = {row[1] for row in c.execute("PRAGMA table_info(auth)").fetchall()}
-
-        if not cols:
-            # Table auth absente → la créer dans la nouvelle structure
-            c.execute("""
-                CREATE TABLE auth (
-                    id         INTEGER PRIMARY KEY CHECK(id = 1),
-                    pin_hash   TEXT,
-                    salt       TEXT,
-                    created_at TEXT DEFAULT (datetime('now'))
-                )
-            """)
-        elif "pin_hash" not in cols:
-            # Ancienne structure (pw_hash / kdf_params) → recréer proprement
-            c.execute("DROP TABLE auth")
-            c.execute("""
-                CREATE TABLE auth (
-                    id         INTEGER PRIMARY KEY CHECK(id = 1),
-                    pin_hash   TEXT,
-                    salt       TEXT,
-                    pin_length INTEGER DEFAULT 4,
-                    auth_type  TEXT DEFAULT 'pin',
-                    created_at TEXT DEFAULT (datetime('now'))
-                )
-            """)
-        # Si pin_hash existe déjà → vérifier pin_length
-        else:
-            auth_cols = {row[1] for row in c.execute("PRAGMA table_info(auth)").fetchall()}
-            if "pin_length" not in auth_cols:
-                c.execute("ALTER TABLE auth ADD COLUMN pin_length INTEGER DEFAULT 4")
-            if "auth_type" not in auth_cols:
-                c.execute("ALTER TABLE auth ADD COLUMN auth_type TEXT DEFAULT 'pin'")
-
         conn.commit()
 
 # ── AUTH ──────────────────────────────────────────────────────────────────────
@@ -277,7 +242,7 @@ def delete_client(client_id: int):
 
 # ── TRANSACTIONS ──────────────────────────────────────────────────────────────
 
-def find_entree_for_motif(motif):
+def find_entree_for_motif(motif, quantite=None):
     """Retourne l'id du lot (entree) le plus ancien de meme description avec du stock restant, sinon None."""
     if not motif:
         return None
@@ -290,8 +255,16 @@ def find_entree_for_motif(motif):
                ORDER BY e.date ASC, e.id ASC""",
             (motif,)
         ).fetchall()
+    try:
+        q = float(quantite) if quantite is not None else 0.0
+    except Exception:
+        q = 0.0
+    if q > 0:
+        for r in rows:
+            if (r[1] or 0) >= q:   # lot qui absorbe TOUTE la vente
+                return r[0]
     for r in rows:
-        if (r[1] or 0) > 0:
+        if (r[1] or 0) > 0:        # sinon 1er lot avec stock (bascule)
             return r[0]
     return None
 
@@ -1420,7 +1393,7 @@ def mark_sim_sold(sim_id, transaction_id=None, client_id=None, date_vente=None):
         return dict(conn.execute("SELECT * FROM sim_cards WHERE id=?", (sim_id,)).fetchone())
 
 
-def get_rentabilite(include_hidden=False):
+def _get_rentabilite_raw(include_hidden=False):
     """Rentabilite par article ET par lot. investi = total du lot (sauf creation/conversion = unitaire)."""
     _ensure_catalogue_table()
     with get_conn() as conn:
@@ -1523,3 +1496,340 @@ def set_transaction_photo(transaction_id, photo):
     with get_conn() as conn:
         conn.execute("UPDATE transactions SET photo_ticket=? WHERE id=?", (photo, transaction_id))
         conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# PIECES JOINTES -- ne pas dupliquer
+# ---------------------------------------------------------------------------
+PJ_MAX_SIZE  = 8 * 1024 * 1024      # 8 Mo par fichier
+PJ_MAX_TOTAL = 20                   # 20 pieces max par transaction
+PJ_MIMES = {
+    "application/pdf": ".pdf",
+    "image/jpeg":      ".jpg",
+    "image/png":       ".png",
+    "image/webp":      ".webp",
+}
+
+def _pj_init(conn):
+    """Cree la table si absente. Appele par chaque fonction pieces jointes."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS pieces_jointes (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_id INTEGER NOT NULL,
+            filename       TEXT    NOT NULL,
+            mime           TEXT    NOT NULL DEFAULT 'application/pdf',
+            taille         INTEGER DEFAULT 0,
+            data           BLOB    NOT NULL,
+            created_at     TEXT    DEFAULT (datetime('now')),
+            FOREIGN KEY(transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_pj_transaction ON pieces_jointes(transaction_id)")
+
+def pj_sniff_mime(data: bytes, fallback: str = "") -> str:
+    """Detecte le vrai type via les magic bytes -- ne fait pas confiance a l'extension."""
+    if data[:4] == b"%PDF":                       return "application/pdf"
+    if data[:3] == b"\xff\xd8\xff":               return "image/jpeg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":          return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP": return "image/webp"
+    return fallback or ""
+
+def add_piece_jointe(transaction_id, filename, data, mime=""):
+    """Attache un fichier a une transaction. Retourne l'id de la piece creee."""
+    if not data:
+        raise ValueError("Fichier vide")
+    if len(data) > PJ_MAX_SIZE:
+        raise ValueError("Fichier trop volumineux (max %d Mo)" % (PJ_MAX_SIZE // (1024 * 1024)))
+    real = pj_sniff_mime(data, mime)
+    if real not in PJ_MIMES:
+        raise ValueError("Format non supporte -- PDF, JPG, PNG ou WEBP uniquement")
+    name = os.path.basename(str(filename or "")).strip() or ("piece" + PJ_MIMES[real])
+    name = name.replace("\\", "").replace("/", "")[:180]
+    with get_conn() as conn:
+        _pj_init(conn)
+        row = conn.execute("SELECT id FROM transactions WHERE id=?", (transaction_id,)).fetchone()
+        if not row:
+            raise ValueError("Transaction %s introuvable" % transaction_id)
+        n = conn.execute("SELECT COUNT(*) FROM pieces_jointes WHERE transaction_id=?",
+                         (transaction_id,)).fetchone()[0]
+        if n >= PJ_MAX_TOTAL:
+            raise ValueError("Maximum %d pieces jointes par transaction" % PJ_MAX_TOTAL)
+        cur = conn.execute(
+            "INSERT INTO pieces_jointes (transaction_id, filename, mime, taille, data) "
+            "VALUES (?,?,?,?,?)",
+            (transaction_id, name, real, len(data), sqlite3.Binary(data)))
+        conn.commit()
+        return cur.lastrowid
+
+def list_pieces_jointes(transaction_id):
+    """Metadonnees des pieces d'une transaction -- sans le BLOB."""
+    with get_conn() as conn:
+        _pj_init(conn)
+        rows = conn.execute(
+            "SELECT id, transaction_id, filename, mime, taille, created_at "
+            "FROM pieces_jointes WHERE transaction_id=? ORDER BY id",
+            (transaction_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+def get_piece_jointe(pid):
+    """Une piece complete, BLOB inclus. None si absente."""
+    with get_conn() as conn:
+        _pj_init(conn)
+        r = conn.execute("SELECT * FROM pieces_jointes WHERE id=?", (pid,)).fetchone()
+        return dict(r) if r else None
+
+def delete_piece_jointe(pid):
+    with get_conn() as conn:
+        _pj_init(conn)
+        cur = conn.execute("DELETE FROM pieces_jointes WHERE id=?", (pid,))
+        conn.commit()
+        return cur.rowcount > 0
+
+def pj_counts(transaction_ids=None):
+    """Dict {transaction_id: nb} pour afficher les badges. Sans argument : tout."""
+    with get_conn() as conn:
+        _pj_init(conn)
+        if transaction_ids:
+            ids = [int(i) for i in transaction_ids]
+            if not ids:
+                return {}
+            marks = ",".join("?" * len(ids))
+            q = ("SELECT transaction_id, COUNT(*) n FROM pieces_jointes "
+                 "WHERE transaction_id IN (%s) GROUP BY transaction_id" % marks)
+            rows = conn.execute(q, ids).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT transaction_id, COUNT(*) n FROM pieces_jointes "
+                "GROUP BY transaction_id").fetchall()
+        return {int(r["transaction_id"]): int(r["n"]) for r in rows}
+
+def pj_stats():
+    """Nombre total de pieces et poids cumule -- pour la page reglages."""
+    with get_conn() as conn:
+        _pj_init(conn)
+        r = conn.execute("SELECT COUNT(*) n, COALESCE(SUM(taille),0) t FROM pieces_jointes").fetchone()
+        return {"nb": int(r["n"]), "octets": int(r["t"])}
+
+
+# ---------------------------------------------------------------------------
+# DETAIL VENTES PAR LOT (rentabilite) -- ne pas dupliquer
+# ---------------------------------------------------------------------------
+def get_ventes_lot(entree_id=None, motif=None, reset=None):
+    """Liste les ventes (debits) d'un lot precis, ou des ventes sans lot d'un
+    article. Meme filtre que sales_stats : type='debit'. Les remboursements
+    (type='credit') sont exclus."""
+    base = ("SELECT t.id, t.date, t.motif, t.quantite, t.montant_brut, t.montant_net, "
+            "COALESCE(t.notes,'') AS notes, COALESCE(c.nom,'?') AS client_nom "
+            "FROM transactions t LEFT JOIN clients c ON t.client_id=c.id "
+            "WHERE t.type='debit' AND ")
+    with get_conn() as conn:
+        if entree_id is not None:
+            rows = conn.execute(base + "t.entree_id=? ORDER BY t.date DESC, t.id DESC",
+                                (int(entree_id),)).fetchall()
+        elif motif is not None:
+            if reset:
+                rows = conn.execute(
+                    base + "t.motif=? AND t.entree_id IS NULL AND t.date > ? "
+                           "ORDER BY t.date DESC, t.id DESC",
+                    (motif, reset)).fetchall()
+            else:
+                rows = conn.execute(
+                    base + "t.motif=? AND t.entree_id IS NULL "
+                           "ORDER BY t.date DESC, t.id DESC",
+                    (motif,)).fetchall()
+        else:
+            return []
+        return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# STATUT DE PAIEMENT FIFO (calcule) -- ne pas dupliquer
+# ---------------------------------------------------------------------------
+def statut_paiement_map():
+    """{transaction_id: 'paye'|'partiel'|'attente'} pour chaque vente (debit).
+    FIFO par client : les remboursements epongent les plus vieilles dettes d'abord.
+    Vente comptant [CAISSE PAYE] = 'paye' (ne consomme pas le pot).
+    Rien n'est stocke : recalcule a chaque appel -> jamais desynchronise."""
+    EPS = 0.005
+    res = {}
+    with get_conn() as conn:
+        pots = {}
+        for r in conn.execute(
+            "SELECT client_id, COALESCE(SUM(montant_brut),0) AS s "
+            "FROM transactions WHERE type='credit' GROUP BY client_id"):
+            pots[r["client_id"]] = round(float(r["s"] or 0), 2)
+        rows = conn.execute(
+            "SELECT id, client_id, COALESCE(montant_brut,0) AS mb, COALESCE(notes,'') AS notes "
+            "FROM transactions WHERE type='debit' ORDER BY client_id, date, id").fetchall()
+        for r in rows:
+            tid = r["id"]; cid = r["client_id"]; mb = round(float(r["mb"] or 0), 2)
+            if CAISSE_PAYE_TAG in (r["notes"] or ""):
+                res[tid] = "paye"; continue
+            pot = pots.get(cid, 0.0)
+            if mb <= EPS:
+                res[tid] = "paye"
+            elif pot >= mb - EPS:
+                res[tid] = "paye"; pots[cid] = round(pot - mb, 2)
+            elif pot > EPS:
+                res[tid] = "partiel"; pots[cid] = 0.0
+            else:
+                res[tid] = "attente"
+    return res
+
+
+# ---------------------------------------------------------------------------
+# RENTABILITE FIFO (option 2) -- ne pas dupliquer
+# ---------------------------------------------------------------------------
+def statut_paiement_detail():
+    global _fifo_cache
+    if _fifo_cache["version"] == _GP_DB_VERSION and _fifo_cache["data"] is not None:
+        return _fifo_cache["data"]
+    _fifo_cache = {"version": _GP_DB_VERSION, "data": _statut_paiement_detail_calc()}
+    return _fifo_cache["data"]
+
+def _statut_paiement_detail_calc():
+    """FIFO par client, avec montants. Retourne une liste de dicts :
+    {id, client_id, entree_id, motif, date, quantite, mb, paye, reste, statut}.
+    paye = part reellement encaissee ; reste = reste-a-payer. Comptant [CAISSE PAYE]
+    = paye integralement. Rien n'est stocke."""
+    EPS = 0.005
+    out = []
+    with get_conn() as conn:
+        pots = {}
+        for r in conn.execute(
+            "SELECT client_id, COALESCE(SUM(montant_brut),0) AS s "
+            "FROM transactions WHERE type='credit' GROUP BY client_id"):
+            pots[r["client_id"]] = round(float(r["s"] or 0), 2)
+        rows = conn.execute(
+            "SELECT id, client_id, entree_id, motif, date, "
+            "COALESCE(quantite,0) AS quantite, COALESCE(montant_brut,0) AS mb, "
+            "COALESCE(notes,'') AS notes "
+            "FROM transactions WHERE type='debit' ORDER BY client_id, date, id").fetchall()
+        for r in rows:
+            mb = round(float(r["mb"] or 0), 2); cid = r["client_id"]
+            if CAISSE_PAYE_TAG in (r["notes"] or ""):
+                paye = mb; reste = 0.0; st = "paye"
+            else:
+                pot = pots.get(cid, 0.0)
+                if mb <= EPS:
+                    paye = mb; reste = 0.0; st = "paye"
+                elif pot >= mb - EPS:
+                    paye = mb; reste = 0.0; st = "paye"; pots[cid] = round(pot - mb, 2)
+                elif pot > EPS:
+                    paye = round(pot, 2); reste = round(mb - pot, 2); st = "partiel"; pots[cid] = 0.0
+                else:
+                    paye = 0.0; reste = mb; st = "attente"
+            out.append({"id": r["id"], "client_id": cid, "entree_id": r["entree_id"],
+                        "motif": r["motif"], "date": r["date"], "quantite": r["quantite"],
+                        "mb": mb, "paye": round(paye, 2), "reste": round(reste, 2), "statut": st})
+    return out
+
+def _fifo_lot_sums(detail, entree_id=None, motif=None, reset=None):
+    """(recupere, en_attente) FIFO pour un lot (entree_id) ou les ventes sans lot
+    d'un article (motif + entree_id NULL, avec reset optionnel comme le raw)."""
+    rec = att = 0.0
+    for x in detail:
+        if entree_id is not None:
+            if x["entree_id"] != entree_id:
+                continue
+        elif motif is not None:
+            if not (x["motif"] == motif and x["entree_id"] is None):
+                continue
+            if reset and not (x["date"] and x["date"] > reset):
+                continue
+        else:
+            continue
+        rec += x["paye"]; att += x["reste"]
+    return round(rec, 2), round(att, 2)
+
+def get_rentabilite(include_hidden=False):
+    """Enveloppe FIFO : recalcule recupere / en_attente / benefice de chaque lot et
+    article a partir des montants reellement payes (FIFO), pour coller au solde reel."""
+    base = _get_rentabilite_raw(include_hidden)
+    detail = statut_paiement_detail()
+    for art in base:
+        nom = art.get("nom"); reset = art.get("rentab_reset") or ""
+        # rentab_reset n'est pas toujours renvoye par le raw : on le relit si absent
+        tot_rec = tot_att = tot_ben = 0.0
+        for lot in art.get("lots", []):
+            if lot.get("entree_id") is not None:
+                rec, att = _fifo_lot_sums(detail, entree_id=lot["entree_id"])
+            else:
+                rec, att = _fifo_lot_sums(detail, motif=nom, reset=reset)
+            inv = float(lot.get("investi", 0) or 0)
+            lot["recupere"] = rec
+            lot["en_attente"] = att
+            lot["benefice"] = round(rec - inv, 2)
+            lot["rembourse"] = bool(inv > 0 and rec >= inv)
+            tot_rec += rec; tot_att += att; tot_ben += lot["benefice"]
+        inv_a = float(art.get("investi", 0) or 0)
+        art["recupere"] = round(tot_rec, 2)
+        art["en_attente"] = round(tot_att, 2)
+        art["benefice"] = round(tot_ben, 2)
+        art["rembourse"] = bool(inv_a > 0 and tot_rec >= inv_a)
+    return base
+
+def get_ventes_attente(entree_id=None, motif=None, reset=None):
+    """Ventes non soldees (reste>0) pour le drill-down 'En attente'. Si aucun filtre :
+    toutes. Ajoute le nom du client et le reste-a-payer."""
+    detail = statut_paiement_detail()
+    ids = []
+    for x in detail:
+        if x["reste"] <= 0.005:
+            continue
+        if entree_id is not None:
+            if x["entree_id"] != entree_id: continue
+        elif motif is not None:
+            if not (x["motif"] == motif and x["entree_id"] is None): continue
+            if reset and not (x["date"] and x["date"] > reset): continue
+        ids.append(x)
+    if not ids:
+        return []
+    by_id = {x["id"]: x for x in ids}
+    with get_conn() as conn:
+        marks = ",".join("?" * len(by_id))
+        rows = conn.execute(
+            "SELECT t.id, t.date, t.motif, t.quantite, t.montant_brut, "
+            "COALESCE(c.nom,'?') AS client_nom "
+            "FROM transactions t LEFT JOIN clients c ON t.client_id=c.id "
+            "WHERE t.id IN (%s)" % marks, list(by_id.keys())).fetchall()
+    res = []
+    for r in rows:
+        d = dict(r); x = by_id.get(r["id"], {})
+        d["reste"] = x.get("reste", 0.0)
+        d["paye"] = x.get("paye", 0.0)
+        d["statut"] = x.get("statut", "attente")
+        res.append(d)
+    res.sort(key=lambda z: (z.get("date") or ""), reverse=True)
+    return res
+
+
+# ---------------------------------------------------------------------------
+# CACHE FIFO invalide sur commit -- ne pas dupliquer
+# ---------------------------------------------------------------------------
+_GP_DB_VERSION = 0          # incremente a chaque commit (toute ecriture)
+_fifo_cache = {"version": -1, "data": None}
+
+class _GpConn:
+    """Proxy transparent autour d'une connexion sqlite3 : incremente la version
+    globale a chaque commit (explicite ou via 'with')."""
+    __slots__ = ("_c",)
+    def __init__(self, c): object.__setattr__(self, "_c", c)
+    def commit(self):
+        global _GP_DB_VERSION
+        _GP_DB_VERSION += 1
+        return self._c.commit()
+    # protocole 'with' : sqlite committe en sortie de bloc -> on compte aussi
+    def __enter__(self):
+        self._c.__enter__(); return self
+    def __exit__(self, exc_type, exc, tb):
+        global _GP_DB_VERSION
+        if exc_type is None:
+            _GP_DB_VERSION += 1     # le with va committer
+        return self._c.__exit__(exc_type, exc, tb)
+    # tout le reste (execute, cursor, close, row_factory...) delegue a la vraie connexion
+    def __getattr__(self, name): return getattr(self._c, name)
+    def __setattr__(self, name, value): setattr(self._c, name, value)
+
+def get_conn():
+    return _GpConn(_get_conn_raw())

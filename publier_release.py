@@ -10,13 +10,13 @@ def read_version():
     if not m: print("APP_VERSION introuvable dans updater.py"); sys.exit(1)
     return m.group(1)
 
-def req(method, url, token, data=None, ctype=None):
+def req(method, url, token, data=None, ctype=None, timeout=30):
     h = {"Authorization":"Bearer "+token, "Accept":"application/vnd.github+json",
          "X-GitHub-Api-Version":"2022-11-28", "User-Agent":"gp-publisher"}
     if ctype: h["Content-Type"] = ctype
     r = urllib.request.Request(url, data=data, method=method, headers=h)
     try:
-        with urllib.request.urlopen(r) as resp:
+        with urllib.request.urlopen(r, timeout=timeout) as resp:
             b = resp.read()
             return resp.status, (json.loads(b) if b else {})
     except urllib.error.HTTPError as e:
@@ -24,6 +24,8 @@ def req(method, url, token, data=None, ctype=None):
         try: b = json.loads(b)
         except: pass
         return e.code, b
+    except (TimeoutError, OSError) as e:
+        return 0, {"_timeout": True, "error": str(e)}
 
 def main():
     version = read_version(); tag = "v"+version
@@ -57,13 +59,49 @@ def main():
     rel_id = rel["id"]
     with open(exe, "rb") as f: data = f.read()
     url = "https://uploads.github.com/repos/%s/releases/%d/assets?name=%s" % (REPO, rel_id, ASSET)
-    st3, res = req("POST", url, token, data=data, ctype="application/octet-stream")
+    print("Upload de l'exe en cours (%.1f Mo)... patiente 1-2 min, c'est normal." % (len(data)/1048576))
+    st3, res = req("POST", url, token, data=data, ctype="application/octet-stream", timeout=300)
     if st3 in (200,201):
         print("\nOK ! Release", version, "publiee.")
         print("Lien:", res.get("browser_download_url",""))
+        _maj_latest_json(token, version, res.get("browser_download_url",""), exe)
         print("Ton appli installee proposera la maj au prochain lancement.")
+    elif isinstance(res, dict) and res.get("_timeout"):
+        print("\nUpload trop long (timeout). La release existe deja : relance simplement")
+        print("'python publier_release.py' -- il remplacera l'exe sans tout refaire.")
+        sys.exit(1)
     else:
         print("Echec upload:", st3, res); sys.exit(1)
+
+
+def _maj_latest_json(token, version, asset_url, exe_path):
+    """Met a jour latest.json a la racine du depot (repli de l'updater) via
+    l'API GitHub Contents. Non bloquant : un echec n'annule pas la publication."""
+    import base64, hashlib
+    try:
+        h = hashlib.sha256()
+        with open(exe_path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        sha = h.hexdigest()
+        contenu = json.dumps({"version": version, "asset_url": asset_url, "sha256": sha},
+                             ensure_ascii=False, indent=2) + "\n"
+        b64 = base64.b64encode(contenu.encode("utf-8")).decode("ascii")
+        # sha du fichier existant (pour le remplacer) -- None si absent
+        st, cur = req("GET", f"{API}/repos/{REPO}/contents/latest.json?ref=main", token)
+        payload = {"message": "maj latest.json " + version,
+                   "content": b64, "branch": "main"}
+        if st == 200 and isinstance(cur, dict) and cur.get("sha"):
+            payload["sha"] = cur["sha"]
+        data = json.dumps(payload).encode()
+        st2, res = req("PUT", f"{API}/repos/{REPO}/contents/latest.json", token,
+                       data=data, ctype="application/json")
+        if st2 in (200, 201):
+            print("latest.json mis a jour (" + version + ", repli updater OK).")
+        else:
+            print("Avertissement : latest.json non mis a jour :", st2, res)
+    except Exception as e:
+        print("Avertissement : latest.json non mis a jour :", e)
 
 if __name__ == "__main__":
     main()

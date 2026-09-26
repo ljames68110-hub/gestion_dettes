@@ -17,7 +17,7 @@ from pathlib import Path
 LATEST_URL = "https://raw.githubusercontent.com/ljames68110-hub/gestion_dettes/main/latest.json"
 CHECK_INTERVAL = 3600  # vérifier toutes les heures
 
-APP_VERSION = "4.02"  # version courante - incremente a chaque MAJ
+APP_VERSION = "4.12"  # version courante - incremente a chaque MAJ
 
 def get_current_exe():
     """Retourne le chemin de l'exe en cours d'exécution."""
@@ -41,26 +41,71 @@ def get_current_version():
 REPO = "ljames68110-hub/gestion_dettes"
 API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 
-def fetch_remote_info():
-    """Recupere la derniere release depuis l API GitHub."""
+def _releases_api_url():
+    return f"https://api.github.com/repos/{REPO}/releases"
+
+def _parse_ver(v):
     try:
-        req = urllib.request.Request(
-            LATEST_URL,
-            headers={"User-Agent": "GestionPerso-Updater/1.0", "Accept": "application/vnd.github+json"}
-        )
-        with urllib.request.urlopen(req, timeout=10) as r:
-            data = json.loads(r.read().decode())
-        if not data.get("version"):
-            return None
-        return {
-            "version":   data["version"],
+        return [int(x) for x in str(v).lstrip("vV").split(".") if x.isdigit()]
+    except Exception:
+        return []
+
+def _from_github_api():
+    """Interroge l'API /releases, ignore draft/prerelease, renvoie la version la
+    plus haute avec son asset GestionPerso.exe. None si echec ou rien trouve."""
+    req = urllib.request.Request(
+        _releases_api_url(),
+        headers={"User-Agent": "GestionPerso-Updater/1.0",
+                 "Accept": "application/vnd.github+json"}
+    )
+    with urllib.request.urlopen(req, timeout=10) as r:
+        rels = json.loads(r.read().decode())
+    best = None; best_v = []
+    for rel in rels:
+        if rel.get("draft") or rel.get("prerelease"):
+            continue
+        tag = rel.get("tag_name") or rel.get("name") or ""
+        pv = _parse_ver(tag)
+        if not pv:
+            continue
+        if pv > best_v:
+            asset_url = None
+            for a in rel.get("assets", []):
+                if a.get("name") == "GestionPerso.exe":
+                    asset_url = a.get("browser_download_url"); break
+            if asset_url:
+                best_v = pv
+                best = {"version": tag.lstrip("vV"), "asset_url": asset_url, "sha256": None}
+    return best
+
+def _from_latest_json():
+    """Repli : lit latest.json a la racine du depot (ancienne methode)."""
+    req = urllib.request.Request(
+        LATEST_URL,
+        headers={"User-Agent": "GestionPerso-Updater/1.0",
+                 "Accept": "application/vnd.github+json"}
+    )
+    with urllib.request.urlopen(req, timeout=10) as r:
+        data = json.loads(r.read().decode())
+    if not data.get("version"):
+        return None
+    return {"version": data["version"],
             "asset_url": data.get("asset_url"),
-            "sha256":    data.get("sha256")
-        }
+            "sha256": data.get("sha256")}
+
+def fetch_remote_info():
+    """Derniere version publiee. API GitHub d'abord (fiable), latest.json en repli."""
+    try:
+        info = _from_github_api()
+        if info:
+            return info
+    except Exception as e:
+        print(f"[Updater] API releases KO ({e}), repli latest.json")
+    try:
+        return _from_latest_json()
     except Exception as e:
         print(f"[Updater] Impossible de verifier : {e}")
         return None
-
 def sha256_file(path):
     h = hashlib.sha256()
     with open(path, "rb") as f:

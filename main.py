@@ -545,7 +545,8 @@ def _open_main_window():
                 import webview as _wv
                 _ws = list(getattr(_wv, "windows", []) or [])
                 if _ws:
-                    _place_window(_ws[0])
+                    import threading as _th_pw
+                    _th_pw.Timer(1.2, lambda: _place_window(_ws[0])).start()
             except Exception:
                 pass
         webview.start(_pw1, debug=False, icon=icon, gui="edgechromium")

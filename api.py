@@ -297,7 +297,7 @@ def transactions_create():
     # Auto-lien vente -> lot (si debit non deja lie)
     if type_ == "debit" and not entree_id:
         try:
-            entree_id = db.find_entree_for_motif(data["motif"])
+            entree_id = db.find_entree_for_motif(data["motif"], data.get("quantite"))
         except Exception:
             entree_id = None
     # Sauvegarder entree_id, linked_debit_id, unite, compte dans la transaction
@@ -557,23 +557,30 @@ def dettes_ouvertes(cid):
         rem = {}
         opened = []
         info = {}
+        compte_de = {}   # {debit_id: compte} -- cloisonnement FIFO par compte
         for r in rows:
             rid, rtype, mnet, mbrut, linked = r[0], r[2], r[3], r[4], r[5]
             notes = r[8] or ""
+            rcompte = r[11] if len(r) > 11 else "euro"
             if rtype == 'debit':
                 if excl_paye and (db.CAISSE_PAYE_TAG in notes):
                     continue
                 rem[rid] = mnet
                 opened.append(rid)
                 info[rid] = r
+                compte_de[rid] = rcompte
             else:
                 amt = mbrut
+                # remboursement cible : prioritaire, inchange (choix explicite)
                 if linked and (linked in rem) and rem[linked] > 0:
                     take = min(rem[linked], amt); rem[linked] -= take; amt -= take
+                # deversement FIFO automatique : UNIQUEMENT sur les debits du meme compte
                 if amt > 0:
                     for did in reversed(opened):
                         if amt <= 0:
                             break
+                        if compte_de.get(did) != rcompte:
+                            continue
                         if rem.get(did, 0) > 0:
                             take = min(rem[did], amt); rem[did] -= take; amt -= take
         result = []
@@ -1536,12 +1543,26 @@ def recap_jour():
             "FROM transactions WHERE substr(date,1,10)=? AND COALESCE(compte,'euro')='euro' "
             "AND ((type='debit' AND instr(COALESCE(notes,''),'[CAISSE PAYE]')>0) OR (type='credit' AND instr(COALESCE(notes,''),'[REMISE]')=0)) "
             "GROUP BY mode_paiement ORDER BY total DESC", (date,)).fetchall()
+        # split ventes cash / remboursements (ne change pas 'rows' ci-dessus)
+        rows_vente = conn.execute(
+            "SELECT COALESCE(mode_paiement,'?') as mode, COALESCE(SUM(montant_net),0) as total, COUNT(*) as nb "
+            "FROM transactions WHERE substr(date,1,10)=? AND COALESCE(compte,'euro')='euro' "
+            "AND type='debit' AND instr(COALESCE(notes,''),'[CAISSE PAYE]')>0 "
+            "GROUP BY mode_paiement ORDER BY total DESC", (date,)).fetchall()
+        rows_remb = conn.execute(
+            "SELECT COALESCE(mode_paiement,'?') as mode, COALESCE(SUM(montant_net),0) as total, COUNT(*) as nb "
+            "FROM transactions WHERE substr(date,1,10)=? AND COALESCE(compte,'euro')='euro' "
+            "AND type='credit' AND instr(COALESCE(notes,''),'[REMISE]')=0 "
+            "GROUP BY mode_paiement ORDER BY total DESC", (date,)).fetchall()
         tabac = conn.execute("SELECT COALESCE(SUM(quantite),0) FROM transactions WHERE substr(date,1,10)=? AND COALESCE(compte,'euro')='tabac' AND type='debit'", (date,)).fetchone()[0] or 0
         cantine = conn.execute("SELECT COALESCE(SUM(montant_net),0) FROM transactions WHERE substr(date,1,10)=? AND COALESCE(compte,'euro')='cantine' AND type='debit'", (date,)).fetchone()[0] or 0
         credit = conn.execute("SELECT COALESCE(SUM(montant_net),0) FROM transactions WHERE substr(date,1,10)=? AND COALESCE(compte,'euro')='euro' AND type='debit' AND instr(COALESCE(notes,''),'[CAISSE PAYE]')=0", (date,)).fetchone()[0] or 0
     modes = [{"mode": r["mode"], "total": r["total"], "nb": r["nb"]} for r in rows]
+    modes_vente = [{"mode": r["mode"], "total": r["total"], "nb": r["nb"]} for r in rows_vente]
+    modes_remb = [{"mode": r["mode"], "total": r["total"], "nb": r["nb"]} for r in rows_remb]
     total_cash = sum(m["total"] for m in modes)
-    return ok({"date": date, "modes": modes, "total_encaisse": total_cash, "tabac_paquets": tabac, "cantine": cantine, "credit": credit})
+    return ok({"date": date, "modes": modes, "modes_vente": modes_vente, "modes_remb": modes_remb,
+               "total_encaisse": total_cash, "tabac_paquets": tabac, "cantine": cantine, "credit": credit})
 
 @app.route("/api/compta-articles")
 @require_auth
@@ -2221,3 +2242,222 @@ def get_version():
     except Exception:
         pass
     return jsonify({"ok": True, "data": {"version": "dev"}})
+
+
+# ---------------------------------------------------------------------------
+# PIECES JOINTES -- ne pas dupliquer
+# ---------------------------------------------------------------------------
+import base64 as _b64
+
+@app.route("/api/transactions/<int:tid>/pieces", methods=["GET"])
+@require_auth
+def pj_list(tid):
+    """Liste les pieces jointes d'une transaction (metadonnees seules)."""
+    try:
+        return ok(db.list_pieces_jointes(tid))
+    except Exception as e:
+        return err(str(e))
+
+@app.route("/api/transactions/<int:tid>/pieces", methods=["POST"])
+@require_auth
+def pj_add(tid):
+    """Attache un fichier. Accepte multipart (champ 'file') ou JSON {filename, mime, b64}."""
+    try:
+        if "file" in request.files:
+            f = request.files["file"]
+            raw = f.read()
+            name = f.filename
+            mime = f.mimetype or ""
+        else:
+            d = request.json or {}
+            b64 = d.get("b64") or ""
+            if "," in b64[:64] and b64[:5] == "data:":
+                b64 = b64.split(",", 1)[1]
+            try:
+                raw = _b64.b64decode(b64)
+            except Exception:
+                return err("Contenu base64 invalide")
+            name = d.get("filename") or ""
+            mime = d.get("mime") or ""
+        pid = db.add_piece_jointe(tid, name, raw, mime)
+        return ok({"id": pid, "transaction_id": tid, "filename": name, "taille": len(raw)})
+    except ValueError as e:
+        return err(str(e))
+    except Exception as e:
+        return err("Echec de l'ajout : %s" % e, 500)
+
+@app.route("/api/pieces/<int:pid>", methods=["GET"])
+@require_auth
+def pj_get(pid):
+    """Renvoie le fichier encode en base64 -- passe par le helper api() du front."""
+    p = db.get_piece_jointe(pid)
+    if not p:
+        return err("Piece jointe introuvable", 404)
+    return ok({
+        "id":         p["id"],
+        "filename":   p["filename"],
+        "mime":       p["mime"],
+        "taille":     p["taille"],
+        "created_at": p["created_at"],
+        "b64":        _b64.b64encode(bytes(p["data"])).decode("ascii"),
+    })
+
+@app.route("/api/pieces/<int:pid>/view", methods=["GET"])
+@require_auth
+def pj_view(pid):
+    """Sert le fichier brut. Utilisable en <iframe src="...?token=XXX">."""
+    p = db.get_piece_jointe(pid)
+    if not p:
+        return err("Piece jointe introuvable", 404)
+    dispo = "attachment" if request.args.get("dl") else "inline"
+    resp = make_response(bytes(p["data"]))
+    resp.headers["Content-Type"] = p["mime"]
+    resp.headers["Content-Disposition"] = '%s; filename="%s"' % (dispo, p["filename"])
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+@app.route("/api/pieces/<int:pid>", methods=["DELETE"])
+@require_auth
+def pj_delete(pid):
+    if db.delete_piece_jointe(pid):
+        return ok({"message": "Piece jointe supprimee"})
+    return err("Piece jointe introuvable", 404)
+
+@app.route("/api/pieces/counts", methods=["GET"])
+@require_auth
+def pj_counts_route():
+    """?ids=1,2,3 pour cibler, sinon tout. Retourne {"12": 2, "18": 1}."""
+    raw = (request.args.get("ids") or "").strip()
+    ids = None
+    if raw:
+        try:
+            ids = [int(x) for x in raw.split(",") if x.strip()]
+        except ValueError:
+            return err("Parametre ids invalide")
+    return ok({str(k): v for k, v in db.pj_counts(ids).items()})
+
+@app.route("/api/pieces/stats", methods=["GET"])
+@require_auth
+def pj_stats_route():
+    return ok(db.pj_stats())
+
+
+# ---------------------------------------------------------------------------
+# DETAIL VENTES PAR LOT (rentabilite) -- ne pas dupliquer
+# ---------------------------------------------------------------------------
+@app.route("/api/rentabilite/ventes")
+@require_auth
+def rentabilite_ventes():
+    """?entree_id=N pour un lot precis, sinon ?motif=NOM(&reset=DATE) pour les
+    ventes sans lot d'un article."""
+    eid   = request.args.get("entree_id")
+    motif = request.args.get("motif")
+    reset = request.args.get("reset") or None
+    try:
+        if eid not in (None, "", "0"):
+            data = db.get_ventes_lot(entree_id=int(eid))
+        elif motif:
+            data = db.get_ventes_lot(motif=motif, reset=reset)
+        else:
+            return err("Parametre manquant (entree_id ou motif)")
+        return ok(data)
+    except ValueError:
+        return err("entree_id invalide")
+    except Exception as e:
+        return err(str(e))
+
+
+# ---------------------------------------------------------------------------
+# STATUT DE PAIEMENT FIFO -- ne pas dupliquer
+# ---------------------------------------------------------------------------
+@app.route("/api/transactions/statuts")
+@require_auth
+def transactions_statuts():
+    """Map {tid: 'paye'|'partiel'|'attente'} pour la colonne Statut (FIFO)."""
+    try:
+        return ok({str(k): v for k, v in db.statut_paiement_map().items()})
+    except Exception as e:
+        return err(str(e))
+
+
+# ---------------------------------------------------------------------------
+# RENTABILITE FIFO -- drill-down "En attente" -- ne pas dupliquer
+# ---------------------------------------------------------------------------
+@app.route("/api/rentabilite/attente")
+@require_auth
+def rentabilite_attente():
+    """Ventes non soldees. ?entree_id=N (lot), ?motif=NOM&reset=DATE (sans lot),
+    ou aucun parametre = toutes les ventes en attente (toutes les cartes)."""
+    eid   = request.args.get("entree_id")
+    motif = request.args.get("motif")
+    reset = request.args.get("reset") or None
+    try:
+        if eid not in (None, "", "0"):
+            data = db.get_ventes_attente(entree_id=int(eid))
+        elif motif:
+            data = db.get_ventes_attente(motif=motif, reset=reset)
+        else:
+            data = db.get_ventes_attente()
+        return ok(data)
+    except ValueError:
+        return err("entree_id invalide")
+    except Exception as e:
+        return err(str(e))
+
+
+# ---------------------------------------------------------------------------
+# BASCULE tabac <-> euro d'une vente (ne touche PAS au stock) -- ne pas dupliquer
+# ---------------------------------------------------------------------------
+@app.route("/api/transactions/<int:tid>/set-compte", methods=["POST"])
+@require_auth
+def transaction_set_compte(tid):
+    import re as _re
+    data = request.json or {}
+    cible = (data.get("compte") or "").strip().lower()
+    mode  = (data.get("mode") or "").strip()
+    qte   = data.get("qte")
+    if cible not in ("euro", "tabac"):
+        return err("compte cible invalide (euro|tabac)")
+    if not mode:
+        return err("mode manquant")
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT notes, type, quantite FROM transactions WHERE id=?", (tid,)).fetchone()
+        if not row:
+            return err("Transaction introuvable", 404)
+        if row["type"] != "debit":
+            return err("Seule une vente (debit) peut etre basculee")
+        notes = row["notes"] or ""
+        if qte in (None, "", 0):
+            qte = row["quantite"] or 1
+        if cible == "euro":
+            # retirer 'Tabac: N x LABEL' -> 'Vente caisse ' ; garder [CAISSE ...] et [STK ...]
+            notes = _re.sub(r'Tabac:\s*[0-9.,]+\s*x\s*[^\[]+', 'Vente caisse ', notes)
+            notes = " ".join(notes.split()).strip()
+            if "Vente caisse" not in notes:
+                # inserer apres le tag caisse si present
+                m = _re.match(r'(\[CAISSE (?:PAYE|CREDIT)\])\s*(.*)', notes)
+                if m:
+                    notes = (m.group(1) + " Vente caisse " + m.group(2)).strip()
+                else:
+                    notes = ("Vente caisse " + notes).strip()
+            notes = " ".join(notes.split()).strip()
+            conn.execute(
+                "UPDATE transactions SET compte='euro', mode_paiement=?, notes=? WHERE id=?",
+                (mode, notes, tid))
+        else:  # cible == 'tabac'
+            # retirer le descriptif 'Vente caisse ...' hors tags, poser 'Tabac: qte x mode'
+            notes = _re.sub(r'Vente caisse[^\[]*', '', notes)
+            frag = "Tabac: %s x %s" % (qte, mode)
+            m = _re.match(r'(\[CAISSE (?:PAYE|CREDIT)\])\s*(.*)', notes.strip())
+            if m:
+                rest = m.group(2).strip()
+                notes = (m.group(1) + " " + frag + ((" " + rest) if rest else "")).strip()
+            else:
+                notes = (frag + " " + notes).strip()
+            notes = " ".join(notes.split()).strip()
+            conn.execute(
+                "UPDATE transactions SET compte='tabac', mode_paiement=?, notes=? WHERE id=?",
+                (mode, notes, tid))
+        conn.commit()
+    return ok({"ok": True, "compte": cible, "mode": mode, "notes": notes})
