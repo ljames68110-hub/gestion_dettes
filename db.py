@@ -243,7 +243,7 @@ def delete_client(client_id: int):
 # ── TRANSACTIONS ──────────────────────────────────────────────────────────────
 
 def find_entree_for_motif(motif, quantite=None):
-    """Retourne l'id du lot (entree) le plus ancien de meme description avec du stock restant, sinon None."""
+    """Retourne l'id du lot (entree) le PLUS RECENT de meme description avec du stock restant, sinon None (LIFO)."""
     if not motif:
         return None
     with get_conn() as conn:
@@ -252,19 +252,11 @@ def find_entree_for_motif(motif, quantite=None):
                       WHERE t.entree_id=e.id AND t.type='debit'),0) as restant
                FROM entrees_materiel e
                WHERE LOWER(TRIM(e.description))=LOWER(TRIM(?))
-               ORDER BY e.date ASC, e.id ASC""",
+               ORDER BY e.date DESC, e.id DESC""",
             (motif,)
         ).fetchall()
-    try:
-        q = float(quantite) if quantite is not None else 0.0
-    except Exception:
-        q = 0.0
-    if q > 0:
-        for r in rows:
-            if (r[1] or 0) >= q:   # lot qui absorbe TOUTE la vente
-                return r[0]
     for r in rows:
-        if (r[1] or 0) > 0:        # sinon 1er lot avec stock (bascule)
+        if (r[1] or 0) > 0:        # lot le PLUS RECENT avec du stock (LIFO)
             return r[0]
     return None
 
