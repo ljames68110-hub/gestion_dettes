@@ -1,5 +1,11 @@
 {
+<<<<<<< Updated upstream
   "version": "v4.13",
   "asset_url": "https://github.com/ljames68110-hub/gestion_dettes/releases/download/v4.13/GestionPerso.exe",
   "sha256": "ee65211350962d77acc4eb6ee95ef4537efcd4296b40026504b19e2ac62efd4a"
+=======
+  "version": "v4.14",
+  "asset_url": "https://github.com/ljames68110-hub/gestion_dettes/releases/download/v4.14/GestionPerso.exe",
+  "sha256": "4ee2e46debc7a63635f5ba758dfe322d26f47164d9b4baab3a3576fa6804ad29"
+>>>>>>> Stashed changes
 }
