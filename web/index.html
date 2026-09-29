@@ -2196,7 +2196,7 @@ function openEditTrans(id){
 async function saveEditTrans(){
   const id=parseInt(document.getElementById('etId').value);
   const btn=document.getElementById('btnSaveEditTrans');btn.textContent='...';btn.disabled=true;
-  const body={type:document.getElementById('etType').value,motif:document.getElementById('etMotif').value,quantite:parseInt(document.getElementById('etQty').value)||1,prix_unitaire:parseFloat(document.getElementById('etPrix').value)||0,mode_paiement:document.getElementById('etMode').value,notes:document.getElementById('etNotes').value,date:document.getElementById('etDate').value+((document.getElementById('etTime')&&document.getElementById('etTime').value)?(' '+document.getElementById('etTime').value):'')};
+  const body={type:document.getElementById('etType').value,motif:document.getElementById('etMotif').value,quantite:parseInt(document.getElementById('etQty').value)||1,prix_unitaire:parseFloat(document.getElementById('etPrix').value)||0,mode_paiement:document.getElementById('etMode').value,notes:document.getElementById('etNotes').value,date:document.getElementById('etDate').value+((document.getElementById('etTime')&&document.getElementById('etTime').value)?(' '+document.getElementById('etTime').value):''),compte:(document.getElementById('etCompte')?document.getElementById('etCompte').value:'euro')};
   const res=await api('/api/transactions/'+id,{method:'PUT',body});
   btn.textContent='Enregistrer';btn.disabled=false;
   if(res&&res.ok){closeModal('editTrans');notify('Transaction modifiée');loadTransactions();loadDashboard();}
