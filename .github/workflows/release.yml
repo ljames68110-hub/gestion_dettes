@@ -31,7 +31,7 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          pip install flask flask-cors pywebview cryptography pyinstaller
+          pip install flask flask-cors pywebview cryptography pyinstaller pillow pytesseract
 
       - name: Verify web folder
         shell: pwsh
@@ -70,6 +70,8 @@ jobs:
             --collect-all flask `
             --collect-all flask_cors `
             --collect-all webview `
+            --hidden-import pytesseract `
+            --collect-all PIL `
             main.py
           Write-Host "Build OK"
           dir dist
