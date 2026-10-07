@@ -621,11 +621,11 @@ select option{background:var(--bg3)}
       </div>
 
       <!-- STOCK -->
-      <div class="page" id="pg-rentab">
+      <div class="page" id="pg-rentab"><div id="rentabToolbar" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
         <div id="rentabSummary" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px"></div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;overflow:hidden">
         <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr style="background:var(--bg3);color:var(--text3);text-align:left">
+        <thead id="rentabHead"><tr style="background:var(--bg3);color:var(--text3);text-align:left">
         <th style="padding:10px">Article</th><th style="padding:10px;text-align:center">Stock</th>
         <th style="padding:10px;text-align:center">Vendu</th><th style="padding:10px;text-align:right">Investi</th>
         <th style="padding:10px;text-align:right">R&eacute;cup&eacute;r&eacute;</th><th style="padding:10px;text-align:right">En attente</th><th style="padding:10px;text-align:right">B&eacute;n&eacute;fice</th>
@@ -7571,6 +7571,104 @@ function _basculeComptePrompt(t, estTabac){
     } else {
       notify((r&&r.error)||'Erreur','error'); this.disabled=false; this.textContent='Valider';
     }
+  };
+}
+})();
+
+</script>
+<script>
+
+/* ===== RENTABILITE PAR PERIODE ===== */
+(function(){
+if(window._rentabPeriodeWrap)return; window._rentabPeriodeWrap=1;
+window._rentabPeriode = window._rentabPeriode || 'total';
+window._rentabMode    = window._rentabMode    || 'marge';
+
+function _iso(dt){return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}
+window._rentabRange=function(p){
+  var now=new Date(), y=now.getFullYear(), m=now.getMonth(), d=now.getDate();
+  if(p==='jour'){var t=_iso(now);return {from:t,to:t};}
+  if(p==='semaine'){var dow=(now.getDay()+6)%7;return {from:_iso(new Date(y,m,d-dow)),to:_iso(new Date(y,m,d-dow+6))};}
+  if(p==='mois'){return {from:_iso(new Date(y,m,1)),to:_iso(new Date(y,m+1,0))};}
+  if(p==='annee'){return {from:y+'-01-01',to:y+'-12-31'};}
+  return null;
+};
+window.setRentabPeriode=function(p){window._rentabPeriode=p;loadRentab();};
+window.setRentabMode=function(m){window._rentabMode=m;loadRentab();};
+
+function _btn(on,label,onclick,gold){
+  var bg=on?('background:'+(gold||'var(--gold)')+';color:#1a1a1a;font-weight:600'):'background:var(--bg3)';
+  return '<button class="btn" style="font-size:12px;padding:6px 12px;'+bg+'" onclick="'+onclick+'">'+label+'</button>';
+}
+function _renderRentabToolbar(){
+  var tb=document.getElementById('rentabToolbar'); if(!tb)return;
+  var P=window._rentabPeriode||'total';
+  var h='<div style="display:flex;gap:6px;flex-wrap:wrap">';
+  [['total','Total'],['jour','Jour'],['semaine','Semaine'],['mois','Mois'],['annee','Année']].forEach(function(p){
+    h+=_btn(P===p[0],p[1],"setRentabPeriode('"+p[0]+"')");
+  });
+  h+='</div>';
+  if(P!=='total'){
+    var M=window._rentabMode||'marge';
+    h+='<div style="display:flex;gap:6px;align-items:center">'
+      +'<span style="font-size:11px;color:var(--text3)">Mode :</span>'
+      +_btn(M==='marge','Marge',"setRentabMode('marge')",'var(--gold2)')
+      +_btn(M==='flux','Flux de caisse',"setRentabMode('flux')",'var(--gold2)')
+      +'</div>';
+  }
+  tb.innerHTML=h;
+}
+function _setRentabHead(mode){
+  var h=document.getElementById('rentabHead'); if(!h)return;
+  var cols,align=['left','center','center','right','right','right','right','left','left'];
+  if(mode==='marge') cols=['Article','Stock','Vendu','Coût','CA ventes','En attente','Marge','',''];
+  else if(mode==='flux') cols=['Article','Stock','Vendu','Stock acheté','Encaissé','','Résultat','',''];
+  else cols=['Article','Stock','Vendu','Investi','Récupéré','En attente','Bénéfice','État',''];
+  var th='<tr style="background:var(--bg3);color:var(--text3);text-align:left">';
+  for(var i=0;i<cols.length;i++) th+='<th style="padding:10px;text-align:'+align[i]+'">'+cols[i]+'</th>';
+  h.innerHTML=th+'</tr>';
+}
+function _renderRentabPeriode(list,mode,rg){
+  var body=document.getElementById('rentabBody'), sum=document.getElementById('rentabSummary');
+  if(!body)return;
+  var tInv=0,tRec=0,tBen=0,tAtt=0,H='',lastCat=null;
+  if(!list.length) H='<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:24px">Aucune activité sur la période</td></tr>';
+  list.forEach(function(r){
+    tInv+=r.investi; tRec+=r.recupere; tBen+=r.benefice; tAtt+=(r.en_attente||0);
+    if(r.categorie!==lastCat){lastCat=r.categorie;H+='<tr><td colspan="9" style="padding:14px 10px 6px;font-weight:700;color:var(--gold2);font-size:13px;text-transform:uppercase;letter-spacing:0.5px">'+(r.categorie||'Sans catégorie')+'</td></tr>';}
+    var col=r.benefice>=0?'var(--green)':'var(--red)';
+    var att=(mode==='marge'&&(r.en_attente||0)>0)?('<span style="color:var(--gold2)">'+r.en_attente.toFixed(2)+' €</span>'):'<span style="color:var(--text3)">-</span>';
+    H+='<tr style="border-bottom:1px solid var(--border)">'
+      +'<td style="padding:12px 10px;font-weight:600">'+r.nom+'</td>'
+      +'<td style="padding:12px 10px;text-align:center">'+(r.stock||0)+'</td>'
+      +'<td style="padding:12px 10px;text-align:center">'+(r.qty_vendue||0)+'</td>'
+      +'<td style="padding:12px 10px;text-align:right">'+r.investi.toFixed(2)+' €</td>'
+      +'<td style="padding:12px 10px;text-align:right">'+r.recupere.toFixed(2)+' €</td>'
+      +'<td style="padding:12px 10px;text-align:right">'+att+'</td>'
+      +'<td style="padding:12px 10px;text-align:right;color:'+col+';font-weight:600">'+(r.benefice>=0?'+':'')+r.benefice.toFixed(2)+' €</td>'
+      +'<td></td><td></td></tr>';
+  });
+  body.innerHTML=H;
+  var bc=tBen>=0?'var(--green)':'var(--red)';
+  var lbl=rg.from.split('-').reverse().join('/')+' → '+rg.to.split('-').reverse().join('/');
+  if(mode==='flux'){
+    sum.innerHTML=_rcard('Période',lbl,'var(--text3)')+_rcard('Stock acheté',tInv.toFixed(2)+' €','var(--gold2)')+_rcard('Encaissé',tRec.toFixed(2)+' €','var(--text)')+_rcard('Résultat',(tBen>=0?'+':'')+tBen.toFixed(2)+' €',bc);
+  }else{
+    sum.innerHTML=_rcard('Période',lbl,'var(--text3)')+_rcard('Coût total',tInv.toFixed(2)+' €','var(--gold2)')+_rcard('CA total',tRec.toFixed(2)+' €','var(--text)')+_rcard('En attente',tAtt.toFixed(2)+' €','var(--gold2)')+_rcard('Marge totale',(tBen>=0?'+':'')+tBen.toFixed(2)+' €',bc);
+  }
+}
+
+if(typeof window.loadRentab==='function'){
+  var _lrOrig=window.loadRentab;
+  window.loadRentab=async function(){
+    _renderRentabToolbar();
+    var P=window._rentabPeriode||'total';
+    var rg=(P==='total')?null:window._rentabRange(P);
+    if(!rg){ _setRentabHead('total'); return _lrOrig.apply(this,arguments); }
+    var mode=window._rentabMode||'marge';
+    _setRentabHead(mode);
+    var res; try{ res=await api('/api/rentabilite/periode?from='+rg.from+'&to='+rg.to+'&mode='+mode+(window._rentabShowHidden?'&hidden=1':'')); }catch(e){ res=null; }
+    _renderRentabPeriode((res&&res.ok)?res.data:[], mode, rg);
   };
 }
 })();

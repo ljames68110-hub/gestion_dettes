@@ -1825,3 +1825,85 @@ class _GpConn:
 
 def get_conn():
     return _GpConn(_get_conn_raw())
+
+
+# RENTABILITE PAR PERIODE -- ne pas dupliquer
+def _lot_investi_u(e):
+    _en = (e["notes"] or "").strip().lower()
+    if _en.startswith("creation article") or _en.startswith("conversion"):
+        return round((e["quantite"] or 0) * (e["prix_achat"] or 0), 2)
+    return round(e["prix_achat"] or 0, 2)
+
+def get_rentabilite_periode(date_from, date_to, mode="marge", include_hidden=False):
+    """Rentabilite par article sur [date_from, date_to] (inclus, 'YYYY-MM-DD').
+    mode='marge' : marge sur ce qui a ete VENDU dans la periode (CA des ventes - cout d'achat
+                   de la quantite vendue). investi=cout(COGS), recupere=CA, benefice=marge.
+    mode='flux'  : encaisse (ventes comptant + remboursements) - stock achete, aux dates reelles.
+                   investi=stock achete, recupere=encaisse, benefice=resultat."""
+    df, dt = date_from, date_to
+    with get_conn() as conn:
+        arts = conn.execute(
+            "SELECT id,nom,categorie,COALESCE(prix_achat,0) AS prix_achat,COALESCE(prix_vente,0) AS prix_vente,"
+            "COALESCE(stock,0) AS stock,COALESCE(rentab_hide,0) AS rentab_hide "
+            "FROM catalogue WHERE actif=1 " + ("" if include_hidden else "AND COALESCE(rentab_hide,0)=0 ")
+            + "ORDER BY categorie,nom").fetchall()
+        out = []
+        for a in arts:
+            nom = a["nom"]; pa_def = a["prix_achat"] or 0
+            if mode == "flux":
+                ents = conn.execute(
+                    "SELECT quantite,prix_achat,notes FROM entrees_materiel "
+                    "WHERE description=? AND date(date) BETWEEN date(?) AND date(?)", (nom, df, dt)).fetchall()
+                investi = round(sum(_lot_investi_u(e) for e in ents), 2)
+                rcash = conn.execute(
+                    "SELECT COALESCE(SUM(montant_brut),0) FROM transactions WHERE type='debit' AND motif=? "
+                    "AND instr(COALESCE(notes,''),'[CAISSE CREDIT]')=0 AND date(date) BETWEEN date(?) AND date(?)",
+                    (nom, df, dt)).fetchone()[0]
+                rremb = conn.execute(
+                    "SELECT COALESCE(SUM(c.montant_brut),0) FROM transactions c JOIN transactions d ON c.linked_debit_id=d.id "
+                    "WHERE c.type='credit' AND d.type='debit' AND d.motif=? AND date(c.date) BETWEEN date(?) AND date(?)",
+                    (nom, df, dt)).fetchone()[0]
+                vendu = conn.execute(
+                    "SELECT COALESCE(SUM(quantite),0) FROM transactions WHERE type='debit' AND motif=? "
+                    "AND date(date) BETWEEN date(?) AND date(?)", (nom, df, dt)).fetchone()[0]
+                encaisse = round((rcash or 0) + (rremb or 0), 2)
+                out.append({"id": a["id"], "nom": nom, "categorie": a["categorie"], "stock": a["stock"],
+                            "qty_vendue": round(vendu or 0, 2), "investi": investi, "recupere": encaisse,
+                            "en_attente": 0.0, "benefice": round(encaisse - investi, 2), "rembourse": False,
+                            "rentab_hide": int(a["rentab_hide"] or 0), "lots": []})
+            else:
+                vendu = ca = cogs = att = 0.0
+                rows = conn.execute(
+                    "SELECT t.entree_id AS eid, COALESCE(SUM(t.quantite),0) AS q, "
+                    "COALESCE(SUM(t.montant_brut),0) AS ca, "
+                    "COALESCE(SUM(CASE WHEN instr(COALESCE(t.notes,''),'[CAISSE CREDIT]')>0 THEN t.montant_brut ELSE 0 END),0) AS ca_cred "
+                    "FROM transactions t WHERE t.type='debit' AND t.motif=? AND date(t.date) BETWEEN date(?) AND date(?) "
+                    "GROUP BY t.entree_id", (nom, df, dt)).fetchall()
+                for r in rows:
+                    q = r["q"] or 0; ca += r["ca"] or 0; eid = r["eid"]
+                    if eid is not None:
+                        e = conn.execute("SELECT quantite,prix_achat,notes FROM entrees_materiel WHERE id=?", (eid,)).fetchone()
+                        unit = (_lot_investi_u(e) / e["quantite"]) if (e and (e["quantite"] or 0) > 0) else pa_def
+                    else:
+                        unit = pa_def
+                    cogs += q * unit; vendu += q
+                    ca_cred = r["ca_cred"] or 0
+                    if ca_cred > 0:
+                        if eid is not None:
+                            remb = conn.execute(
+                                "SELECT COALESCE(SUM(c.montant_brut),0) FROM transactions c JOIN transactions d ON c.linked_debit_id=d.id "
+                                "WHERE c.type='credit' AND d.type='debit' AND d.motif=? AND d.entree_id=? "
+                                "AND instr(COALESCE(d.notes,''),'[CAISSE CREDIT]')>0 AND date(d.date) BETWEEN date(?) AND date(?)",
+                                (nom, eid, df, dt)).fetchone()[0]
+                        else:
+                            remb = conn.execute(
+                                "SELECT COALESCE(SUM(c.montant_brut),0) FROM transactions c JOIN transactions d ON c.linked_debit_id=d.id "
+                                "WHERE c.type='credit' AND d.type='debit' AND d.motif=? AND d.entree_id IS NULL "
+                                "AND instr(COALESCE(d.notes,''),'[CAISSE CREDIT]')>0 AND date(d.date) BETWEEN date(?) AND date(?)",
+                                (nom, df, dt)).fetchone()[0]
+                        att += max(0.0, ca_cred - (remb or 0))
+                out.append({"id": a["id"], "nom": nom, "categorie": a["categorie"], "stock": a["stock"],
+                            "qty_vendue": round(vendu, 2), "investi": round(cogs, 2), "recupere": round(ca, 2),
+                            "en_attente": round(att, 2), "benefice": round(ca - cogs, 2), "rembourse": False,
+                            "rentab_hide": int(a["rentab_hide"] or 0), "lots": []})
+        return out

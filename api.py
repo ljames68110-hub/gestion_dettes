@@ -2461,3 +2461,21 @@ def transaction_set_compte(tid):
                 (mode, notes, tid))
         conn.commit()
     return ok({"ok": True, "compte": cible, "mode": mode, "notes": notes})
+
+
+# RENTABILITE PAR PERIODE -- ne pas dupliquer
+@app.route("/api/rentabilite/periode")
+@require_auth
+def rentabilite_periode():
+    frm = (request.args.get("from") or "").strip()
+    to  = (request.args.get("to") or "").strip()
+    mode = (request.args.get("mode") or "marge").strip().lower()
+    if mode not in ("marge", "flux"):
+        mode = "marge"
+    if not frm or not to:
+        return err("Parametres 'from' et 'to' requis (YYYY-MM-DD)")
+    inc = request.args.get("hidden") == "1"
+    try:
+        return ok(db.get_rentabilite_periode(frm, to, mode=mode, include_hidden=inc))
+    except Exception as e:
+        return err("Erreur rentabilite periode : %s" % e, 500)
