@@ -54,6 +54,7 @@ jobs:
             --add-data "api.py;." `
             --add-data "updater.py;." `
             --add-data "crypto_db.py;." `
+            --add-data "cloud_backup.py;." `
             --add-data "app_icon.ico;." `
             --icon "app_icon.ico" `
             --hidden-import flask `

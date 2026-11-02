@@ -158,6 +158,19 @@ def _lock_db_on_exit():
     except Exception as e:
         print("[Gestion Perso] Echec rechiffrement:", e)
 
+def _cloud_backup_safe():
+    """Copie la base chiffree vers le dossier cloud configure (jamais bloquant)."""
+    try:
+        import cloud_backup
+        ok_, msg, dest = cloud_backup.do_backup(DATA_DIR, ENC_PATH, SALT_PATH, DB_PATH)
+        if ok_:
+            print("[Gestion Perso] Sauvegarde cloud ->", dest)
+        elif msg != "desactive":
+            print("[Gestion Perso] Sauvegarde cloud:", msg)
+    except Exception as e:
+        print("[Gestion Perso] Sauvegarde cloud echouee:", e)
+
+
 
 HOST = "127.0.0.1"
 PORT = 5000
@@ -373,7 +386,7 @@ def _backup_enc(keep=15):
 
 def _save_backup_on_exit():
     if ENCRYPTION_ON and DB_PASSWORD is not None:
-        _lock_db_on_exit(); return
+        _lock_db_on_exit(); _cloud_backup_safe(); return
     try:
         import shutil
         if os.path.exists(DB_PATH):
@@ -382,6 +395,7 @@ def _save_backup_on_exit():
             print(f"[Gestion Perso] Sauvegarde de secours : {backup_path}")
     except Exception as e:
         print(f"[Gestion Perso] Echec sauvegarde fermeture : {e}")
+    _cloud_backup_safe()
 
 
 def _boot_app_after_unlock():

@@ -2479,3 +2479,46 @@ def rentabilite_periode():
         return ok(db.get_rentabilite_periode(frm, to, mode=mode, include_hidden=inc))
     except Exception as e:
         return err("Erreur rentabilite periode : %s" % e, 500)
+
+
+# SAUVEGARDE CLOUD -- ne pas dupliquer
+def _gp_data_dir():
+    return os.path.dirname(os.path.abspath(db.DB_FILE)) or "."
+
+@app.route("/api/cloud-backup", methods=["GET"])
+@require_auth
+def cloud_backup_get():
+    import cloud_backup
+    return ok(cloud_backup.load_config(_gp_data_dir()))
+
+@app.route("/api/cloud-backup", methods=["POST"])
+@require_auth
+def cloud_backup_set():
+    import cloud_backup
+    d = request.json or {}
+    return ok(cloud_backup.save_config(_gp_data_dir(), d.get("enabled"), d.get("dir")))
+
+@app.route("/api/cloud-backup/pick", methods=["POST"])
+@require_auth
+def cloud_backup_pick():
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk(); root.withdraw(); root.attributes("-topmost", True)
+        path = filedialog.askdirectory(title="Choisir le dossier cloud (OneDrive / Google Drive)")
+        root.destroy()
+    except Exception as e:
+        return err("Impossible d'ouvrir le selecteur : %s" % e)
+    return ok({"dir": path or ""})
+
+@app.route("/api/cloud-backup/run", methods=["POST"])
+@require_auth
+def cloud_backup_run():
+    import cloud_backup
+    dd = _gp_data_dir()
+    enc = os.path.join(dd, "dettes.db.enc")
+    salt = os.path.join(dd, "dettes.salt")
+    ok_, msg, dest = cloud_backup.do_backup(dd, enc, salt, db.DB_FILE)
+    if ok_:
+        return ok({"message": "Sauvegarde envoyee", "dest": dest})
+    return err("Sauvegarde impossible : %s" % msg)
