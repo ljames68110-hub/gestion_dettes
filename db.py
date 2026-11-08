@@ -1920,3 +1920,64 @@ def get_rentabilite_periode(date_from, date_to, mode="marge", include_hidden=Fal
                             "en_attente": round(att, 2), "benefice": round(ca - cogs, 2), "rembourse": False,
                             "rentab_hide": int(a["rentab_hide"] or 0), "lots": []})
         return out
+
+
+# TICKETS D'ENCAISSEMENT (bibliotheque) -- ne pas dupliquer
+def _ensure_tickets_enc_table():
+    with get_conn() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS tickets_encaissement (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL DEFAULT 'pcs',
+            image TEXT NOT NULL,
+            nom_fichier TEXT DEFAULT '',
+            montant REAL DEFAULT 0,
+            note TEXT DEFAULT '',
+            date_ajout TEXT
+        )""")
+
+def add_ticket_enc(type_, image, nom_fichier="", montant=0, note=""):
+    _ensure_tickets_enc_table()
+    t = (type_ or "pcs").strip().lower()
+    if t not in ("pcs", "transcash", "paysafecard"):
+        t = "pcs"
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO tickets_encaissement (type,image,nom_fichier,montant,note,date_ajout) VALUES (?,?,?,?,?,?)",
+            (t, image or "", nom_fichier or "", float(montant or 0), note or "",
+             datetime.now().strftime("%Y-%m-%dT%H:%M:%S")))
+        return cur.lastrowid
+
+def get_tickets_enc(type_=None):
+    _ensure_tickets_enc_table()
+    with get_conn() as conn:
+        if type_ and type_ in ("pcs", "transcash", "paysafecard"):
+            rows = conn.execute(
+                "SELECT id,type,nom_fichier,montant,note,date_ajout FROM tickets_encaissement WHERE type=? ORDER BY id DESC",
+                (type_,)).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id,type,nom_fichier,montant,note,date_ajout FROM tickets_encaissement ORDER BY id DESC").fetchall()
+    return [dict(r) for r in rows]
+
+def get_ticket_enc_image(tid):
+    _ensure_tickets_enc_table()
+    with get_conn() as conn:
+        row = conn.execute("SELECT image FROM tickets_encaissement WHERE id=?", (int(tid),)).fetchone()
+    return row["image"] if row else None
+
+def delete_ticket_enc(tid):
+    _ensure_tickets_enc_table()
+    with get_conn() as conn:
+        conn.execute("DELETE FROM tickets_encaissement WHERE id=?", (int(tid),))
+    return True
+
+def count_tickets_enc():
+    _ensure_tickets_enc_table()
+    with get_conn() as conn:
+        rows = conn.execute("SELECT type, COUNT(*) c FROM tickets_encaissement GROUP BY type").fetchall()
+    out = {"pcs": 0, "transcash": 0, "paysafecard": 0}
+    for r in rows:
+        if r["type"] in out:
+            out[r["type"]] = r["c"]
+    out["tous"] = out["pcs"] + out["transcash"] + out["paysafecard"]
+    return out

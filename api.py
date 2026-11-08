@@ -2549,3 +2549,118 @@ def encrypt_setup():
     if res.get("ok"):
         return ok({"message": res.get("message", "Base chiffree")})
     return err(res.get("error", "Echec du chiffrement"))
+
+
+# TICKETS D'ENCAISSEMENT (bibliotheque) -- ne pas dupliquer
+_TICKETS_ENC_TYPES = ("pcs", "transcash", "paysafecard")
+_TICKETS_ENC_NOMS = {"pcs": "PCS", "transcash": "Transcash", "paysafecard": "Paysafecard"}
+_TICKETS_ENC_EXT = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+                    ".webp": "image/webp", ".gif": "image/gif", ".bmp": "image/bmp"}
+
+def _tickets_enc_src_dir():
+    return db.get_setting("tickets_src_dir", "")
+
+def _tickets_enc_subfolder(src, t):
+    return os.path.join(src, _TICKETS_ENC_NOMS[t])
+
+@app.route("/api/tickets-enc")
+@require_auth
+def tickets_enc_list():
+    t = request.args.get("type") or None
+    items = db.get_tickets_enc(t if t in _TICKETS_ENC_TYPES else None)
+    return ok({"items": items, "counts": db.count_tickets_enc(), "src": _tickets_enc_src_dir()})
+
+@app.route("/api/tickets-enc/<int:tid>/image")
+@require_auth
+def tickets_enc_image(tid):
+    img = db.get_ticket_enc_image(tid)
+    if img is None:
+        return err("Ticket introuvable", 404)
+    return ok({"image": img})
+
+@app.route("/api/tickets-enc", methods=["POST"])
+@require_auth
+def tickets_enc_add():
+    d = request.json or {}
+    img = d.get("image", "")
+    if not img:
+        return err("Image manquante")
+    tid = db.add_ticket_enc(d.get("type", "pcs"), img, d.get("nom_fichier", ""),
+                            d.get("montant", 0), d.get("note", ""))
+    return ok({"id": tid})
+
+@app.route("/api/tickets-enc/<int:tid>", methods=["DELETE"])
+@require_auth
+def tickets_enc_delete(tid):
+    db.delete_ticket_enc(tid)
+    return ok({"deleted": tid})
+
+@app.route("/api/tickets-enc/source", methods=["GET"])
+@require_auth
+def tickets_enc_source_get():
+    return ok({"dir": _tickets_enc_src_dir()})
+
+@app.route("/api/tickets-enc/source", methods=["POST"])
+@require_auth
+def tickets_enc_source_set():
+    d = request.json or {}
+    db.set_setting("tickets_src_dir", d.get("dir", "") or "")
+    return ok({"dir": _tickets_enc_src_dir()})
+
+@app.route("/api/tickets-enc/source/pick", methods=["POST"])
+@require_auth
+def tickets_enc_source_pick():
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk(); root.withdraw(); root.attributes("-topmost", True)
+        path = filedialog.askdirectory(title="Choisir le dossier des tickets (PCS / Transcash / Paysafecard)")
+        root.destroy()
+    except Exception as e:
+        return err("Impossible d'ouvrir le selecteur : %s" % e)
+    return ok({"dir": path or ""})
+
+@app.route("/api/tickets-enc/import", methods=["POST"])
+@require_auth
+def tickets_enc_import():
+    import base64
+    src = _tickets_enc_src_dir()
+    if not src or not os.path.isdir(src):
+        return err("Dossier source non configure ou introuvable")
+    imported = {"pcs": 0, "transcash": 0, "paysafecard": 0}
+    deleted = 0
+    errors = []
+    for t in _TICKETS_ENC_TYPES:
+        folder = _tickets_enc_subfolder(src, t)
+        try:
+            os.makedirs(folder, exist_ok=True)
+        except Exception as e:
+            errors.append("%s: %s" % (folder, e)); continue
+        try:
+            names = sorted(os.listdir(folder))
+        except Exception as e:
+            errors.append("%s: %s" % (folder, e)); continue
+        for name in names:
+            fp = os.path.join(folder, name)
+            if not os.path.isfile(fp):
+                continue
+            ext = os.path.splitext(name)[1].lower()
+            mime = _TICKETS_ENC_EXT.get(ext)
+            if not mime:
+                continue
+            try:
+                with open(fp, "rb") as f:
+                    raw = f.read()
+                data_url = "data:%s;base64,%s" % (mime, base64.b64encode(raw).decode("ascii"))
+                db.add_ticket_enc(t, data_url, name, 0, "")
+            except Exception as e:
+                errors.append("%s: %s" % (name, e)); continue
+            # suppression de la source UNIQUEMENT apres enregistrement reussi
+            try:
+                os.remove(fp)
+                deleted += 1
+            except Exception as e:
+                errors.append("suppression %s: %s" % (name, e))
+            imported[t] += 1
+    return ok({"imported": imported, "deleted": deleted, "errors": errors,
+               "total": imported["pcs"] + imported["transcash"] + imported["paysafecard"]})
