@@ -398,6 +398,31 @@ def _save_backup_on_exit():
     _cloud_backup_safe()
 
 
+def _setup_encryption(pwd):
+    """Active le chiffrement quand la base est en clair. Cree le sel + le .enc."""
+    global DB_PASSWORD, _SALT, ENCRYPTION_ON
+    pwd = str(pwd or "").strip()
+    if len(pwd) < 4:
+        return {"ok": False, "error": "Mot de passe trop court (4 caracteres minimum)"}
+    if os.path.exists(ENC_PATH):
+        return {"ok": False, "error": "La base est deja chiffree"}
+    if not os.path.exists(DB_PATH):
+        return {"ok": False, "error": "Aucune base a chiffrer"}
+    try:
+        import crypto_db
+        salt = crypto_db.new_salt()
+        with open(SALT_PATH, "wb") as f:
+            f.write(salt)
+        _SALT = salt
+        DB_PASSWORD = pwd
+        ENCRYPTION_ON = True
+        crypto_db.encrypt_file(DB_PATH, ENC_PATH, pwd, salt)
+        print("[Gestion Perso] Chiffrement active depuis l'appli.")
+        return {"ok": True, "message": "Base chiffree. Le mot de passe sera demande au prochain lancement."}
+    except Exception as e:
+        return {"ok": False, "error": "Echec du chiffrement : %s" % e}
+
+
 def _boot_app_after_unlock():
     """Repli tkinter : Init DB + PIN + updater + Flask (une seule fois)."""
     global _BOOTED
@@ -674,6 +699,7 @@ def _place_window(win, idx=None):
 def main():
     global _SALT
     atexit.register(_save_backup_on_exit)
+    api.set_encrypt_handler(_setup_encryption)
     _backup_enc()
     print(f"[Gestion Perso] Demarrage {URL}")
     print(f"[Gestion Perso] DB : {DB_PATH}")

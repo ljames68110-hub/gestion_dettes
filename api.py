@@ -2522,3 +2522,27 @@ def cloud_backup_run():
     if ok_:
         return ok({"message": "Sauvegarde envoyee", "dest": dest})
     return err("Sauvegarde impossible : %s" % msg)
+
+
+# CHIFFREMENT DEPUIS L'APPLI -- ne pas dupliquer
+_ENCRYPT_HANDLER = None
+def set_encrypt_handler(fn):
+    global _ENCRYPT_HANDLER
+    _ENCRYPT_HANDLER = fn
+
+@app.route("/api/encrypt/status")
+@require_auth
+def encrypt_status():
+    enc = os.path.join(os.path.dirname(os.path.abspath(db.DB_FILE)), "dettes.db.enc")
+    return ok({"encrypted": os.path.exists(enc)})
+
+@app.route("/api/encrypt/setup", methods=["POST"])
+@require_auth
+def encrypt_setup():
+    if _ENCRYPT_HANDLER is None:
+        return err("Indisponible ici (relance l'appli normalement)")
+    data = request.json or {}
+    res = _ENCRYPT_HANDLER(str(data.get("password", ""))) or {}
+    if res.get("ok"):
+        return ok({"message": res.get("message", "Base chiffree")})
+    return err(res.get("error", "Echec du chiffrement"))
