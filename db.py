@@ -188,12 +188,12 @@ def has_pin():
 
 # ── CLIENTS ───────────────────────────────────────────────────────────────────
 
-def add_client(nom, email=None, tel=None, notes=None, associe=0, photo=None):
+def add_client(nom, email=None, tel=None, notes=None, associe=0, photo=None, batiment=None, etage=None, type_client=None):
     _ensure_associe_column()
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO clients (nom,email,tel,notes,associe,photo) VALUES (?,?,?,?,?,?)",
-            (nom, email or "", tel or "", notes or "", int(associe or 0), photo or "")
+            "INSERT INTO clients (nom,email,tel,notes,associe,photo,batiment,etage,type_client) VALUES (?,?,?,?,?,?,?,?,?)",
+            (nom, email or "", tel or "", notes or "", int(associe or 0), photo or "", batiment or "", etage or "", type_client or "exterieur")
         )
         conn.commit()
         return cur.lastrowid
@@ -203,6 +203,7 @@ def get_clients():
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT id, nom, email, tel, notes, COALESCE(associe,0) as associe, COALESCE(photo,'') as photo, "
+            "COALESCE(batiment,'') as batiment, COALESCE(etage,'') as etage, COALESCE(type_client,'exterieur') as type_client, "
             "(CASE WHEN COALESCE(clients.associe,0)=1 THEN "
             "(SELECT COALESCE(SUM(CASE WHEN t.type='debit' THEN t.montant_brut ELSE 0 END) - SUM(CASE WHEN t.type='credit' THEN t.montant_brut ELSE 0 END) + SUM(CASE WHEN t.type='credit' THEN COALESCE(t.frais,0) ELSE 0 END),0) FROM transactions t WHERE t.client_id=clients.id) "
             "ELSE "
@@ -219,17 +220,20 @@ def get_client(client_id: int):
         ).fetchone()
     return dict(row) if row else None
 
-def update_client(client_id: int, nom=None, email=None, tel=None, notes=None, photo=None):
+def update_client(client_id: int, nom=None, email=None, tel=None, notes=None, photo=None, batiment=None, etage=None, type_client=None):
     _ensure_associe_column()
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM clients WHERE id=?", (client_id,)).fetchone()
         if not row:
             return False
         conn.execute(
-            "UPDATE clients SET nom=?,email=?,tel=?,notes=?,photo=? WHERE id=?",
+            "UPDATE clients SET nom=?,email=?,tel=?,notes=?,photo=?,batiment=?,etage=?,type_client=? WHERE id=?",
             (nom or row["nom"], email or row["email"],
              tel or row["tel"], notes or row["notes"],
-             (photo if photo is not None else row["photo"]), client_id)
+             (photo if photo is not None else row["photo"]),
+             (batiment if batiment is not None else row["batiment"]),
+             (etage if etage is not None else row["etage"]),
+             (type_client if type_client is not None else row["type_client"]), client_id)
         )
         conn.commit()
     return True
@@ -1189,6 +1193,15 @@ def _ensure_associe_column():
             conn.commit()
         if "photo" not in cols:
             conn.execute("ALTER TABLE clients ADD COLUMN photo TEXT DEFAULT ''")
+            conn.commit()
+        if "batiment" not in cols:
+            conn.execute("ALTER TABLE clients ADD COLUMN batiment TEXT DEFAULT ''")
+            conn.commit()
+        if "etage" not in cols:
+            conn.execute("ALTER TABLE clients ADD COLUMN etage TEXT DEFAULT ''")
+            conn.commit()
+        if "type_client" not in cols:
+            conn.execute("ALTER TABLE clients ADD COLUMN type_client TEXT DEFAULT 'exterieur'")
             conn.commit()
 
 def get_associes():

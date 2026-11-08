@@ -141,6 +141,9 @@ def clients_create():
         tel=data.get("tel", ""),
         notes=data.get("notes", ""),
         photo=data.get("photo", ""),
+        batiment=data.get("batiment", ""),
+        etage=data.get("etage", ""),
+        type_client=data.get("type_client", "exterieur"),
     )
     return ok(db.get_client(cid)), 201
 
@@ -156,7 +159,7 @@ def clients_get(cid):
 @require_auth
 def clients_update(cid):
     data = request.json or {}
-    if not db.update_client(cid, **{k: data.get(k) for k in ("nom","email","tel","notes","photo")}):
+    if not db.update_client(cid, **{k: data.get(k) for k in ("nom","email","tel","notes","photo","batiment","etage","type_client")}):
         return err("Client introuvable", 404)
     return ok(db.get_client(cid))
 
