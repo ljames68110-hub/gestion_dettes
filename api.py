@@ -766,6 +766,7 @@ def entrees_create():
         date        = data.get("date", ""),
         notes       = data.get("notes", ""),
         unite       = data.get("unite", "piece"),
+        photo       = data.get("photo", ""),
     )
     return ok({"id": eid}), 201
 
@@ -775,7 +776,7 @@ def entrees_update(eid):
     data = request.json or {}
     db.update_entree(eid, data.get("description",""), float(data.get("quantite",1)),
                      float(data.get("prix_achat",0)), data.get("date",""), data.get("notes",""),
-                     data.get("unite","piece"))
+                     data.get("unite","piece"), photo=data.get("photo", None))
     return ok({"updated": eid})
 
 @app.route("/api/entrees/<int:eid>", methods=["DELETE"])

@@ -132,6 +132,8 @@ def init_db():
             c.execute("ALTER TABLE entrees_materiel ADD COLUMN unite TEXT DEFAULT 'piece'")
         if "stock_restant" not in ent_cols:
             c.execute("ALTER TABLE entrees_materiel ADD COLUMN stock_restant REAL DEFAULT NULL")
+        if "photo" not in ent_cols:
+            c.execute("ALTER TABLE entrees_materiel ADD COLUMN photo TEXT DEFAULT ''")
 
         # ── Table entrées matériel ─────────────────────────────────────────────
 
@@ -657,11 +659,11 @@ def get_entrees(limit=100):
         """, (limit,)).fetchall()
     return [dict(r) for r in rows]
 
-def add_entree(description, quantite, prix_achat, date=None, notes="", unite="piece"):
+def add_entree(description, quantite, prix_achat, date=None, notes="", unite="piece", photo=""):
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO entrees_materiel (description,quantite,prix_achat,date,notes,unite,stock_restant) VALUES (?,?,?,?,?,?,?)",
-            (description, quantite, prix_achat, date or "", notes or "", unite, quantite)
+            "INSERT INTO entrees_materiel (description,quantite,prix_achat,date,notes,unite,stock_restant,photo) VALUES (?,?,?,?,?,?,?,?)",
+            (description, quantite, prix_achat, date or "", notes or "", unite, quantite, photo or "")
         )
         conn.commit()
         return cur.lastrowid
@@ -676,12 +678,18 @@ def update_stock(entree_id, quantite_vendue):
         """, (quantite_vendue, entree_id))
         conn.commit()
 
-def update_entree(eid, description, quantite, prix_achat, date, notes="", unite="piece"):
+def update_entree(eid, description, quantite, prix_achat, date, notes="", unite="piece", photo=None):
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE entrees_materiel SET description=?,quantite=?,prix_achat=?,date=?,notes=?,unite=? WHERE id=?",
-            (description, quantite, prix_achat, date, notes or "", unite, eid)
-        )
+        if photo is None:
+            conn.execute(
+                "UPDATE entrees_materiel SET description=?,quantite=?,prix_achat=?,date=?,notes=?,unite=? WHERE id=?",
+                (description, quantite, prix_achat, date, notes or "", unite, eid)
+            )
+        else:
+            conn.execute(
+                "UPDATE entrees_materiel SET description=?,quantite=?,prix_achat=?,date=?,notes=?,unite=?,photo=? WHERE id=?",
+                (description, quantite, prix_achat, date, notes or "", unite, photo or "", eid)
+            )
         conn.commit()
 
 def delete_entree(eid):

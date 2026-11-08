@@ -158,6 +158,31 @@ def _lock_db_on_exit():
     except Exception as e:
         print("[Gestion Perso] Echec rechiffrement:", e)
 
+def _purge_clear_artifacts():
+    """Supprime les fichiers de base EN CLAIR qui pourraient trainer (chiffrement actif),
+    pour que rien de sensible ne soit lisible quand l'appli est fermee."""
+    try:
+        for _n in ("dettes_backup.db", "dettes.db.ancien", "dettes.db.ancien2",
+                   "dettes.db.tmp", "dettes.db.old", "dettes.db.DESACTIVE",
+                   "dettes.db.crash.old"):
+            _p = os.path.join(DATA_DIR, _n)
+            try:
+                if os.path.exists(_p):
+                    os.remove(_p)
+                    print("[Gestion Perso] Fichier clair purge :", _n)
+            except Exception:
+                pass
+        try:
+            if os.path.exists(DB_PATH) and os.path.exists(ENC_PATH):
+                if DB_PASSWORD is None and os.path.getmtime(DB_PATH) <= os.path.getmtime(ENC_PATH) + 2:
+                    os.remove(DB_PATH)
+                    print("[Gestion Perso] Base clair obsolete purgee.")
+        except Exception:
+            pass
+    except Exception as _e:
+        print("[Gestion Perso] Purge clair echouee :", _e)
+
+
 def _cloud_backup_safe():
     """Copie la base chiffree vers le dossier cloud configure (jamais bloquant)."""
     try:
@@ -386,7 +411,7 @@ def _backup_enc(keep=15):
 
 def _save_backup_on_exit():
     if ENCRYPTION_ON and DB_PASSWORD is not None:
-        _lock_db_on_exit(); _cloud_backup_safe(); return
+        _lock_db_on_exit(); _purge_clear_artifacts(); _cloud_backup_safe(); return
     try:
         import shutil
         if os.path.exists(DB_PATH):
@@ -701,6 +726,8 @@ def main():
     atexit.register(_save_backup_on_exit)
     api.set_encrypt_handler(_setup_encryption)
     _backup_enc()
+    if ENCRYPTION_ON:
+        _purge_clear_artifacts()
     print(f"[Gestion Perso] Demarrage {URL}")
     print(f"[Gestion Perso] DB : {DB_PATH}")
 
