@@ -7972,21 +7972,37 @@ async function ctDetteCantine(){
     mode_paiement:'Cantine',notes:'[CAISSE] Dette cantine',frais_deduits:0,compte:'cantine'},
     'Dette cantine ajoutée : '+m.toFixed(2)+' €');
 }
+async function _ctTabacStock(nom, delta){
+  try{
+    var _rc=await api('/api/catalogue');
+    if(_rc&&_rc.ok&&_rc.data){
+      var _n=(nom||'').trim().toLowerCase();
+      var _c=_rc.data.find(function(a){return (a.nom||'').trim().toLowerCase()===_n;});
+      if(_c){
+        await api('/api/catalogue/'+_c.id+'/adjust-stock',{method:'POST',body:{delta:delta}});
+        if(typeof loadCatalogue==='function'){ try{ await loadCatalogue(); if(typeof renderPosGrid==='function')renderPosGrid(''); }catch(e){} }
+      }
+    }
+  }catch(e){}
+}
+
 async function ctEncaisserTabacDette(){
   var q=parseFloat(((document.getElementById('ctTabacQ')||{}).value||'0').replace(',','.'))||0;
   if(q<=0){ if(typeof notify==='function')notify('Nombre de paquets invalide','error'); return; }
   var ty=_ctTabacSel();
-  await _ctPost({type:'credit',motif:'Rendu tabac',quantite:q,unite:'paquet',prix_unitaire:ty.prix,
+  var _okp=await _ctPost({type:'credit',motif:'Rendu tabac',quantite:q,unite:'paquet',prix_unitaire:ty.prix,
     mode_paiement:ty.nom,notes:'[CAISSE] Rendu '+q+' x '+ty.nom,frais_deduits:0,compte:'tabac'},
     _fmtQte(q)+' paquet(s) rendu(s)');
+  if(_okp) await _ctTabacStock(ty.nom, q);
 }
 async function ctDetteTabac(){
   var q=parseFloat(((document.getElementById('ctTabacQ')||{}).value||'0').replace(',','.'))||0;
   if(q<=0){ if(typeof notify==='function')notify('Nombre de paquets invalide','error'); return; }
   var ty=_ctTabacSel();
-  await _ctPost({type:'debit',motif:'Tabac',quantite:q,unite:'paquet',prix_unitaire:ty.prix,
+  var _okp=await _ctPost({type:'debit',motif:'Tabac',quantite:q,unite:'paquet',prix_unitaire:ty.prix,
     mode_paiement:ty.nom,notes:'[CAISSE] Dette '+q+' x '+ty.nom,frais_deduits:0,compte:'tabac'},
     'Dette tabac ajoutée : '+_fmtQte(q)+' x '+ty.nom);
+  if(_okp) await _ctTabacStock(ty.nom, -q);
 }
 
 </script>
