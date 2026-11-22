@@ -475,7 +475,7 @@ def get_stats_client(client_id: int):
         # Un frais paye/facture reste sur la transaction (trace) mais ne compte plus
         # dans le solde -> evite le double comptage avec le debit de frais reportes.
         _assoc = q("SELECT COALESCE(associe,0) FROM clients WHERE id=?", client_id)
-        _excl_paye = " AND " + excl_paye_clause()  # [CAISSE PAYE] exclu aussi pour les associes (vente comptant = pas une dette)
+        _excl_paye = "" if _assoc else (" AND " + excl_paye_clause())
         debit_brut  = q("SELECT COALESCE(SUM(montant_brut),0) FROM transactions WHERE client_id=? AND type='debit'" + _excl_paye, client_id)
         credit_brut = q("SELECT COALESCE(SUM(montant_brut),0) FROM transactions WHERE client_id=? AND type='credit'", client_id)
         try:

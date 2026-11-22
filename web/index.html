@@ -1479,7 +1479,7 @@ function renderMensual(){
   const mf=document.getElementById('mensualMois').value;
   const filtered=mf?mensualData.filter(t=>t.date&&t.date.slice(0,7)===mf):mensualData;
   function _cpt(t){var c=t.compte||'euro';return (c==='tabac'||c==='cantine')?c:'euro';}
-  function _skip(t){return (t.type==='debit'&&t.notes&&t.notes.indexOf('[CAISSE PAYE]')>=0);}
+  function _skip(t){if(!(t.type==='debit'&&t.notes&&t.notes.indexOf('[CAISSE PAYE]')>=0))return false;var _sc=(clientsCache||[]).find(function(x){return x.id==t.client_id;});return !(_sc&&_sc.associe);}
   function build(compte){
     var map={},cumul={};
     filtered.forEach(t=>{if(_cpt(t)!==compte)return;if(_skip(t))return;if(!map[t.client_id])map[t.client_id]={nom:t.client_nom||'—',vendu:0,rembourse:0,venduQ:0,rembourseQ:0};var q=parseFloat(t.quantite||0)||0;if(t.type==='debit'){map[t.client_id].vendu+=t.montant_net;map[t.client_id].venduQ+=q;}else{map[t.client_id].rembourse+=t.montant_net;map[t.client_id].rembourseQ+=q;}});
