@@ -770,10 +770,34 @@ def entrees_create():
     )
     return ok({"id": eid}), 201
 
+def _reappro_stock_sync(eid, new_qte=None, deleting=False):
+    """Si l'entree est un reappro, repercute le changement de quantite sur le stock catalogue."""
+    try:
+        with db.get_conn() as conn:
+            row = conn.execute("SELECT description, quantite, COALESCE(notes,'') AS notes FROM entrees_materiel WHERE id=?", (eid,)).fetchone()
+        if not row:
+            return
+        if "Reappro" not in (row["notes"] or ""):
+            return
+        old_qte = float(row["quantite"] or 0)
+        nom = (row["description"] or "").strip().lower()
+        art = None
+        for a in db.get_catalogue():
+            if (a.get("nom", "") or "").strip().lower() == nom:
+                art = a; break
+        if not art:
+            return
+        delta = (-old_qte) if deleting else (float(new_qte or 0) - old_qte)
+        if abs(delta) > 1e-9:
+            db.adjust_stock_catalogue(art["id"], delta)
+    except Exception:
+        pass
+
 @app.route("/api/entrees/<int:eid>", methods=["PUT"])
 @require_auth
 def entrees_update(eid):
     data = request.json or {}
+    _reappro_stock_sync(eid, new_qte=float(data.get("quantite",1) or 0))
     db.update_entree(eid, data.get("description",""), float(data.get("quantite",1)),
                      float(data.get("prix_achat",0)), data.get("date",""), data.get("notes",""),
                      data.get("unite","piece"), photo=data.get("photo", None))
@@ -782,6 +806,7 @@ def entrees_update(eid):
 @app.route("/api/entrees/<int:eid>", methods=["DELETE"])
 @require_auth
 def entrees_delete(eid):
+    _reappro_stock_sync(eid, deleting=True)
     db.delete_entree(eid)
     return ok({"deleted": eid})
 
