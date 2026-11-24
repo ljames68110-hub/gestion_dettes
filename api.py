@@ -561,6 +561,7 @@ def dettes_ouvertes(cid):
         opened = []
         info = {}
         compte_de = {}   # {debit_id: compte} -- cloisonnement FIFO par compte
+        leftover = {}    # credits non encore appliques, par compte
         for r in rows:
             rid, rtype, mnet, mbrut, linked = r[0], r[2], r[3], r[4], r[5]
             notes = r[8] or ""
@@ -586,6 +587,13 @@ def dettes_ouvertes(cid):
                             continue
                         if rem.get(did, 0) > 0:
                             take = min(rem[did], amt); rem[did] -= take; amt -= take
+                if amt > 0:
+                    leftover[rcompte] = leftover.get(rcompte, 0) + amt
+        # credits non appliques (ex. achat enregistre avant la vente) -> debits restants du meme compte
+        for _did in reversed(opened):
+            _c = compte_de.get(_did, 'euro')
+            if leftover.get(_c, 0) > 0 and rem.get(_did, 0) > 0:
+                _t = min(rem[_did], leftover[_c]); rem[_did] -= _t; leftover[_c] -= _t
         result = []
         for did in reversed(opened):
             restant = rem.get(did, 0)
